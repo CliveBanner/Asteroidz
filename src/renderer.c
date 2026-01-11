@@ -48,8 +48,15 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
                 float nx = dx / radius, ny = dy / radius;
                 float nz = sqrtf(fmaxf(0.0f, 1.0f - nx*nx - ny*ny));
                 
-                // PLANETS USE PERLIN NOISE
-                float noise = PerlinNoise2D((float)x * 0.015f + seed, (float)y * 0.015f + seed * 2.0f);
+                // MULTI-OCTAVE PERLIN NOISE (FBM) for high-res detail
+                float noise = 0.0f;
+                float amplitude = 0.5f;
+                float frequency = 0.015f;
+                for (int o = 0; o < 6; o++) { // 6 octaves for deep detail
+                    noise += PerlinNoise2D((float)x * frequency + seed, (float)y * frequency + seed * 2.0f) * amplitude;
+                    amplitude *= 0.5f;
+                    frequency *= 2.0f;
+                }
                 
                 float dot = fmaxf(0.05f, nx * -0.6f + ny * -0.6f + nz * 0.5f);
                 float shading = powf(dot, 0.8f);
@@ -230,6 +237,19 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
   }
   for (float y = start_y_l; y < s->camera_pos.y + win_h / s->zoom + grid_large; y += grid_large) {
     float sy = (y - s->camera_pos.y) * s->zoom; SDL_RenderLine(renderer, 0, sy, (float)win_w, sy);
+  }
+
+  // Restore Large Grid Labels
+  SDL_SetRenderDrawColor(renderer, 150, 150, 150, 150);
+  for (float x = start_x_l; x < s->camera_pos.x + win_w / s->zoom + grid_large; x += grid_large) {
+    for (float y = start_y_l; y < s->camera_pos.y + win_h / s->zoom + grid_large; y += grid_large) {
+        float sx = (x - s->camera_pos.x) * s->zoom, sy = (y - s->camera_pos.y) * s->zoom;
+        if (sx >= -10 && sx < win_w && sy >= -10 && sy < win_h) {
+            char label[32];
+            snprintf(label, sizeof(label), "(%.0fk,%.0fk)", x/1000.0f, y/1000.0f);
+            SDL_RenderDebugText(renderer, sx + 5, sy + 5, label);
+        }
+    }
   }
 }
 
