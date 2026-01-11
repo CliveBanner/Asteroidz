@@ -615,8 +615,14 @@ static void StarLayerFn(SDL_Renderer *r, const AppState *s,
     float jy =
         DeterministicHash(cell->gx + 1, cell->gy + 9) * (float)cell->cell_size;
 
+    float drift_x = sinf(s->current_time * 0.2f + cell->seed * 10.0f) * 5.0f;
+    float drift_y = cosf(s->current_time * 0.15f + cell->seed * 5.0f) * 5.0f;
+
     float sx = cell->screen_x + jx * scale;
     float sy = cell->screen_y + jy * scale;
+
+    sx += drift_x;
+    sy += drift_y;
 
     float sz_s = DeterministicHash(cell->gx + 55, cell->gy + 66);
     float sz = (sz_s > 0.98f) ? 3.0f : (sz_s > 0.90f ? 2.0f : 1.0f);
