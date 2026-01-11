@@ -11,6 +11,7 @@ typedef struct {
 
 #define PLANET_COUNT 8
 #define GALAXY_COUNT 4
+#define ASTEROID_TYPE_COUNT 16
 
 typedef struct {
     // Camera
@@ -29,6 +30,8 @@ typedef struct {
 
     SDL_Texture *planet_textures[PLANET_COUNT];
     SDL_Texture *galaxy_textures[GALAXY_COUNT];
+    SDL_Texture *asteroid_textures[ASTEROID_TYPE_COUNT];
+    
     bool is_loading;
     int assets_generated;
 

@@ -17,7 +17,8 @@ float Vector_Length(Vec2 v);
 Vec2 Vector_Normalize(Vec2 v);
 float ValueNoise2D(float x, float y);
 float PerlinNoise2D(float x, float y);
-float PerlinNoise3D(float x, float y, float z);
+float VoronoiNoise2D(float x, float y);
+float VoronoiCracks2D(float x, float y);
 float DeterministicHash(int x, int y);
 
 #endif

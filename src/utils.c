@@ -9,9 +9,13 @@ Vec2 Vector_Normalize(Vec2 v) {
 }
 
 float DeterministicHash(int x, int y) {
-  unsigned int h = (unsigned int)x * 374761393u + (unsigned int)y * 668265263u;
-  h = (h ^ (h >> 13)) * 1274126177u;
-  return (float)(h & 0x7FFFFFFF) / (float)0x7FFFFFFF;
+    unsigned int h = (unsigned int)x * 0x37476139u + (unsigned int)y * 0x668265263u;
+    h ^= h >> 16;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16;
+    return (float)(h & 0x7FFFFFFF) / (float)0x7FFFFFFF;
 }
 
 static float Smooth(float t) {
@@ -59,4 +63,49 @@ float PerlinNoise2D(float x, float y) {
   n1 = DotGridGradient2D(x1, y1, x, y);
   float ix1 = n0 * (1.0f - sx) + n1 * sx;
   return (ix0 * (1.0f - sy) + ix1 * sy) * 0.5f + 0.5f;
+}
+
+// --- Voronoi / Cellular Noise ---
+float VoronoiNoise2D(float x, float y) {
+    int ix = (int)floorf(x);
+    int iy = (int)floorf(y);
+    float minDist = 1.0f;
+
+    for (int v = -1; v <= 1; v++) {
+        for (int u = -1; u <= 1; u++) {
+            float hx = DeterministicHash(ix + u, iy + v);
+            float hy = DeterministicHash(ix + u + 123, iy + v + 456);
+            float targetX = (float)(ix + u) + hx;
+            float targetY = (float)(iy + v) + hy;
+            float dx = targetX - x;
+            float dy = targetY - y;
+            float dist = sqrtf(dx*dx + dy*dy);
+            if (dist < minDist) minDist = dist;
+        }
+    }
+    return minDist;
+}
+
+float VoronoiCracks2D(float x, float y) {
+    int ix = (int)floorf(x);
+    int iy = (int)floorf(y);
+    float f1 = 8.0f, f2 = 8.0f;
+
+    for (int v = -1; v <= 1; v++) {
+        for (int u = -1; u <= 1; u++) {
+            float hx = DeterministicHash(ix + u, iy + v);
+            float hy = DeterministicHash(ix + u + 123, iy + v + 456);
+            float dx = (float)(ix + u) + hx - x;
+            float dy = (float)(iy + v) + hy - y;
+            float d = dx*dx + dy*dy;
+
+            if (d < f1) {
+                f2 = f1;
+                f1 = d;
+            } else if (d < f2) {
+                f2 = d;
+            }
+        }
+    }
+    return sqrtf(f2) - sqrtf(f1);
 }
