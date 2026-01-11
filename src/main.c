@@ -19,6 +19,9 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     s->zoom = 1.0f;
     s->camera_pos.x = 0.0f;
     s->camera_pos.y = 0.0f;
+    s->show_grid = true;
+
+    Renderer_Init(s);
 
     return SDL_APP_CONTINUE;
 }
@@ -38,11 +41,25 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
     AppState *s = (AppState *)appstate;
     static Uint64 last_time = 0;
+    static Uint64 fps_timer = 0;
+    static int frame_count = 0;
     
-    if (last_time == 0) last_time = SDL_GetTicks();
+    if (last_time == 0) {
+        last_time = SDL_GetTicks();
+        fps_timer = last_time;
+    }
     Uint64 now = SDL_GetTicks();
     float dt = (now - last_time) / 1000.0f;
     last_time = now;
+
+    // FPS Calculation
+    frame_count++;
+    Uint64 elapsed = now - fps_timer;
+    if (elapsed >= 1000) {
+        s->current_fps = (float)frame_count * (1000.0f / (float)elapsed);
+        frame_count = 0;
+        fps_timer = now;
+    }
 
     Game_Update(s, dt);
     Renderer_Draw(s);
@@ -52,5 +69,19 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
     AppState *s = (AppState *)appstate;
-    if (s) SDL_free(s);
+    if (s) {
+        // Stop background thread
+        if (s->bg_thread) {
+            SDL_SetAtomicInt(&s->bg_should_quit, 1);
+            SDL_WaitThread(s->bg_thread, NULL);
+        }
+        if (s->bg_mutex) {
+            SDL_DestroyMutex(s->bg_mutex);
+        }
+        if (s->bg_pixel_buffer) {
+            SDL_free(s->bg_pixel_buffer);
+        }
+        
+        SDL_free(s);
+    }
 }
