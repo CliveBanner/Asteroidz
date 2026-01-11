@@ -212,7 +212,23 @@ static void DrawInfiniteStars(SDL_Renderer *renderer, const AppState *s, int win
                 Uint8 color_val = (Uint8)(100 + bright_seed * 155);
                 Uint8 alpha = (Uint8)(100 + bright_seed * 100);
 
-                SDL_SetRenderDrawColor(renderer, color_val, color_val, color_val, alpha);
+                // Deterministic Color Tint
+                float color_seed = DeterministicHash(gx + 99, gy + 11);
+                Uint8 r = color_val, g = color_val, b = color_val;
+                
+                if (color_seed > 0.90f) {
+                    // Blueish tint
+                    r = (Uint8)(color_val * 0.8f);
+                    g = (Uint8)(color_val * 0.9f);
+                    b = 255;
+                } else if (color_seed > 0.80f) {
+                    // Violet-ish tint
+                    r = 220;
+                    g = (Uint8)(color_val * 0.7f);
+                    b = 255;
+                }
+
+                SDL_SetRenderDrawColor(renderer, r, g, b, alpha);
                 
                 if (size <= 1.0f) {
                     SDL_RenderPoint(renderer, screen_x, screen_y);
