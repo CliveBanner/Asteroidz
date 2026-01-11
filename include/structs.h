@@ -24,6 +24,8 @@ typedef struct {
     float current_fps;
     float current_time;
 
+    SDL_Texture *planet_textures[8];
+
     // Background Threading
     SDL_Thread *bg_thread;
     SDL_Mutex *bg_mutex;
