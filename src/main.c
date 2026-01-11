@@ -63,8 +63,13 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
     s->current_time += dt;
 
-    Game_Update(s, dt);
-    Renderer_Draw(s);
+    if (s->is_loading) {
+        Renderer_GeneratePlanetStep(s);
+        Renderer_DrawLoading(s);
+    } else {
+        Game_Update(s, dt);
+        Renderer_Draw(s);
+    }
 
     return SDL_APP_CONTINUE;
 }

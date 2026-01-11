@@ -9,6 +9,8 @@ typedef struct {
     float x, y;
 } Vec2;
 
+#define PLANET_COUNT 8
+
 typedef struct {
     // Camera
     Vec2 camera_pos;      // Top-left position of the camera in the world
@@ -24,19 +26,21 @@ typedef struct {
     float current_fps;
     float current_time;
 
-    SDL_Texture *planet_textures[8];
+    SDL_Texture *planet_textures[PLANET_COUNT];
+    bool is_loading;
+    int planets_generated;
 
     // Background Threading
     SDL_Thread *bg_thread;
     SDL_Mutex *bg_mutex;
-    SDL_AtomicInt bg_should_quit; // Flag to stop the thread
-    SDL_AtomicInt bg_request_update; // Flag to signal thread to work
-    SDL_AtomicInt bg_data_ready; // Flag to signal main thread to upload
+    SDL_AtomicInt bg_should_quit;
+    SDL_AtomicInt bg_request_update;
+    SDL_AtomicInt bg_data_ready;
     
-    Uint32 *bg_pixel_buffer; // RAM buffer shared between threads
-    Vec2 bg_target_cam_pos; // The camera pos the thread should generate for
-    float bg_target_zoom;   // The zoom level the thread should generate for
-    float bg_target_time;   // The time the thread should generate for
+    Uint32 *bg_pixel_buffer;
+    Vec2 bg_target_cam_pos;
+    float bg_target_zoom;
+    float bg_target_time;
 
     SDL_Renderer *renderer;
     SDL_Window *window;

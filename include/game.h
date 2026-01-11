@@ -6,6 +6,8 @@
 // System functions
 void Game_Update(AppState *s, float dt);
 void Renderer_Init(AppState *s);
+void Renderer_GeneratePlanetStep(AppState *s);
+void Renderer_DrawLoading(AppState *s);
 void Renderer_Draw(AppState *s);
 void Input_ProcessEvent(AppState *s, SDL_Event *event);
 
@@ -15,6 +17,7 @@ float Vector_Length(Vec2 v);
 Vec2 Vector_Normalize(Vec2 v);
 float ValueNoise2D(float x, float y);
 float PerlinNoise2D(float x, float y);
+float PerlinNoise3D(float x, float y, float z);
 float DeterministicHash(int x, int y);
 
 #endif
