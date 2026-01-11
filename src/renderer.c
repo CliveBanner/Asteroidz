@@ -251,7 +251,7 @@ void Renderer_GeneratePlanetStep(AppState *s) {
     if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
 
     if (s->assets_generated < PLANET_COUNT) {
-        int p_size = 512; Uint32 *pixels = SDL_malloc(p_size * p_size * sizeof(Uint32));
+        int p_size = 1024; Uint32 *pixels = SDL_malloc(p_size * p_size * sizeof(Uint32));
         SDL_memset(pixels, 0, p_size * p_size * sizeof(Uint32));
         DrawPlanetToBuffer(pixels, p_size, (float)s->assets_generated * 567.89f);
         s->planet_textures[s->assets_generated] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, p_size, p_size);
