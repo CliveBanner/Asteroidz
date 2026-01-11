@@ -9,13 +9,14 @@ Vec2 Vector_Normalize(Vec2 v) {
 }
 
 float DeterministicHash(int x, int y) {
-    unsigned int h = (unsigned int)x * 0x37476139u + (unsigned int)y * 0x668265263u;
-    h ^= h >> 16;
-    h *= 0x85ebca6bu;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35u;
-    h ^= h >> 16;
-    return (float)(h & 0x7FFFFFFF) / (float)0x7FFFFFFF;
+  unsigned int h =
+      (unsigned int)x * 0x37476139u + (unsigned int)y * 0x668265263u;
+  h ^= h >> 16;
+  h *= 0x85ebca6bu;
+  h ^= h >> 13;
+  h *= 0xc2b2ae35u;
+  h ^= h >> 16;
+  return (float)(h & 0x7FFFFFFF) / (float)0x7FFFFFFF;
 }
 
 static float Smooth(float t) {
@@ -67,94 +68,99 @@ float PerlinNoise2D(float x, float y) {
 
 // --- Voronoi / Cellular Noise ---
 float VoronoiNoise2D(float x, float y) {
-    int ix = (int)floorf(x);
-    int iy = (int)floorf(y);
-    float minDist = 1.0f;
+  int ix = (int)floorf(x);
+  int iy = (int)floorf(y);
+  float minDist = 1.0f;
 
-    for (int v = -1; v <= 1; v++) {
-        for (int u = -1; u <= 1; u++) {
-            float hx = DeterministicHash(ix + u, iy + v);
-            float hy = DeterministicHash(ix + u + 123, iy + v + 456);
-            float targetX = (float)(ix + u) + hx;
-            float targetY = (float)(iy + v) + hy;
-            float dx = targetX - x;
-            float dy = targetY - y;
-            float dist = sqrtf(dx*dx + dy*dy);
-            if (dist < minDist) minDist = dist;
-        }
+  for (int v = -1; v <= 1; v++) {
+    for (int u = -1; u <= 1; u++) {
+      float hx = DeterministicHash(ix + u, iy + v);
+      float hy = DeterministicHash(ix + u + 123, iy + v + 456);
+      float targetX = (float)(ix + u) + hx;
+      float targetY = (float)(iy + v) + hy;
+      float dx = targetX - x;
+      float dy = targetY - y;
+      float dist = sqrtf(dx * dx + dy * dy);
+      if (dist < minDist)
+        minDist = dist;
     }
-    return minDist;
+  }
+  return minDist;
 }
 
 float VoronoiCracks2D(float x, float y) {
-    int ix = (int)floorf(x);
-    int iy = (int)floorf(y);
-    float f1 = 8.0f, f2 = 8.0f;
+  int ix = (int)floorf(x);
+  int iy = (int)floorf(y);
+  float f1 = 8.0f, f2 = 8.0f;
 
-    for (int v = -1; v <= 1; v++) {
-        for (int u = -1; u <= 1; u++) {
-            float hx = DeterministicHash(ix + u, iy + v);
-            float hy = DeterministicHash(ix + u + 123, iy + v + 456);
-            float dx = (float)(ix + u) + hx - x;
-            float dy = (float)(iy + v) + hy - y;
-            float d = dx*dx + dy*dy;
+  for (int v = -1; v <= 1; v++) {
+    for (int u = -1; u <= 1; u++) {
+      float hx = DeterministicHash(ix + u, iy + v);
+      float hy = DeterministicHash(ix + u + 123, iy + v + 456);
+      float dx = (float)(ix + u) + hx - x;
+      float dy = (float)(iy + v) + hy - y;
+      float d = dx * dx + dy * dy;
 
-            if (d < f1) {
-                f2 = f1;
-                f1 = d;
-            } else if (d < f2) {
-                f2 = d;
-            }
-        }
+      if (d < f1) {
+        f2 = f1;
+        f1 = d;
+      } else if (d < f2) {
+        f2 = d;
+      }
     }
-    return sqrtf(f2) - sqrtf(f1);
+  }
+  return sqrtf(f2) - sqrtf(f1);
 }
 
 bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed) {
-    float seed = DeterministicHash(gx, gy + 1000);
-    if (seed > 0.98f || (gx == 0 && gy == 0)) {
-        float jx = (DeterministicHash(gx + 5, gy + 9) - 0.5f) * 2000.0f;
-        float jy = (DeterministicHash(gx + 12, gy + 3) - 0.5f) * 2000.0f;
-        out_pos->x = (float)gx * 5000.0f + 2500.0f + jx;
-        out_pos->y = (float)gy * 5000.0f + 2500.0f + jy;
-        *out_type_seed = DeterministicHash(gx, gy + 2000);
-        return true;
-    }
-    return false;
+  float seed = DeterministicHash(gx, gy + 1000);
+  if (seed > 0.98f || (gx == 0 && gy == 0)) {
+    float jx = (DeterministicHash(gx + 5, gy + 9) - 0.5f) * 2000.0f;
+    float jy = (DeterministicHash(gx + 12, gy + 3) - 0.5f) * 2000.0f;
+    out_pos->x = (float)gx * 5000.0f + 2500.0f + jx;
+    out_pos->y = (float)gy * 5000.0f + 2500.0f + jy;
+    *out_type_seed = DeterministicHash(gx, gy + 2000);
+    return true;
+  }
+  return false;
 }
 
 Vec2 WorldToParallax(Vec2 world_pos, float parallax) {
-    return (Vec2){ world_pos.x * parallax, world_pos.y * parallax };
+  return (Vec2){world_pos.x * parallax, world_pos.y * parallax};
 }
 
 float GetAsteroidDensity(Vec2 p) {
-    float val = DENSITY_BASELINE;
-    const float body_grid = 5000.0f;
-    
-    int gx_center = (int)floorf(p.x / body_grid);
-    int gy_center = (int)floorf(p.y / body_grid);
-    
-    for (int oy = -1; oy <= 1; oy++) { 
-        for (int ox = -1; ox <= 1; ox++) {
-            Vec2 b_pos; float b_type;
-            if (GetCelestialBodyInfo(gx_center + ox, gy_center + oy, &b_pos, &b_type)) {
-                float dx = p.x - b_pos.x, dy = p.y - b_pos.y;
-                float dist_sq = dx*dx + dy*dy;
-                
-                if (b_type > 0.95f) { // Galaxy
-                    if (dist_sq > 3000.0f*3000.0f && dist_sq < 8000.0f*8000.0f) val += DENSITY_GALAXY_WEIGHT;
-                } else { // Planet
-                    if (dist_sq > 1500.0f*1500.0f && dist_sq < 4500.0f*4500.0f) val += DENSITY_PLANET_WEIGHT;
-                }
-            }
-        }
-    }
-    // Return normalized 0-1
-    float norm = val / DENSITY_MAX;
-    
-    // Add noise for less uniform distribution (only subtractive)
-    float noise_val = PerlinNoise2D(p.x * 0.0005f, p.y * 0.0005f); // 0.0 to 1.0
-    norm += (noise_val - 1.0f) * 0.6f; // -0.6 to 0.0 contribution
+  float val = DENSITY_BASELINE;
+  const float body_grid = 5000.0f;
 
-    return fmaxf(0.0f, fminf(1.0f, norm));
+  int gx_center = (int)floorf(p.x / body_grid);
+  int gy_center = (int)floorf(p.y / body_grid);
+
+  for (int oy = -1; oy <= 1; oy++) {
+    for (int ox = -1; ox <= 1; ox++) {
+      Vec2 b_pos;
+      float b_type;
+      if (GetCelestialBodyInfo(gx_center + ox, gy_center + oy, &b_pos,
+                               &b_type)) {
+        float dx = p.x - b_pos.x, dy = p.y - b_pos.y;
+        float dist_sq = dx * dx + dy * dy;
+
+        if (b_type > 0.95f) { // Galaxy
+          if (dist_sq > 3000.0f * 3000.0f && dist_sq < 8000.0f * 8000.0f)
+            val += DENSITY_GALAXY_WEIGHT;
+        } else { // Planet
+          if (dist_sq > 1500.0f * 1500.0f && dist_sq < 4500.0f * 4500.0f)
+            val += DENSITY_PLANET_WEIGHT;
+        }
+      }
+    }
+  }
+  // Return normalized 0-1
+  float norm = val / DENSITY_MAX;
+
+  // Add noise for less uniform distribution (only subtractive)
+  float noise_val = PerlinNoise2D(p.x * 0.0005f, p.y * 0.0005f); // 0.0 to 1.0
+  norm += (noise_val - 1.0f) * 0.6f; // -0.6 to 0.0 contribution
+
+  return fmaxf(0.0f, fminf(1.0f, norm));
 }
