@@ -3,10 +3,60 @@
 #include <math.h>
 #include <stdio.h>
 
-// Faster resolution for planets
 #define BG_SCALE_FACTOR 16
 
 typedef struct { float pos; float r, g, b; } ColorStop;
+
+// --- Helper Types ---
+typedef struct {
+    int gx, gy;
+    float seed;
+    float screen_x, screen_y;
+} LayerCell;
+
+typedef void (*LayerDrawFn)(SDL_Renderer *r, const AppState *s, const LayerCell *cell);
+
+// --- Refactored Helpers ---
+
+static Vec2 GetParallaxCam(const AppState *s, float parallax, int win_w, int win_h) {
+    float cx = win_w / 2.0f, cy = win_h / 2.0f;
+    return (Vec2){
+        s->camera_pos.x * parallax + (cx / s->zoom) * (parallax - 1.0f),
+        s->camera_pos.y * parallax + (cy / s->zoom) * (parallax - 1.0f)
+    };
+}
+
+static Vec2 WorldToScreen(Vec2 world_pos, Vec2 parallax_cam, float zoom) {
+    return (Vec2){
+        (world_pos.x - parallax_cam.x) * zoom,
+        (world_pos.y - parallax_cam.y) * zoom
+    };
+}
+
+static bool IsVisible(float sx, float sy, float radius, int win_w, int win_h) {
+    return (sx + radius >= 0 && sx - radius <= win_w && 
+            sy + radius >= 0 && sy - radius <= win_h);
+}
+
+static void DrawParallaxLayer(SDL_Renderer *r, const AppState *s, int win_w, int win_h, int cell_size, float parallax, float seed_offset, LayerDrawFn draw_fn) {
+    Vec2 p_cam = GetParallaxCam(s, parallax, win_w, win_h);
+    int sgx = (int)floorf(p_cam.x / cell_size), sgy = (int)floorf(p_cam.y / cell_size);
+    int egx = (int)ceilf((p_cam.x + win_w / s->zoom) / cell_size);
+    int egy = (int)ceilf((p_cam.y + win_h / s->zoom) / cell_size);
+
+    for (int gy = sgy; gy <= egy; gy++) {
+        for (int gx = sgx; gx <= egx; gx++) {
+            LayerCell cell;
+            cell.gx = gx; cell.gy = gy;
+            cell.seed = DeterministicHash(gx, gy + (int)seed_offset);
+            Vec2 screen_pos = WorldToScreen((Vec2){(float)gx * cell_size, (float)gy * cell_size}, p_cam, s->zoom);
+            cell.screen_x = screen_pos.x; cell.screen_y = screen_pos.y;
+            draw_fn(r, s, &cell);
+        }
+    }
+}
+
+// --- Original Logic ---
 
 static void GetNebulaColor(float t, float *r, float *g, float *b) {
   static const ColorStop stops[] = { {0.00f, 2, 2, 6}, {0.40f, 10, 10, 25}, {0.70f, 25, 15, 45}, {0.90f, 35, 60, 80}, {1.00f, 50, 80, 100} };
@@ -39,14 +89,11 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
             if (dist <= atmo_outer) {
                 float nx = dx / radius, ny = dy / radius;
                 float nz = (dist <= radius) ? sqrtf(fmaxf(0.0f, 1.0f - nx*nx - ny*ny)) : 0.0f;
-                
-                // Optimized PerlinNoise2D for planet surface
                 float noise = 0.0f, amp = 0.7f, freq = 0.03f;
                 for (int o = 0; o < 3; o++) {
                     noise += PerlinNoise2D((float)x * freq + seed, (float)y * freq + seed * 2.0f) * amp;
                     amp *= 0.3f; freq *= 2.0f;
                 }
-                
                 float dot = fmaxf(0.05f, nx * -0.6f + ny * -0.6f + nz * 0.5f);
                 float shading = powf(dot, 0.8f);
                 Uint8 r = (Uint8)fminf(255.0f, (80 + noise * 175) * rm * shading);
@@ -68,7 +115,7 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
 
 void Renderer_GeneratePlanetStep(AppState *s) {
     if (s->planets_generated >= PLANET_COUNT) { s->is_loading = false; return; }
-    int p_size = 512; // Lower res for much faster generation
+    int p_size = 512;
     Uint32 *pixels = SDL_malloc(p_size * p_size * sizeof(Uint32));
     SDL_memset(pixels, 0, p_size * p_size * sizeof(Uint32));
     DrawPlanetToBuffer(pixels, p_size, (float)s->planets_generated * 567.89f);
@@ -164,54 +211,50 @@ static void UpdateBackground(AppState *s) {
   }
 }
 
-static void DrawInfiniteStars(SDL_Renderer *renderer, const AppState *s, int win_w, int win_h) {
-    int cell_size = 128; float parallax = 0.4f; 
-    float cx = win_w/2.0f, cy = win_h/2.0f;
-    float cxp = s->camera_pos.x * parallax + (cx/s->zoom)*(parallax-1.0f), cyp = s->camera_pos.y * parallax + (cy/s->zoom)*(parallax-1.0f);
-    int sgx = (int)floorf(cxp/cell_size), sgy = (int)floorf(cyp/cell_size);
-    int egx = (int)ceilf((cxp+win_w/s->zoom)/cell_size), egy = (int)ceilf((cyp+win_h/s->zoom)/cell_size);
-    for (int gy = sgy; gy <= egy; gy++) {
-        for (int gx = sgx; gx <= egx; gx++) {
-            float seed = DeterministicHash(gx, gy);
-            if (seed > 0.85f) { 
-                float ox = DeterministicHash(gx+10, gy+20)*cell_size, oy = DeterministicHash(gx+30, gy+40)*cell_size;
-                float dx = sinf(s->current_time*0.2f + seed*10.0f)*15.0f, dy = cosf(s->current_time*0.15f + seed*5.0f)*15.0f;
-                float sx = (gx*cell_size + ox + dx - cxp)*s->zoom, sy = (gy*cell_size + oy + dy - cyp)*s->zoom;
-                float sz_s = DeterministicHash(gx+55, gy+66), sz = (sz_s > 0.98f) ? 3.0f : (sz_s > 0.90f ? 2.0f : 1.0f);
-                float b_s = DeterministicHash(gx+77, gy+88), c_s = DeterministicHash(gx+99, gy+11);
-                Uint8 val = (Uint8)(100 + b_s*155), r = val, g = val, b = val;
-                if (c_s > 0.90f) { r = (Uint8)(val*0.8f); g = (Uint8)(val*0.9f); b = 255; }
-                else if (c_s > 0.80f) { r = 220; g = (Uint8)(val*0.7f); b = 255; }
-                SDL_SetRenderDrawColor(renderer, r, g, b, 200);
-                float s_sz = sz * s->zoom;
-                if (s_sz <= 1.0f) SDL_RenderPoint(renderer, sx, sy);
-                else { SDL_FRect rct = { sx-s_sz/2, sy-s_sz/2, s_sz, s_sz }; SDL_RenderFillRect(renderer, &rct); }
-            }
-        }
+// --- Draw Callbacks ---
+
+static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
+    if (cell->seed > 0.85f) {
+        int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
+        int cell_size = 128;
+        float ox = DeterministicHash(cell->gx + 10, cell->gy + 20) * cell_size;
+        float oy = DeterministicHash(cell->gx + 30, cell->gy + 40) * cell_size;
+        float dx = sinf(s->current_time * 0.2f + cell->seed * 10.0f) * 15.0f;
+        float dy = cosf(s->current_time * 0.15f + cell->seed * 5.0f) * 15.0f;
+        float sx = cell->screen_x + (ox + dx) * s->zoom;
+        float sy = cell->screen_y + (oy + dy) * s->zoom;
+
+        float sz_s = DeterministicHash(cell->gx + 55, cell->gy + 66);
+        float sz = (sz_s > 0.98f) ? 3.0f : (sz_s > 0.90f ? 2.0f : 1.0f);
+        float s_sz = sz * s->zoom;
+
+        if (!IsVisible(sx, sy, s_sz / 2, win_w, win_h)) return;
+
+        float b_s = DeterministicHash(cell->gx + 77, cell->gy + 88), c_s = DeterministicHash(cell->gx + 99, cell->gy + 11);
+        Uint8 val = (Uint8)(100 + b_s * 155), rv = val, gv = val, bv = val;
+        if (c_s > 0.90f) { rv = (Uint8)(val * 0.8f); gv = (Uint8)(val * 0.9f); bv = 255; }
+        else if (c_s > 0.80f) { rv = 220; gv = (Uint8)(val * 0.7f); bv = 255; }
+
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 200);
+        if (s_sz <= 1.0f) SDL_RenderPoint(r, sx, sy);
+        else { SDL_FRect rct = { sx - s_sz / 2, sy - s_sz / 2, s_sz, s_sz }; SDL_RenderFillRect(r, &rct); }
     }
 }
 
-static void DrawDistantPlanets(SDL_Renderer *renderer, const AppState *s, int win_w, int win_h) {
-    int cell_size = 5000; float parallax = 0.7f;
-    float cx = win_w/2.0f, cy = win_h/2.0f;
-    float cxp = s->camera_pos.x * parallax + (cx/s->zoom)*(parallax-1.0f), cyp = s->camera_pos.y * parallax + (cy/s->zoom)*(parallax-1.0f);
-    int sgx = (int)floorf(cxp/cell_size), sgy = (int)floorf(cyp/cell_size);
-    int egx = (int)ceilf((cxp+win_w/s->zoom)/cell_size), egy = (int)ceilf((cyp+win_h/s->zoom)/cell_size);
-    for (int gy = sgy; gy <= egy; gy++) {
-        for (int gx = sgx; gx <= egx; gx++) {
-            float seed = DeterministicHash(gx, gy + 1000);
-            if (seed > 0.95f || (gx == 0 && gy == 0)) {
-                float ox = (gx==0&&gy==0) ? cell_size/2 : DeterministicHash(gx+5, gy+9)*cell_size;
-                float oy = (gx==0&&gy==0) ? cell_size/2 : DeterministicHash(gx+12, gy+3)*cell_size;
-                float sx = (gx*cell_size + ox - cxp)*s->zoom, sy = (gy*cell_size + oy - cyp)*s->zoom;
-                float r_s = DeterministicHash(gx+7, gy+11), rad = (150.0f + r_s*450.0f)*s->zoom; 
-                if (sx + rad < 0 || sx - rad > win_w || sy + rad < 0 || sy - rad > win_h) continue;
-                int p_idx = (int)(DeterministicHash(gx+1, gy+1) * PLANET_COUNT);
-                float t_sz = rad * 2.5f;
-                SDL_FRect dst = { sx - t_sz/2, sy - t_sz/2, t_sz, t_sz };
-                SDL_RenderTexture(renderer, s->planet_textures[p_idx], NULL, &dst);
-            }
-        }
+static void PlanetLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
+    if (cell->seed > 0.95f || (cell->gx == 0 && cell->gy == 0)) {
+        int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
+        int cell_size = 5000;
+        float ox = (cell->gx == 0 && cell->gy == 0) ? cell_size / 2 : DeterministicHash(cell->gx + 5, cell->gy + 9) * cell_size;
+        float oy = (cell->gx == 0 && cell->gy == 0) ? cell_size / 2 : DeterministicHash(cell->gx + 12, cell->gy + 3) * cell_size;
+        float sx = cell->screen_x + ox * s->zoom, sy = cell->screen_y + oy * s->zoom;
+        float r_s = DeterministicHash(cell->gx + 7, cell->gy + 11), rad = (150.0f + r_s * 450.0f) * s->zoom;
+        
+        if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
+
+        int p_idx = (int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT);
+        float t_sz = rad * 2.5f;
+        SDL_RenderTexture(r, s->planet_textures[p_idx], NULL, &(SDL_FRect){ sx - t_sz / 2, sy - t_sz / 2, t_sz, t_sz });
     }
 }
 
@@ -250,8 +293,8 @@ void Renderer_Draw(AppState *s) {
   int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
   UpdateBackground(s);
-  DrawInfiniteStars(s->renderer, s, ww, wh);
-  DrawDistantPlanets(s->renderer, s, ww, wh);
+  DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
+  DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, PlanetLayerFn);
   if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
   DrawDebugInfo(s->renderer, s, ww);
