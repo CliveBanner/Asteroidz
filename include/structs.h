@@ -22,6 +22,7 @@ typedef struct {
     SDL_Texture *bg_texture;
     int bg_w, bg_h;
     float current_fps;
+    float current_time;
 
     // Background Threading
     SDL_Thread *bg_thread;
@@ -33,6 +34,7 @@ typedef struct {
     Uint32 *bg_pixel_buffer; // RAM buffer shared between threads
     Vec2 bg_target_cam_pos; // The camera pos the thread should generate for
     float bg_target_zoom;   // The zoom level the thread should generate for
+    float bg_target_time;   // The time the thread should generate for
 
     SDL_Renderer *renderer;
     SDL_Window *window;

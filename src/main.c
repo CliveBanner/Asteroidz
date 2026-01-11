@@ -61,6 +61,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
         fps_timer = now;
     }
 
+    s->current_time += dt;
+
     Game_Update(s, dt);
     Renderer_Draw(s);
 
