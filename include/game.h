@@ -6,6 +6,9 @@
 // System functions
 void Game_Init(AppState *s);
 void Game_Update(AppState *s, float dt);
+float GetAsteroidDensity(Vec2 p, Vec2 cam_center);
+bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed);
+Vec2 WorldToParallax(Vec2 world_pos, float parallax);
 void Renderer_Init(AppState *s);
 void Renderer_GeneratePlanetStep(AppState *s);
 void Renderer_DrawLoading(AppState *s);

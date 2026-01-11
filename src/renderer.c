@@ -15,18 +15,23 @@ typedef struct {
 
 typedef void (*LayerDrawFn)(SDL_Renderer *r, const AppState *s, const LayerCell *cell);
 
-static Vec2 GetParallaxCam(const AppState *s, float parallax, int win_w, int win_h) {
-    float cx = win_w / 2.0f, cy = win_h / 2.0f;
-    return (Vec2){
-        s->camera_pos.x * parallax + (cx / s->zoom) * (parallax - 1.0f),
-        s->camera_pos.y * parallax + (cy / s->zoom) * (parallax - 1.0f)
-    };
-}
+static Vec2 WorldToScreenParallax(Vec2 world_pos, float parallax, const AppState *s, int win_w, int win_h) {
+    float sw = (float)win_w, sh = (float)win_h;
+    
+    // World center of the camera
+    float cx = s->camera_pos.x + (sw / 2.0f) / s->zoom;
+    float cy = s->camera_pos.y + (sh / 2.0f) / s->zoom;
 
-static Vec2 WorldToScreen(Vec2 world_pos, Vec2 parallax_cam, float zoom) {
+    // Displacement of object from camera center, scaled by parallax
+    Vec2 p_obj = WorldToParallax(world_pos, parallax);
+    Vec2 p_cam = WorldToParallax((Vec2){cx, cy}, parallax);
+    float dx = p_obj.x - p_cam.x;
+    float dy = p_obj.y - p_cam.y;
+
+    // Final screen position (centered)
     return (Vec2){
-        (world_pos.x - parallax_cam.x) * zoom,
-        (world_pos.y - parallax_cam.y) * zoom
+        (sw / 2.0f) + dx * s->zoom,
+        (sh / 2.0f) + dy * s->zoom
     };
 }
 
@@ -36,16 +41,31 @@ static bool IsVisible(float sx, float sy, float radius, int win_w, int win_h) {
 }
 
 static void DrawParallaxLayer(SDL_Renderer *r, const AppState *s, int win_w, int win_h, int cell_size, float parallax, float seed_offset, LayerDrawFn draw_fn) {
-    Vec2 p_cam = GetParallaxCam(s, parallax, win_w, win_h);
-    int sgx = (int)floorf(p_cam.x / cell_size), sgy = (int)floorf(p_cam.y / cell_size);
-    int egx = (int)ceilf((p_cam.x + win_w / s->zoom) / cell_size);
-    int egy = (int)ceilf((p_cam.y + win_h / s->zoom) / cell_size);
+    float sw = (float)win_w, sh = (float)win_h;
+    float cx = s->camera_pos.x + (sw / 2.0f) / s->zoom;
+    float cy = s->camera_pos.y + (sh / 2.0f) / s->zoom;
+
+    float visible_w = sw / (s->zoom * parallax);
+    float visible_h = sh / (s->zoom * parallax);
+
+    float min_wx = cx - visible_w / 2.0f;
+    float min_wy = cy - visible_h / 2.0f;
+    float max_wx = cx + visible_w / 2.0f;
+    float max_wy = cy + visible_h / 2.0f;
+
+    int sgx = (int)floorf(min_wx / (float)cell_size);
+    int sgy = (int)floorf(min_wy / (float)cell_size);
+    int egx = (int)ceilf(max_wx / (float)cell_size);
+    int egy = (int)ceilf(max_wy / (float)cell_size);
+
     for (int gy = sgy; gy <= egy; gy++) {
         for (int gx = sgx; gx <= egx; gx++) {
             LayerCell cell;
             cell.gx = gx; cell.gy = gy;
             cell.seed = DeterministicHash(gx, gy + (int)seed_offset);
-            Vec2 screen_pos = WorldToScreen((Vec2){(float)gx * cell_size, (float)gy * cell_size}, p_cam, s->zoom);
+            
+            Vec2 world_pos = {(float)gx * cell_size, (float)gy * cell_size};
+            Vec2 screen_pos = WorldToScreenParallax(world_pos, parallax, s, win_w, win_h);
             cell.screen_x = screen_pos.x; cell.screen_y = screen_pos.y;
             draw_fn(r, s, &cell);
         }
@@ -396,37 +416,35 @@ static void UpdateBackground(AppState *s) {
 static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
     if (cell->seed > 0.85f) {
         int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
-        int cell_size = 128;
-        float ox = DeterministicHash(cell->gx + 10, cell->gy + 20) * cell_size;
-        float oy = DeterministicHash(cell->gx + 30, cell->gy + 40) * cell_size;
-        float dx = sinf(s->current_time * 0.2f + cell->seed * 10.0f) * 15.0f;
-        float dy = cosf(s->current_time * 0.15f + cell->seed * 5.0f) * 15.0f;
-        float sx = cell->screen_x + (ox + dx) * s->zoom;
-        float sy = cell->screen_y + (oy + dy) * s->zoom;
         float sz_s = DeterministicHash(cell->gx + 55, cell->gy + 66);
         float sz = (sz_s > 0.98f) ? 3.0f : (sz_s > 0.90f ? 2.0f : 1.0f);
+        
+        // Add jitter within the cell to prevent rectangular appearance
+        float jx = DeterministicHash(cell->gx + 7, cell->gy + 3) * 128.0f;
+        float jy = DeterministicHash(cell->gx + 1, cell->gy + 9) * 128.0f;
+        Vec2 world_pos = {(float)cell->gx * 128 + jx, (float)cell->gy * 128 + jy};
+        
+        Vec2 sx_y = WorldToScreenParallax(world_pos, 0.4f, s, win_w, win_h);
         float s_sz = sz * s->zoom;
-        if (!IsVisible(sx, sy, s_sz / 2, win_w, win_h)) return;
+        if (!IsVisible(sx_y.x, sx_y.y, s_sz / 2, win_w, win_h)) return;
+        
         float b_s = DeterministicHash(cell->gx + 77, cell->gy + 88), c_s = DeterministicHash(cell->gx + 99, cell->gy + 11);
         Uint8 val = (Uint8)(100 + b_s * 155), rv = val, gv = val, bv = val;
         if (c_s > 0.90f) { rv = (Uint8)(val * 0.8f); gv = (Uint8)(val * 0.9f); bv = 255; }
         else if (c_s > 0.80f) { rv = 220; gv = (Uint8)(val * 0.7f); bv = 255; }
         SDL_SetRenderDrawColor(r, rv, gv, bv, 200);
-        if (s_sz <= 1.0f) SDL_RenderPoint(r, sx, sy);
-        else { SDL_FRect rct = { sx - s_sz / 2, sy - s_sz / 2, s_sz, s_sz }; SDL_RenderFillRect(r, &rct); }
+        if (s_sz <= 1.0f) SDL_RenderPoint(r, sx_y.x, sx_y.y);
+        else { SDL_FRect rct = { sx_y.x - s_sz / 2, sx_y.y - s_sz / 2, s_sz, s_sz }; SDL_RenderFillRect(r, &rct); }
     }
 }
 
 static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
-    if (cell->seed > 0.98f || (cell->gx == 0 && cell->gy == 0)) {
+    Vec2 b_pos; float type_seed;
+    if (GetCelestialBodyInfo(cell->gx, cell->gy, &b_pos, &type_seed)) {
         int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
-        int cell_size = 5000;
-        float jitter_x = (DeterministicHash(cell->gx + 5, cell->gy + 9) - 0.5f) * 2000.0f;
-        float jitter_y = (DeterministicHash(cell->gx + 12, cell->gy + 3) - 0.5f) * 2000.0f;
-        float ox = (cell_size / 2.0f) + jitter_x;
-        float oy = (cell_size / 2.0f) + jitter_y;
-        float sx = cell->screen_x + ox * s->zoom, sy = cell->screen_y + oy * s->zoom;
-        float type_seed = DeterministicHash(cell->gx, cell->gy + 2000);
+        Vec2 screen_pos = WorldToScreenParallax(b_pos, 0.7f, s, win_w, win_h);
+        float sx = screen_pos.x, sy = screen_pos.y;
+
         if (type_seed > 0.95f) {
             float r_s = DeterministicHash(cell->gx + 3, cell->gy + 5), rad = (2000.0f + r_s * 4000.0f) * s->zoom;
             if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
@@ -445,12 +463,11 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *c
 static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
     for (int i = 0; i < MAX_ASTEROIDS; i++) {
         if (!s->asteroids[i].active) continue;
-        float sx = (s->asteroids[i].pos.x - s->camera_pos.x) * s->zoom;
-        float sy = (s->asteroids[i].pos.y - s->camera_pos.y) * s->zoom;
+        Vec2 sx_y = WorldToScreenParallax(s->asteroids[i].pos, 1.0f, s, win_w, win_h);
         float rad = s->asteroids[i].radius * s->zoom;
-        if (!IsVisible(sx, sy, rad * 1.5f, win_w, win_h)) continue;
+        if (!IsVisible(sx_y.x, sx_y.y, rad * 1.5f, win_w, win_h)) continue;
         SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, 
-                                 &(SDL_FRect){ sx - rad * 1.5f, sy - rad * 1.5f, rad * 3.0f, rad * 3.0f }, 
+                                 &(SDL_FRect){ sx_y.x - rad * 1.5f, sx_y.y - rad * 1.5f, rad * 3.0f, rad * 3.0f }, 
                                  s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
     }
 }
@@ -458,17 +475,16 @@ static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w
 static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!s->particles[i].active) continue;
-        float sx = (s->particles[i].pos.x - s->camera_pos.x) * s->zoom;
-        float sy = (s->particles[i].pos.y - s->camera_pos.y) * s->zoom;
+        Vec2 sx_y = WorldToScreenParallax(s->particles[i].pos, 1.0f, s, win_w, win_h);
         float sz = s->particles[i].size * s->zoom;
-        if (!IsVisible(sx, sy, sz, win_w, win_h)) continue;
+        if (!IsVisible(sx_y.x, sx_y.y, sz, win_w, win_h)) continue;
         if (s->particles[i].type == PARTICLE_PUFF && s->explosion_puff_texture) {
             SDL_SetTextureColorMod(s->explosion_puff_texture, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b);
             SDL_SetTextureAlphaMod(s->explosion_puff_texture, (Uint8)(s->particles[i].life * 180));
-            SDL_RenderTexture(r, s->explosion_puff_texture, NULL, &(SDL_FRect){ sx - sz/2, sy - sz/2, sz, sz });
+            SDL_RenderTexture(r, s->explosion_puff_texture, NULL, &(SDL_FRect){ sx_y.x - sz/2, sx_y.y - sz/2, sz, sz });
         } else {
             SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(s->particles[i].life * 255));
-            SDL_RenderFillRect(r, &(SDL_FRect){ sx - sz/2, sy - sz/2, sz, sz });
+            SDL_RenderFillRect(r, &(SDL_FRect){ sx_y.x - sz/2, sx_y.y - sz/2, sz, sz });
         }
     }
 }
@@ -477,22 +493,13 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
   SDL_SetRenderDrawColor(renderer, 50, 50, 50, 40);
   int gs = 200;
   int stx = (int)floorf(s->camera_pos.x/gs)*gs, sty = (int)floorf(s->camera_pos.y/gs)*gs;
-  for (float x = stx; x < s->camera_pos.x + win_w/s->zoom + gs; x += gs) { float sx = (x - s->camera_pos.x)*s->zoom; SDL_RenderLine(renderer, sx, 0, sx, (float)win_h); }
-  for (float y = sty; y < s->camera_pos.y + win_h/s->zoom + gs; y += gs) { float sy = (y - s->camera_pos.y)*s->zoom; SDL_RenderLine(renderer, 0, sy, (float)win_w, sy); }
-  SDL_SetRenderDrawColor(renderer, 100, 100, 100, 80);
-  int gl = 1000;
-  int slx = (int)floorf(s->camera_pos.x/gl)*gl, sly = (int)floorf(s->camera_pos.y/gl)*gl;
-  for (float x = slx; x < s->camera_pos.x + win_w/s->zoom + gl; x += gl) { float sx = (x - s->camera_pos.x)*s->zoom; SDL_RenderLine(renderer, sx, 0, sx, (float)win_h); }
-  for (float y = sly; y < s->camera_pos.y + win_h/s->zoom + gl; y += gl) { float sy = (y - s->camera_pos.y)*s->zoom; SDL_RenderLine(renderer, 0, sy, (float)win_w, sy); }
-  SDL_SetRenderDrawColor(renderer, 150, 150, 150, 150);
-  for (float x = slx; x < s->camera_pos.x + win_w/s->zoom + gl; x += gl) {
-    for (float y = sly; y < s->camera_pos.y + win_h / s->zoom + gl; y += gl) {
-        float sx = (x - s->camera_pos.x) * s->zoom, sy = (y - s->camera_pos.y) * s->zoom;
-        if (sx >= -10 && sx < win_w && sy >= -10 && sy < win_h) {
-            char l[32]; snprintf(l, sizeof(l), "(%.0fk,%.0fk)", x/1000.0f, y/1000.0f);
-            SDL_RenderDebugText(renderer, sx + 5, sy + 5, l);
-        }
-    }
+  for (float x = stx; x < s->camera_pos.x + win_w/s->zoom + gs; x += gs) {
+    Vec2 s1 = WorldToScreenParallax((Vec2){x, 0}, 1.0f, s, win_w, win_h);
+    SDL_RenderLine(renderer, s1.x, 0, s1.x, (float)win_h); 
+  }
+  for (float y = sty; y < s->camera_pos.y + win_h/s->zoom + gs; y += gs) {
+    Vec2 s1 = WorldToScreenParallax((Vec2){0, y}, 1.0f, s, win_w, win_h);
+    SDL_RenderLine(renderer, 0, s1.y, (float)win_w, s1.y); 
   }
 }
 
@@ -507,25 +514,28 @@ static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) 
 static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
     float mm_x = win_w - MINIMAP_SIZE - MINIMAP_MARGIN; float mm_y = win_h - MINIMAP_SIZE - MINIMAP_MARGIN;
     float world_to_mm = MINIMAP_SIZE / MINIMAP_RANGE;
+    
+    // Minimap uses world-center reference
+    float sw = (float)win_w, sh = (float)win_h;
+    float cx = s->camera_pos.x + (sw / 2.0f) / s->zoom;
+    float cy = s->camera_pos.y + (sh / 2.0f) / s->zoom;
+
     SDL_SetRenderDrawColor(r, 20, 20, 30, 180); SDL_RenderFillRect(r, &(SDL_FRect){ mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE });
     SDL_SetRenderDrawColor(r, 80, 80, 100, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE });
-    float parallax = 0.7f; Vec2 p_cam = GetParallaxCam(s, parallax, win_w, win_h);
-    float p_cam_center_x = p_cam.x + (win_w / 2.0f) / s->zoom; float p_cam_center_y = p_cam.y + (win_h / 2.0f) / s->zoom;
+
     int cell_size = 5000; int r_cells = (int)(MINIMAP_RANGE / cell_size) + 1;
-    int scx = (int)floorf((p_cam_center_x - MINIMAP_RANGE/2) / cell_size);
-    int scy = (int)floorf((p_cam_center_y - MINIMAP_RANGE/2) / cell_size);
+    int scx = (int)floorf((cx - MINIMAP_RANGE/2) / cell_size);
+    int scy = (int)floorf((cy - MINIMAP_RANGE/2) / cell_size);
     for (int gy = scy; gy <= scy + r_cells; gy++) {
         for (int gx = scx; gx <= scx + r_cells; gx++) {
-            float seed = DeterministicHash(gx, gy + 1000);
-            if (seed > 0.98f || (gx == 0 && gy == 0)) {
-                float jitter_x = (DeterministicHash(gx + 5, gy + 9) - 0.5f) * 2000.0f;
-                float jitter_y = (DeterministicHash(gx + 12, gy + 3) - 0.5f) * 2000.0f;
-                float wx = gx * cell_size + (cell_size / 2.0f) + jitter_x;
-                float wy = gy * cell_size + (cell_size / 2.0f) + jitter_y;
-                float dx = (wx - p_cam_center_x); float dy = (wy - p_cam_center_y);
+            Vec2 b_pos; float type_seed;
+            if (GetCelestialBodyInfo(gx, gy, &b_pos, &type_seed)) {
+                // Adjust for parallax 0.7 in minimap? 
+                // Let's draw celestial bodies relative to camera center
+                float dx = (b_pos.x - cx); float dy = (b_pos.y - cy);
                 if (fabsf(dx) < MINIMAP_RANGE/2 && fabsf(dy) < MINIMAP_RANGE/2) {
-                    float px = mm_x + MINIMAP_SIZE/2 + dx * world_to_mm; float py = mm_y + MINIMAP_SIZE/2 + dy * world_to_mm;
-                    float type_seed = DeterministicHash(gx, gy + 2000);
+                    float px = mm_x + MINIMAP_SIZE/2 + dx * world_to_mm; 
+                    float py = mm_y + MINIMAP_SIZE/2 + dy * world_to_mm;
                     if (type_seed > 0.95f) SDL_SetRenderDrawColor(r, 200, 150, 255, 255);
                     else SDL_SetRenderDrawColor(r, 100, 200, 255, 255);
                     SDL_RenderFillRect(r, &(SDL_FRect){ px, py, 4, 4 });
@@ -537,6 +547,66 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x + (MINIMAP_SIZE - view_w)/2, mm_y + (MINIMAP_SIZE - view_h)/2, view_w, view_h });
 }
 
+static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+    int cell_size = 5000;
+    float parallax = 0.7f;
+    float sw = (float)win_w, sh = (float)win_h;
+    
+    // World center of the camera
+    float cx = s->camera_pos.x + (sw / 2.0f) / s->zoom;
+    float cy = s->camera_pos.y + (sh / 2.0f) / s->zoom;
+
+    // View bounds in the 1.0 world
+    float vw = sw / s->zoom, vh = sh / s->zoom;
+
+    // To find which celestial bodies are visible, we use the 0.7 parallax grid
+    int sgx = (int)floorf((cx - vw/parallax)/cell_size), sgy = (int)floorf((cy - vh/parallax)/cell_size);
+    int egx = (int)ceilf((cx + vw/parallax)/cell_size), egy = (int)ceilf((cy + vh/parallax)/cell_size);
+
+    for (int gy = sgy; gy <= egy; gy++) {
+        for (int gx = sgx; gx <= egx; gx++) {
+            Vec2 b_pos; float b_type;
+            if (GetCelestialBodyInfo(gx, gy, &b_pos, &b_type)) {
+                // Cross at celestial body visual position
+                Vec2 v_pos = WorldToParallax(b_pos, parallax);
+                Vec2 sx_y = WorldToScreenParallax(b_pos, parallax, s, win_w, win_h);
+                if (IsVisible(sx_y.x, sx_y.y, 100, win_w, win_h)) {
+                    SDL_SetRenderDrawColor(r, 0, 255, 0, 255);
+                    SDL_RenderLine(r, sx_y.x - 20, sx_y.y, sx_y.x + 20, sx_y.y);
+                    SDL_RenderLine(r, sx_y.x, sx_y.y - 20, sx_y.x, sx_y.y + 20);
+                }
+            }
+        }
+    }
+
+    // Now draw the density visualization patches (1.0 world grid)
+    int d_cell = 2000; // Smaller grid for density overlay visibility
+    int dsgx = (int)floorf(s->camera_pos.x / d_cell), dsgy = (int)floorf(s->camera_pos.y / d_cell);
+    int degx = (int)ceilf((s->camera_pos.x + vw) / d_cell), degy = (int)ceilf((s->camera_pos.y + vh) / d_cell);
+
+    for (int gy = dsgy; gy <= degy; gy++) {
+        for (int gx = dsgx; gx <= degx; gx++) {
+            float wx = (float)gx * d_cell, wy = (float)gy * d_cell;
+            Vec2 sc_pos = WorldToScreenParallax((Vec2){wx, wy}, 1.0f, s, win_w, win_h);
+            float sz = (float)d_cell * s->zoom;
+
+            int sub_res = 5; float sub_sz = sz / sub_res;
+            for (int syy = 0; syy < sub_res; syy++) {
+                for (int sxx = 0; sxx < sub_res; sxx++) {
+                    float swx = wx + (sxx / (float)sub_res) * d_cell;
+                    float swy = wy + (syy / (float)sub_res) * d_cell;
+                    float d = GetAsteroidDensity((Vec2){swx, swy}, (Vec2){cx, cy});
+                    if (d > 0.05f) {
+                        Uint8 rv = (Uint8)(fminf(1.0f, d / 1.5f) * 150.0f);
+                        SDL_SetRenderDrawColor(r, rv, 0, 50, 40);
+                        SDL_RenderFillRect(r, &(SDL_FRect){ sc_pos.x + sxx * sub_sz, sc_pos.y + syy * sub_sz, sub_sz + 1, sub_sz + 1 });
+                    }
+                }
+            }
+        }
+    }
+}
+
 void Renderer_Draw(AppState *s) {
   int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
@@ -544,7 +614,10 @@ void Renderer_Draw(AppState *s) {
   if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
   DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, SystemLayerFn);
+  
+  if (s->show_density) { DrawDensityGrid(s->renderer, s, ww, wh); }
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
+  
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);
   Renderer_DrawParticles(s->renderer, s, ww, wh);
   DrawDebugInfo(s->renderer, s, ww);

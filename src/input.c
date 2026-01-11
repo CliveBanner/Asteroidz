@@ -40,17 +40,21 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 if (event->button.x >= mm_x && event->button.x <= mm_x + MINIMAP_SIZE &&
                     event->button.y >= mm_y && event->button.y <= mm_y + MINIMAP_SIZE) {
                     
-                    // Clicked on minimap
-                    float rel_x = (event->button.x - mm_x) - (MINIMAP_SIZE / 2.0f);
-                    float rel_y = (event->button.y - mm_y) - (MINIMAP_SIZE / 2.0f);
-                    float world_to_mm = MINIMAP_SIZE / MINIMAP_RANGE;
+                    // 1. Get relative click pos on minimap (-0.5 to 0.5)
+                    float rel_x = (event->button.x - mm_x) / MINIMAP_SIZE - 0.5f;
+                    float rel_y = (event->button.y - mm_y) / MINIMAP_SIZE - 0.5f;
 
-                    // Jump camera (parallax 0.7 adjustment for planets)
-                    float jump_x = rel_x / world_to_mm;
-                    float jump_y = rel_y / world_to_mm;
-                    
-                    s->camera_pos.x += jump_x / 0.7f;
-                    s->camera_pos.y += jump_y / 0.7f;
+                    // 2. World displacement from current camera center
+                    float dx = rel_x * MINIMAP_RANGE;
+                    float dy = rel_y * MINIMAP_RANGE;
+
+                    // 3. New target center in world space (Parallax 0.7 correction)
+                    // The planet at world_pos P appears at P * 0.7 in the 1.0 space.
+                    // To center the camera on it, we need to move the camera to P / 0.7? 
+                    // No, our WorldToScreenParallax uses (pos * 0.7) - (cam * 0.7).
+                    // So we just need to move the cam to the clicked world pos.
+                    s->camera_pos.x += dx;
+                    s->camera_pos.y += dy;
                 }
             }
             break;
@@ -59,6 +63,9 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         case SDL_EVENT_KEY_DOWN:
             if (event->key.key == SDLK_H) {
                 s->show_grid = !s->show_grid;
+            }
+            if (event->key.key == SDLK_D) {
+                s->show_density = !s->show_density;
             }
             break;
     }

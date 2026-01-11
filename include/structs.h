@@ -12,7 +12,7 @@ typedef struct {
 #define PLANET_COUNT 8
 #define GALAXY_COUNT 4
 #define ASTEROID_TYPE_COUNT 16
-#define MAX_ASTEROIDS 1024
+#define MAX_ASTEROIDS 2048
 #define MAX_PARTICLES 4096
 
 typedef enum {
@@ -48,6 +48,7 @@ typedef struct {
     // Input State
     Vec2 mouse_pos;       // Screen coordinates
     bool show_grid;
+    bool show_density;
     
     // Game Entities
     Asteroid asteroids[MAX_ASTEROIDS];

@@ -109,3 +109,61 @@ float VoronoiCracks2D(float x, float y) {
     }
     return sqrtf(f2) - sqrtf(f1);
 }
+
+bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed) {
+    float seed = DeterministicHash(gx, gy + 1000);
+    if (seed > 0.98f || (gx == 0 && gy == 0)) {
+        float jx = (DeterministicHash(gx + 5, gy + 9) - 0.5f) * 2000.0f;
+        float jy = (DeterministicHash(gx + 12, gy + 3) - 0.5f) * 2000.0f;
+        out_pos->x = (float)gx * 5000.0f + 2500.0f + jx;
+        out_pos->y = (float)gy * 5000.0f + 2500.0f + jy;
+        *out_type_seed = DeterministicHash(gx, gy + 2000);
+        return true;
+    }
+    return false;
+}
+
+Vec2 WorldToParallax(Vec2 world_pos, float parallax) {
+    return (Vec2){ world_pos.x * parallax, world_pos.y * parallax };
+}
+
+float GetAsteroidDensity(Vec2 p, Vec2 cam_center) {
+    float density = 0.02f; 
+    const float body_grid = 5000.0f;
+    const float parallax = 0.7f;
+    
+    // We want to find the visual position of celestial bodies 
+    // relative to the camera center.
+    // ScreenPos = Center + (pos * parallax - cam * parallax)
+    // For a point p in 1.0 world: ScreenPos = Center + (p - cam)
+    // They match if: p - cam = pos * parallax - cam * parallax
+    // p = cam + (pos - cam) * parallax
+    
+    // Search grid around the camera's 0.7-parallax position
+    int gx_center = (int)floorf(cam_center.x / body_grid);
+    int gy_center = (int)floorf(cam_center.y / body_grid);
+    
+    for (int oy = -3; oy <= 3; oy++) { 
+        for (int ox = -3; ox <= 3; ox++) {
+            Vec2 b_pos_raw; float b_type;
+            int gx = gx_center + ox, gy = gy_center + oy;
+            if (GetCelestialBodyInfo(gx, gy, &b_pos_raw, &b_type)) {
+                // The current visual position of this body for the current camera
+                Vec2 visual_pos = {
+                    cam_center.x + (b_pos_raw.x - cam_center.x) * parallax,
+                    cam_center.y + (b_pos_raw.y - cam_center.y) * parallax
+                };
+
+                float dx = p.x - visual_pos.x, dy = p.y - visual_pos.y;
+                float dist_sq = dx*dx + dy*dy;
+                
+                if (b_type > 0.95f) { // Galaxy
+                    if (dist_sq > 3000.0f*3000.0f && dist_sq < 8000.0f*8000.0f) density += 1.5f;
+                } else { // Planet
+                    if (dist_sq > 1500.0f*1500.0f && dist_sq < 4500.0f*4500.0f) density += 1.2f;
+                }
+            }
+        }
+    }
+    return density;
+}
