@@ -55,9 +55,9 @@ static int SDLCALL BackgroundGenerationThread(void *data) {
       SDL_UnlockMutex(s->bg_mutex);
 
       float s_macro = 0.0002f;
-      float s_low = 0.001f;
-      float s_med = 0.003f;
-      float color_scale = 0.00001f;
+      float s_low = 0.001f; 
+      float s_med = 0.003f; 
+      float color_scale = 0.00001f; 
       float w_macro = 0.6f;
       float w_low = 0.3f;
       float w_med = 0.1f;
@@ -72,30 +72,34 @@ static int SDLCALL BackgroundGenerationThread(void *data) {
         int y = i / s->bg_w;
         float world_x = cam_pos.x + (x * BG_SCALE_FACTOR) / zoom;
         float world_y = cam_pos.y + (y * BG_SCALE_FACTOR) / zoom;
+        
         float n = Noise2D(world_x * s_macro + drift_macro_x, world_y * s_macro + drift_macro_y) * w_macro +
                   Noise2D(world_x * s_low   + drift_detail_x, world_y * s_low   + drift_detail_y) * w_low +
                   Noise2D(world_x * s_med   + drift_detail_x, world_y * s_med   + drift_detail_y) * w_med;
+        
         float variation = Noise2D(world_x * color_scale + 12345.0f, world_y * color_scale + 67890.0f);
         if (n > 1.0f) n = 1.0f; if (n < 0.0f) n = 0.0f;
         if (variation > 1.0f) variation = 1.0f; if (variation < 0.0f) variation = 0.0f;
+        
         float r_f, g_f, b_f;
         GetNebulaColor(n, &r_f, &g_f, &b_f);
         r_f *= (0.95f + variation * 0.1f);
         g_f *= (0.95f + (1.0f - variation) * 0.1f);
+        
         float intensity = 0.5f + n * 0.5f;
         Uint8 r = (Uint8)fminf(r_f * intensity, 255.0f);
         Uint8 g = (Uint8)fminf(g_f * intensity, 255.0f);
         Uint8 b = (Uint8)fminf(b_f * intensity, 255.0f);
-        s->bg_pixel_buffer[i] = (255 << 24) | (b << 16) | (g << 8) | r;
+        s->bg_pixel_buffer[i] = (180 << 24) | (b << 16) | (g << 8) | r;
       }
 
       for (int pass = 0; pass < 1; pass++) {
         for (int y = 0; y < s->bg_h; y++) {
           for (int x = 0; x < s->bg_w; x++) {
             int i = y * s->bg_w + x;
-            int r_sum = 0, g_sum = 0, b_sum = 0;
+            int r_sum = 0, g_sum = 0, b_sum = 0, a_sum = 0;
             int count = 0;
-            #define ADD_PIXEL(idx) do { Uint32 p = s->bg_pixel_buffer[idx]; r_sum += (p & 0xFF); g_sum += ((p >> 8) & 0xFF); b_sum += ((p >> 16) & 0xFF); count++; } while(0)
+            #define ADD_PIXEL(idx) do { Uint32 p = s->bg_pixel_buffer[idx]; r_sum += (p & 0xFF); g_sum += ((p >> 8) & 0xFF); b_sum += ((p >> 16) & 0xFF); a_sum += ((p >> 24) & 0xFF); count++; } while(0)
             ADD_PIXEL(i);
             if (x > 0) ADD_PIXEL(i - 1);
             if (x < s->bg_w - 1) ADD_PIXEL(i + 1);
@@ -105,7 +109,8 @@ static int SDLCALL BackgroundGenerationThread(void *data) {
             Uint8 r_val = r_sum / count;
             Uint8 g_val = g_sum / count;
             Uint8 b_val = b_sum / count;
-            s->bg_pixel_buffer[i] = (255 << 24) | (b_val << 16) | (g_val << 8) | r_val;
+            Uint8 a_val = a_sum / count;
+            s->bg_pixel_buffer[i] = (a_val << 24) | (b_val << 16) | (g_val << 8) | r_val;
           }
         }
       }
@@ -127,6 +132,7 @@ void Renderer_Init(AppState *s) {
   s->bg_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, s->bg_w, s->bg_h);
   if (s->bg_texture) {
     SDL_SetTextureScaleMode(s->bg_texture, SDL_SCALEMODE_LINEAR);
+    SDL_SetTextureBlendMode(s->bg_texture, SDL_BLENDMODE_BLEND);
   }
   SDL_SetRenderDrawBlendMode(s->renderer, SDL_BLENDMODE_BLEND);
   s->bg_mutex = SDL_CreateMutex();
@@ -166,8 +172,44 @@ static void UpdateBackground(AppState *s) {
   }
 }
 
+static void DrawInfiniteStars(SDL_Renderer *renderer, const AppState *s, int win_w, int win_h) {
+    int cell_size = 64; 
+    float parallax = 0.4f; 
+    float cam_x = s->camera_pos.x * parallax;
+    float cam_y = s->camera_pos.y * parallax;
+
+    int start_x = (int)floorf(cam_x / cell_size);
+    int start_y = (int)floorf(cam_y / cell_size);
+    int end_x = (int)ceilf((cam_x + win_w) / cell_size);
+    int end_y = (int)ceilf((cam_y + win_h) / cell_size);
+
+    for (int gy = start_y; gy <= end_y; gy++) {
+        for (int gx = start_x; gx <= end_x; gx++) {
+            float seed = DeterministicHash(gx, gy);
+            if (seed > 0.85f) { 
+                float off_x = DeterministicHash(gx + 10, gy + 20) * cell_size;
+                float off_y = DeterministicHash(gx + 30, gy + 40) * cell_size;
+                
+                float drift_x = sinf(s->current_time * 0.2f + seed * 10.0f) * 15.0f;
+                float drift_y = cosf(s->current_time * 0.15f + seed * 5.0f) * 15.0f;
+
+                float world_x = gx * cell_size + off_x + drift_x;
+                float world_y = gy * cell_size + off_y + drift_y;
+
+                // FIX: Subtraction for correct parallax movement
+                float screen_x = world_x - cam_x;
+                float screen_y = world_y - cam_y;
+
+                // REDUCE BRIGHTNESS and ADD ALPHA
+                Uint8 val = (Uint8)(80 + seed * 100); // 80-180 instead of 150-255
+                SDL_SetRenderDrawColor(renderer, val, val, val, 150); // Semi-transparent
+                SDL_RenderPoint(renderer, screen_x, screen_y);
+            }
+        }
+    }
+}
+
 static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int win_h) {
-  // 1. Draw Small Grid (200x200)
   SDL_SetRenderDrawColor(renderer, 50, 50, 50, 40);
   int grid_small = 200;
   int start_x_s = (int)floorf(s->camera_pos.x / grid_small) * grid_small;
@@ -180,13 +222,10 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
     float sy = (y - s->camera_pos.y) * s->zoom;
     SDL_RenderLine(renderer, 0, sy, (float)win_w, sy);
   }
-
-  // 2. Draw Large Grid (1000x1000) with Labels
   SDL_SetRenderDrawColor(renderer, 100, 100, 100, 80);
   int grid_large = 1000;
   int start_x_l = (int)floorf(s->camera_pos.x / grid_large) * grid_large;
   int start_y_l = (int)floorf(s->camera_pos.y / grid_large) * grid_large;
-  
   for (float x = start_x_l; x < s->camera_pos.x + win_w / s->zoom + grid_large; x += grid_large) {
     float sx = (x - s->camera_pos.x) * s->zoom;
     SDL_RenderLine(renderer, sx, 0, sx, (float)win_h);
@@ -195,14 +234,11 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
     float sy = (y - s->camera_pos.y) * s->zoom;
     SDL_RenderLine(renderer, 0, sy, (float)win_w, sy);
   }
-
-  // 3. Draw Large Grid Labels
   SDL_SetRenderDrawColor(renderer, 150, 150, 150, 150);
   for (float x = start_x_l; x < s->camera_pos.x + win_w / s->zoom + grid_large; x += grid_large) {
     for (float y = start_y_l; y < s->camera_pos.y + win_h / s->zoom + grid_large; y += grid_large) {
         float sx = (x - s->camera_pos.x) * s->zoom;
         float sy = (y - s->camera_pos.y) * s->zoom;
-        
         if (sx >= -10 && sx < win_w && sy >= -10 && sy < win_h) {
             char label[32];
             snprintf(label, sizeof(label), "(%.0f,%.0f)", x, y);
@@ -229,10 +265,18 @@ void Renderer_Draw(AppState *s) {
   SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255);
   SDL_RenderClear(s->renderer);
+  
   UpdateBackground(s);
+  
+  // 1. Draw Nebula First
   if (s->bg_texture) {
     SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
   }
+
+  // 2. Draw Stars over the nebula
+  DrawInfiniteStars(s->renderer, s, win_w, win_h);
+  
+  // 3. Draw Grid and UI
   if (s->show_grid) {
     DrawGrid(s->renderer, s, win_w, win_h);
   }

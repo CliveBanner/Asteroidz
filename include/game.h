@@ -14,5 +14,6 @@ Vec2 Vector_Sub(Vec2 a, Vec2 b);
 float Vector_Length(Vec2 v);
 Vec2 Vector_Normalize(Vec2 v);
 float Noise2D(float x, float y);
+float DeterministicHash(int x, int y);
 
 #endif
