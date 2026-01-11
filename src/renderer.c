@@ -205,11 +205,37 @@ void Renderer_GeneratePlanetStep(AppState *s) {
 void Renderer_DrawLoading(AppState *s) {
     int win_w, win_h; SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
     SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
+    
     float progress = (float)s->assets_generated / (float)(PLANET_COUNT + GALAXY_COUNT);
-    float bar_w = 400.0f, bar_h = 20.0f; float x = (win_w - bar_w) / 2.0f, y = (win_h - bar_h) / 2.0f;
-    SDL_SetRenderDrawColor(s->renderer, 50, 50, 50, 255); SDL_RenderFillRect(s->renderer, &(SDL_FRect){ x, y, bar_w, bar_h });
-    SDL_SetRenderDrawColor(s->renderer, 100, 200, 255, 255); SDL_RenderFillRect(s->renderer, &(SDL_FRect){ x, y, bar_w * progress, bar_h });
-    SDL_RenderDebugText(s->renderer, x, y - 25, "Generating Universe..."); SDL_RenderPresent(s->renderer);
+    float bar_w = 400.0f, bar_h = 20.0f; 
+    float x = (win_w - bar_w) / 2.0f, y = (win_h - bar_h) / 2.0f;
+
+    // Draw Game Title using Scale
+    float title_scale = 4.0f;
+    SDL_SetRenderScale(s->renderer, title_scale, title_scale);
+    const char *title = "Asteroidz";
+    float char_size = 8.0f; // SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE
+    float scaled_win_w = (float)win_w / title_scale;
+    float scaled_y = (y / title_scale);
+    float title_x = (scaled_win_w - (SDL_strlen(title) * char_size)) / 2.0f;
+    
+    SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+    SDL_RenderDebugText(s->renderer, title_x, scaled_y - 30, title);
+
+    // Reset Scale
+    SDL_SetRenderScale(s->renderer, 1.0f, 1.0f);
+
+    // Draw Loading Text
+    SDL_SetRenderDrawColor(s->renderer, 200, 200, 200, 255);
+    SDL_RenderDebugText(s->renderer, x, y - 25, "Loading ...");
+
+    // Draw Progress Bar
+    SDL_SetRenderDrawColor(s->renderer, 50, 50, 50, 255); 
+    SDL_RenderFillRect(s->renderer, &(SDL_FRect){ x, y, bar_w, bar_h });
+    SDL_SetRenderDrawColor(s->renderer, 100, 200, 255, 255); 
+    SDL_RenderFillRect(s->renderer, &(SDL_FRect){ x, y, bar_w * progress, bar_h });
+    
+    SDL_RenderPresent(s->renderer);
 }
 
 static int SDLCALL BackgroundGenerationThread(void *data) {
