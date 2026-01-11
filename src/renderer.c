@@ -77,10 +77,15 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
     float atmo_outer = radius * 2.5f;
     float theme = DeterministicHash((int)(seed * 1000), 42);
     float rm, gm, bm;
-    if (theme > 0.8f) { rm = 0.8f; gm = 0.4f; bm = 0.3f; }
-    else if (theme > 0.6f) { rm = 0.4f; gm = 0.5f; bm = 0.7f; }
-    else if (theme > 0.4f) { rm = 0.2f; gm = 0.6f; bm = 0.4f; }
-    else { rm = 0.5f; gm = 0.5f; bm = 0.6f; }
+    if (theme > 0.75f) {      // Red
+        rm = 0.9f; gm = 0.2f; bm = 0.2f; 
+    } else if (theme > 0.50f) { // Green
+        rm = 0.2f; gm = 0.8f; bm = 0.3f;
+    } else if (theme > 0.25f) { // Violet
+        rm = 0.6f; gm = 0.3f; bm = 0.9f;
+    } else {                    // Blue
+        rm = 0.3f; gm = 0.5f; bm = 0.8f;
+    }
 
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
@@ -105,7 +110,9 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
                     float an = PerlinNoise2D((float)x * 0.01f + seed, (float)y * 0.01f);
                     float af = (1.0f - atmo_t) * (0.2f + an * 0.8f);
                     alpha = (Uint8)(af * 80);
-                    r = (Uint8)(r * 0.2f + 50 * af); g = (Uint8)(g * 0.2f + 150 * af); b = (Uint8)(b * 0.2f + 255 * af);
+                    r = (Uint8)(r * 0.2f + 255 * rm * af); 
+                    g = (Uint8)(g * 0.2f + 255 * gm * af); 
+                    b = (Uint8)(b * 0.2f + 255 * bm * af);
                 }
                 pixels[y * size + x] = (alpha << 24) | (b << 16) | (g << 8) | r;
             }
