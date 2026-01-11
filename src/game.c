@@ -75,7 +75,7 @@ void Game_Update(AppState *s, float dt) {
     if (s->mouse_pos.y < EDGE_SCROLL_THRESHOLD) s->camera_pos.y -= move_speed * dt;
     if (s->mouse_pos.y > (win_h - EDGE_SCROLL_THRESHOLD)) s->camera_pos.y += move_speed * dt;
 
-    float local_density = GetAsteroidDensity(cam_center, cam_center);
+    float local_density = GetAsteroidDensity(cam_center);
     // Lowered scaling: 20 baseline, 200 maximum in densest clusters
     int dynamic_target_count = (int)(20 + local_density * 180.0f);
 
@@ -95,7 +95,7 @@ void Game_Update(AppState *s, float dt) {
         float angle = (float)(rand() % 360) * 0.0174533f;
         float dist = SPAWN_SAFE_ZONE + (float)(rand() % (int)(DESPAWN_RANGE - SPAWN_SAFE_ZONE));
         Vec2 spawn_pos = { cam_center.x + cosf(angle) * dist, cam_center.y + sinf(angle) * dist };
-        float p_density = GetAsteroidDensity(spawn_pos, cam_center);
+        float p_density = GetAsteroidDensity(spawn_pos);
         if (((float)rand() / (float)RAND_MAX) < p_density) {
             float move_angle = (float)(rand() % 360) * 0.0174533f;
             SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, 80.0f + (rand() % 120));

@@ -549,7 +549,7 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
 
 static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
     int cell_size = 5000;
-    float parallax = 0.7f;
+    float parallax = 1.0f; // Everything is 1.0 now
     float sw = (float)win_w, sh = (float)win_h;
     
     // World center of the camera
@@ -559,16 +559,15 @@ static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int w
     // View bounds in the 1.0 world
     float vw = sw / s->zoom, vh = sh / s->zoom;
 
-    // To find which celestial bodies are visible, we use the 0.7 parallax grid
-    int sgx = (int)floorf((cx - vw/parallax)/cell_size), sgy = (int)floorf((cy - vh/parallax)/cell_size);
-    int egx = (int)ceilf((cx + vw/parallax)/cell_size), egy = (int)ceilf((cy + vh/parallax)/cell_size);
+    // Search celestial grid
+    int sgx = (int)floorf((cx - vw/2)/cell_size), sgy = (int)floorf((cy - vh/2)/cell_size);
+    int egx = (int)ceilf((cx + vw/2)/cell_size), egy = (int)ceilf((cy + vh/2)/cell_size);
 
     for (int gy = sgy; gy <= egy; gy++) {
         for (int gx = sgx; gx <= egx; gx++) {
             Vec2 b_pos; float b_type;
             if (GetCelestialBodyInfo(gx, gy, &b_pos, &b_type)) {
                 // Cross at celestial body visual position
-                Vec2 v_pos = WorldToParallax(b_pos, parallax);
                 Vec2 sx_y = WorldToScreenParallax(b_pos, parallax, s, win_w, win_h);
                 if (IsVisible(sx_y.x, sx_y.y, 100, win_w, win_h)) {
                     SDL_SetRenderDrawColor(r, 0, 255, 0, 255);
@@ -579,8 +578,8 @@ static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int w
         }
     }
 
-    // Now draw the density visualization patches (1.0 world grid)
-    int d_cell = 2000; // Smaller grid for density overlay visibility
+    // Density visualization
+    int d_cell = 2000;
     int dsgx = (int)floorf(s->camera_pos.x / d_cell), dsgy = (int)floorf(s->camera_pos.y / d_cell);
     int degx = (int)ceilf((s->camera_pos.x + vw) / d_cell), degy = (int)ceilf((s->camera_pos.y + vh) / d_cell);
 
@@ -595,7 +594,7 @@ static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int w
                 for (int sxx = 0; sxx < sub_res; sxx++) {
                     float swx = wx + (sxx / (float)sub_res) * d_cell;
                     float swy = wy + (syy / (float)sub_res) * d_cell;
-                    float d = GetAsteroidDensity((Vec2){swx, swy}, (Vec2){cx, cy});
+                    float d = GetAsteroidDensity((Vec2){swx, swy});
                     if (d > 0.05f) {
                         Uint8 rv = (Uint8)(fminf(1.0f, d / 1.5f) * 150.0f);
                         SDL_SetRenderDrawColor(r, rv, 0, 50, 40);
@@ -613,7 +612,7 @@ void Renderer_Draw(AppState *s) {
   UpdateBackground(s);
   if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
-  DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, SystemLayerFn);
+  DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 1.0f, 1000, SystemLayerFn);
   
   if (s->show_density) { DrawDensityGrid(s->renderer, s, ww, wh); }
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }

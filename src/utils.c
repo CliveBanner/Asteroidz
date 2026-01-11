@@ -127,34 +127,19 @@ Vec2 WorldToParallax(Vec2 world_pos, float parallax) {
     return (Vec2){ world_pos.x * parallax, world_pos.y * parallax };
 }
 
-float GetAsteroidDensity(Vec2 p, Vec2 cam_center) {
+float GetAsteroidDensity(Vec2 p) {
     float density = 0.02f; 
     const float body_grid = 5000.0f;
-    const float parallax = 0.7f;
     
-    // We want to find the visual position of celestial bodies 
-    // relative to the camera center.
-    // ScreenPos = Center + (pos * parallax - cam * parallax)
-    // For a point p in 1.0 world: ScreenPos = Center + (p - cam)
-    // They match if: p - cam = pos * parallax - cam * parallax
-    // p = cam + (pos - cam) * parallax
+    // Both p and celestial bodies are in the 1.0 world.
+    int gx_center = (int)floorf(p.x / body_grid);
+    int gy_center = (int)floorf(p.y / body_grid);
     
-    // Search grid around the camera's 0.7-parallax position
-    int gx_center = (int)floorf(cam_center.x / body_grid);
-    int gy_center = (int)floorf(cam_center.y / body_grid);
-    
-    for (int oy = -3; oy <= 3; oy++) { 
-        for (int ox = -3; ox <= 3; ox++) {
-            Vec2 b_pos_raw; float b_type;
-            int gx = gx_center + ox, gy = gy_center + oy;
-            if (GetCelestialBodyInfo(gx, gy, &b_pos_raw, &b_type)) {
-                // The current visual position of this body for the current camera
-                Vec2 visual_pos = {
-                    cam_center.x + (b_pos_raw.x - cam_center.x) * parallax,
-                    cam_center.y + (b_pos_raw.y - cam_center.y) * parallax
-                };
-
-                float dx = p.x - visual_pos.x, dy = p.y - visual_pos.y;
+    for (int oy = -1; oy <= 1; oy++) { 
+        for (int ox = -1; ox <= 1; ox++) {
+            Vec2 b_pos; float b_type;
+            if (GetCelestialBodyInfo(gx_center + ox, gy_center + oy, &b_pos, &b_type)) {
+                float dx = p.x - b_pos.x, dy = p.y - b_pos.y;
                 float dist_sq = dx*dx + dy*dy;
                 
                 if (b_type > 0.95f) { // Galaxy
