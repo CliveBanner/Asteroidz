@@ -67,8 +67,8 @@ static void GetNebulaColor(float t, float *r, float *g, float *b) {
 
 static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
-    float radius = (size / 2.0f) * 0.4f; 
-    float atmo_outer = radius * 2.5f;
+    float radius = (size / 2.0f) * 0.35f; 
+    float atmo_outer = radius * 4.5f; // Massively increased fog range
     float theme = DeterministicHash((int)(seed * 1000), 42);
     float rm, gm, bm;
     if (theme > 0.75f) { rm = 0.9f; gm = 0.2f; bm = 0.2f; }
@@ -95,10 +95,13 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
                 Uint8 b = (Uint8)fminf(255.0f, (80 + noise * 175) * bm * shading);
                 Uint8 alpha = 255;
                 if (dist > radius) {
+                    // Normalized distance within the atmosphere (0 to 1)
                     float atmo_t = (dist - radius) / (atmo_outer - radius);
                     float an = PerlinNoise2D((float)x * 0.01f + seed, (float)y * 0.01f);
-                    float af = (1.0f - atmo_t) * (0.2f + an * 0.8f);
-                    alpha = (Uint8)(af * 80);
+                    
+                    // Thicker near surface, gradual fade
+                    float af = powf(1.0f - atmo_t, 1.5f) * (0.3f + an * 0.7f);
+                    alpha = (Uint8)(af * 120); // Higher max alpha for more obvious fog
                     r = (Uint8)(r * 0.2f + 255 * rm * af); g = (Uint8)(g * 0.2f + 255 * gm * af); b = (Uint8)(b * 0.2f + 255 * bm * af);
                 }
                 pixels[y * size + x] = (alpha << 24) | (b << 16) | (g << 8) | r;
