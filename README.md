@@ -1,10 +1,19 @@
 # Asteroidz
 
-An asteroid-inspired RTS game developed in C with SDL3.
+An asteroid-inspired RTS simulation developed in C with SDL3.
 
 ## Description
 
-Asteroidz is a classic arcade-style game inspired by Asteroids, where you control a spaceship and destroy asteroids.
+Asteroidz is a real-time asteroid field simulation where you observe and navigate through a dynamically generated asteroid environment. Asteroids spawn based on density patterns, collide with each other, split into smaller pieces, and create spectacular particle effects. Navigate through space using camera controls to explore different regions of the asteroid field.
+
+## Features
+
+- **Dynamic Asteroid Spawning**: Asteroids spawn based on procedural density patterns around the camera
+- **Realistic Collisions**: Asteroids collide and split into smaller fragments
+- **Particle Effects**: Explosions with sparks and puffs when asteroids collide
+- **Camera Controls**: Navigate through the asteroid field with edge scrolling and zoom
+- **Procedural Generation**: Infinite asteroid field generated on-the-fly
+- **Performance Optimized**: Asteroids despawn when out of view range
 
 ## Prerequisites
 
@@ -73,7 +82,7 @@ cmake .. -G "MinGW Makefiles"
 mingw32-make
 ```
 
-## Running the Game
+## Running the Simulation
 
 After successful compilation, you'll find the executable in the `build` directory:
 
@@ -93,13 +102,30 @@ After successful compilation, you'll find the executable in the `build` director
 .\Debug\asteriodz.exe
 ```
 
+The simulation runs in fullscreen mode by default.
+
 ## Controls
 
-*(Add your game controls here)*
+- **Mouse Movement to Screen Edges**: Pan camera (edge scrolling)
+- **Mouse Wheel**: Zoom in/out
+- **ESC**: Exit simulation
 
-- **Arrow Keys**: Control spaceship
-- **Space**: Shoot
-- **ESC**: Exit game
+## How It Works
+
+### Dynamic Spawning
+Asteroids spawn dynamically around the camera based on a procedural density function. Dense regions have more asteroids, while sparse regions have fewer.
+
+### Collision System
+When two asteroids collide:
+- Both asteroids are destroyed
+- Explosion particles are generated
+- If the asteroids are large enough (radius > 60), they split into two smaller asteroids each
+- Smaller fragments inherit directional momentum from the collision
+
+### Performance
+- Asteroids beyond the despawn range are automatically removed
+- New asteroids spawn at the edge of the visible range
+- Maximum asteroid count adjusts based on local density (20-500 asteroids)
 
 ## Project Structure
 
@@ -107,8 +133,17 @@ After successful compilation, you'll find the executable in the `build` director
 Asteroidz/
 ├── CMakeLists.txt      # Build configuration
 ├── include/            # Header files
+│   ├── constants.h     # Game constants and configuration
+│   ├── game.h          # Game logic structures
+│   └── ...             # Other headers
 ├── src/                # Source code
-├── vendored/           # External libraries (SDL3)
+│   ├── main.c          # SDL3 entry point and main loop
+│   ├── game.c          # Game logic and physics
+│   ├── renderer.c      # Rendering and graphics
+│   ├── input.c         # Input handling
+│   └── utils.c         # Utility functions
+├── vendored/           # External libraries
+│   └── SDL/            # SDL3 (submodule)
 └── README.md           # This file
 ```
 
@@ -117,6 +152,7 @@ Asteroidz/
 - **Programming Language**: C (C11)
 - **Build System**: CMake
 - **Graphics Library**: SDL3
+- **Rendering**: Software rendering with procedurally generated textures
 
 ## Troubleshooting
 
@@ -127,6 +163,10 @@ If SDL3 is not found, make sure you've initialized the submodules:
 ```bash
 git submodule update --init --recursive
 ```
+
+### Black Screen on Startup
+
+The simulation generates asteroid textures on first launch, which may take a few seconds. You'll see a loading screen during this process.
 
 ### Compiler Errors
 
