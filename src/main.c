@@ -21,6 +21,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     s->camera_pos.y = 0.0f;
     s->show_grid = true;
 
+    Game_Init(s);
     Renderer_Init(s);
 
     return SDL_APP_CONTINUE;

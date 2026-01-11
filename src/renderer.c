@@ -508,27 +508,19 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x + (MINIMAP_SIZE - view_w)/2, mm_y + (MINIMAP_SIZE - view_h)/2, view_w, view_h });
 }
 
-static void AsteroidLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
-    if (cell->seed > 0.70f) { // Dense spawning: 30% of cells
-        int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
-        int cell_size = 1000;
+static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+    for (int i = 0; i < MAX_ASTEROIDS; i++) {
+        if (!s->asteroids[i].active) continue;
         
-        float ox = DeterministicHash(cell->gx + 7, cell->gy + 3) * cell_size;
-        float oy = DeterministicHash(cell->gx + 1, cell->gy + 9) * cell_size;
-        float sx = cell->screen_x + ox * s->zoom, sy = cell->screen_y + oy * s->zoom;
+        float sx = (s->asteroids[i].pos.x - s->camera_pos.x) * s->zoom;
+        float sy = (s->asteroids[i].pos.y - s->camera_pos.y) * s->zoom;
+        float rad = s->asteroids[i].radius * s->zoom;
         
-        // Increased radius range: 30 to 230 units (was 20 to 80)
-        float r_s = DeterministicHash(cell->gx + 4, cell->gy + 2);
-        float rad = (30.0f + r_s * 200.0f) * s->zoom;
-        
-        if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
+        if (!IsVisible(sx, sy, rad * 1.5f, win_w, win_h)) continue;
 
-        int a_idx = (int)(DeterministicHash(cell->gx + 5, cell->gy + 5) * ASTEROID_TYPE_COUNT);
-        float rot = DeterministicHash(cell->gx, cell->gy) * 360.0f + s->current_time * 10.0f * (r_s - 0.5f);
-        
-        SDL_RenderTextureRotated(r, s->asteroid_textures[a_idx], NULL, 
-                                 &(SDL_FRect){ sx - rad, sy - rad, rad * 2, rad * 2 }, 
-                                 rot, NULL, SDL_FLIP_NONE);
+        SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, 
+                                 &(SDL_FRect){ sx - rad * 1.5f, sy - rad * 1.5f, rad * 3.0f, rad * 3.0f }, 
+                                 s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
     }
 }
 
@@ -540,10 +532,10 @@ void Renderer_Draw(AppState *s) {
   DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
   DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, SystemLayerFn);
   
-  // 4. Primary Layer (Asteroids, Units, Grid)
-  DrawParallaxLayer(s->renderer, s, ww, wh, 1000, 1.0f, 2000, AsteroidLayerFn);
-  
+  // 4. Primary Layer (Asteroid Entities)
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
+  Renderer_DrawAsteroids(s->renderer, s, ww, wh);
+  
   DrawDebugInfo(s->renderer, s, ww);
   DrawMinimap(s->renderer, s, ww, wh);
   SDL_RenderPresent(s->renderer);

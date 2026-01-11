@@ -12,6 +12,17 @@ typedef struct {
 #define PLANET_COUNT 8
 #define GALAXY_COUNT 4
 #define ASTEROID_TYPE_COUNT 16
+#define MAX_ASTEROIDS 1024
+
+typedef struct {
+    Vec2 pos;
+    Vec2 velocity;
+    float radius;
+    float rotation;
+    float rot_speed;
+    int tex_idx;
+    bool active;
+} Asteroid;
 
 typedef struct {
     // Camera
@@ -22,6 +33,10 @@ typedef struct {
     Vec2 mouse_pos;       // Screen coordinates
     bool show_grid;
     
+    // Game Entities
+    Asteroid asteroids[MAX_ASTEROIDS];
+    int asteroid_count;
+
     // Rendering
     SDL_Texture *bg_texture;
     int bg_w, bg_h;

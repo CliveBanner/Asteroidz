@@ -4,6 +4,7 @@
 #include "structs.h"
 
 // System functions
+void Game_Init(AppState *s);
 void Game_Update(AppState *s, float dt);
 void Renderer_Init(AppState *s);
 void Renderer_GeneratePlanetStep(AppState *s);
