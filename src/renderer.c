@@ -501,6 +501,38 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
     Vec2 s1 = WorldToScreenParallax((Vec2){0, y}, 1.0f, s, win_w, win_h);
     SDL_RenderLine(renderer, 0, s1.y, (float)win_w, s1.y); 
   }
+
+    // Density visualization patches (1.0 world grid)
+    int d_cell = 2000; // Smaller grid for density overlay visibility
+    float sw = (float)win_w, sh = (float)win_h;
+    float vw = sw / s->zoom, vh = sh / s->zoom;
+    
+    int dsgx = (int)floorf(s->camera_pos.x / d_cell);
+    int dsgy = (int)floorf(s->camera_pos.y / d_cell);
+    int degx = (int)ceilf((s->camera_pos.x + vw) / d_cell);
+    int degy = (int)ceilf((s->camera_pos.y + vh) / d_cell);
+
+    for (int gy = dsgy; gy <= degy; gy++) {
+        for (int gx = dsgx; gx <= degx; gx++) {
+            float wx = (float)gx * d_cell, wy = (float)gy * d_cell;
+            Vec2 sc_pos = WorldToScreenParallax((Vec2){wx, wy}, 1.0f, s, win_w, win_h);
+            float sz = (float)d_cell * s->zoom;
+
+            int sub_res = 5; float sub_sz = sz / sub_res;
+            for (int syy = 0; syy < sub_res; syy++) {
+                for (int sxx = 0; sxx < sub_res; sxx++) {
+                    float swx = wx + (sxx / (float)sub_res) * d_cell;
+                    float swy = wy + (syy / (float)sub_res) * d_cell;
+                    float d = GetAsteroidDensity((Vec2){swx, swy});
+                    if (d > 0.05f) {
+                        Uint8 rv = (Uint8)(d * 150.0f);
+                        SDL_SetRenderDrawColor(renderer, rv, 0, 50, 40);
+                        SDL_RenderFillRect(renderer, &(SDL_FRect){ sc_pos.x + sxx * sub_sz, sc_pos.y + syy * sub_sz, sub_sz + 1, sub_sz + 1 });
+                    }
+                }
+            }
+        }
+    }
 }
 
 static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) {
@@ -523,6 +555,31 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
     SDL_SetRenderDrawColor(r, 20, 20, 30, 180); SDL_RenderFillRect(r, &(SDL_FRect){ mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE });
     SDL_SetRenderDrawColor(r, 80, 80, 100, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE });
 
+    // Draw density overlay on minimap
+    float mm_density_cell = MINIMAP_RANGE / 40.0f; // Roughly 1500 units per cell
+    int dsgx = (int)floorf((cx - MINIMAP_RANGE/2) / mm_density_cell);
+    int dsgy = (int)floorf((cy - MINIMAP_RANGE/2) / mm_density_cell);
+    int degx = (int)ceilf((cx + MINIMAP_RANGE/2) / mm_density_cell);
+    int degy = (int)ceilf((cy + MINIMAP_RANGE/2) / mm_density_cell);
+
+    for (int gy = dsgy; gy <= degy; gy++) {
+        for (int gx = dsgx; gx <= degx; gx++) {
+            float wx = (float)gx * mm_density_cell, wy = (float)gy * mm_density_cell;
+            float d = GetAsteroidDensity((Vec2){wx, wy});
+            if (d > 0.05f) { // Only draw if there's significant density
+                Uint8 rv = (Uint8)(d * 100.0f); // Scale to a visible range for minimap
+                SDL_SetRenderDrawColor(r, rv, rv / 2, 0, (Uint8)(d * 150.0f)); // Orange-ish, semi-transparent
+                
+                float px = mm_x + MINIMAP_SIZE/2 + (wx - cx) * world_to_mm;
+                float py = mm_y + MINIMAP_SIZE/2 + (wy - cy) * world_to_mm;
+                float cell_mm_size = mm_density_cell * world_to_mm;
+
+                SDL_RenderFillRect(r, &(SDL_FRect){ px, py, cell_mm_size, cell_mm_size });
+            }
+        }
+    }
+    
+    // Draw celestial bodies on minimap
     int cell_size = 5000; int r_cells = (int)(MINIMAP_RANGE / cell_size) + 1;
     int scx = (int)floorf((cx - MINIMAP_RANGE/2) / cell_size);
     int scy = (int)floorf((cy - MINIMAP_RANGE/2) / cell_size);
@@ -530,15 +587,16 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
         for (int gx = scx; gx <= scx + r_cells; gx++) {
             Vec2 b_pos; float type_seed;
             if (GetCelestialBodyInfo(gx, gy, &b_pos, &type_seed)) {
-                // Adjust for parallax 0.7 in minimap? 
-                // Let's draw celestial bodies relative to camera center
                 float dx = (b_pos.x - cx); float dy = (b_pos.y - cy);
                 if (fabsf(dx) < MINIMAP_RANGE/2 && fabsf(dy) < MINIMAP_RANGE/2) {
                     float px = mm_x + MINIMAP_SIZE/2 + dx * world_to_mm; 
                     float py = mm_y + MINIMAP_SIZE/2 + dy * world_to_mm;
-                    if (type_seed > 0.95f) SDL_SetRenderDrawColor(r, 200, 150, 255, 255);
-                    else SDL_SetRenderDrawColor(r, 100, 200, 255, 255);
-                    SDL_RenderFillRect(r, &(SDL_FRect){ px, py, 4, 4 });
+                    float dot_size = (type_seed > 0.95f) ? 6 : 4; // Galaxies larger
+                    
+                    if (type_seed > 0.95f) SDL_SetRenderDrawColor(r, 200, 150, 255, 255); // Galaxy color
+                    else SDL_SetRenderDrawColor(r, 100, 200, 255, 255); // Planet color
+                    
+                    SDL_RenderFillRect(r, &(SDL_FRect){ px - dot_size/2, py - dot_size/2, dot_size, dot_size });
                 }
             }
         }
@@ -547,64 +605,7 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x + (MINIMAP_SIZE - view_w)/2, mm_y + (MINIMAP_SIZE - view_h)/2, view_w, view_h });
 }
 
-static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
-    int cell_size = 5000;
-    float parallax = 1.0f; // Everything is 1.0 now
-    float sw = (float)win_w, sh = (float)win_h;
-    
-    // World center of the camera
-    float cx = s->camera_pos.x + (sw / 2.0f) / s->zoom;
-    float cy = s->camera_pos.y + (sh / 2.0f) / s->zoom;
 
-    // View bounds in the 1.0 world
-    float vw = sw / s->zoom, vh = sh / s->zoom;
-
-    // Search celestial grid
-    int sgx = (int)floorf((cx - vw/2)/cell_size), sgy = (int)floorf((cy - vh/2)/cell_size);
-    int egx = (int)ceilf((cx + vw/2)/cell_size), egy = (int)ceilf((cy + vh/2)/cell_size);
-
-    for (int gy = sgy; gy <= egy; gy++) {
-        for (int gx = sgx; gx <= egx; gx++) {
-            Vec2 b_pos; float b_type;
-            if (GetCelestialBodyInfo(gx, gy, &b_pos, &b_type)) {
-                // Cross at celestial body visual position
-                Vec2 sx_y = WorldToScreenParallax(b_pos, parallax, s, win_w, win_h);
-                if (IsVisible(sx_y.x, sx_y.y, 100, win_w, win_h)) {
-                    SDL_SetRenderDrawColor(r, 0, 255, 0, 255);
-                    SDL_RenderLine(r, sx_y.x - 20, sx_y.y, sx_y.x + 20, sx_y.y);
-                    SDL_RenderLine(r, sx_y.x, sx_y.y - 20, sx_y.x, sx_y.y + 20);
-                }
-            }
-        }
-    }
-
-    // Density visualization
-    int d_cell = 2000;
-    int dsgx = (int)floorf(s->camera_pos.x / d_cell), dsgy = (int)floorf(s->camera_pos.y / d_cell);
-    int degx = (int)ceilf((s->camera_pos.x + vw) / d_cell), degy = (int)ceilf((s->camera_pos.y + vh) / d_cell);
-
-    for (int gy = dsgy; gy <= degy; gy++) {
-        for (int gx = dsgx; gx <= degx; gx++) {
-            float wx = (float)gx * d_cell, wy = (float)gy * d_cell;
-            Vec2 sc_pos = WorldToScreenParallax((Vec2){wx, wy}, 1.0f, s, win_w, win_h);
-            float sz = (float)d_cell * s->zoom;
-
-            int sub_res = 5; float sub_sz = sz / sub_res;
-            for (int syy = 0; syy < sub_res; syy++) {
-                for (int sxx = 0; sxx < sub_res; sxx++) {
-                    float swx = wx + (sxx / (float)sub_res) * d_cell;
-                    float swy = wy + (syy / (float)sub_res) * d_cell;
-                    float d = GetAsteroidDensity((Vec2){swx, swy});
-                    if (d > 0.05f) {
-                        Uint8 rv = (Uint8)(d * 150.0f);
-                        SDL_SetRenderDrawColor(r, rv, 0, 50, 40);
-                        SDL_RenderFillRect(r, &(SDL_FRect){ sc_pos.x + sxx * sub_sz, sc_pos.y + syy * sub_sz, sub_sz + 1, sub_sz + 1 });
-                    }
-                }
-            }
-        }
-    }
-}
 
 void Renderer_Draw(AppState *s) {
   int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
@@ -614,7 +615,6 @@ void Renderer_Draw(AppState *s) {
   DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
   DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 1.0f, 1000, SystemLayerFn);
   
-  if (s->show_density) { DrawDensityGrid(s->renderer, s, ww, wh); }
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
   
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);

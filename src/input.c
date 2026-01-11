@@ -61,7 +61,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         }
 
         case SDL_EVENT_KEY_DOWN:
-            if (event->key.key == SDLK_H) {
+            if (event->key.key == SDLK_G) {
                 s->show_grid = !s->show_grid;
             }
             if (event->key.key == SDLK_D) {
