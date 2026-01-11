@@ -384,7 +384,7 @@ static void DrawExplosionPuffToBuffer(Uint32 *pixels, int size, float seed) {
   }
 }
 
-void Renderer_GeneratePlanetStep(AppState *s) {
+void Renderer_GenerateAssetStep(AppState *s) {
   int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + 1;
   if (s->assets_generated >= total_assets) {
     s->is_loading = false;

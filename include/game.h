@@ -10,7 +10,7 @@ float GetAsteroidDensity(Vec2 p);
 bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed);
 Vec2 WorldToParallax(Vec2 world_pos, float parallax);
 void Renderer_Init(AppState *s);
-void Renderer_GeneratePlanetStep(AppState *s);
+void Renderer_GenerateAssetStep(AppState *s);
 void Renderer_DrawLoading(AppState *s);
 void Renderer_Draw(AppState *s);
 void Input_ProcessEvent(AppState *s, SDL_Event *event);
