@@ -175,7 +175,8 @@ static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
 
 static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
-    float base_radius = size * 0.35f;
+    // Smaller base radius relative to 512px to give dust more room
+    float base_radius = size * 0.15f; 
     
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
@@ -184,7 +185,6 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
             if (dist < 1.0f) continue;
             float angle = atan2f(dy, dx);
             
-            // Multi-octave distortion for irregular rocky shapes
             float shape_n = 0.0f;
             float s_freq = 1.2f, s_amp = 0.6f;
             for(int o=0; o<3; o++) {
@@ -194,39 +194,24 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
             float distorted_radius = base_radius * (1.0f + shape_n);
             
             if (dist <= distorted_radius) {
-                // Layer 1: Large warped cracks
                 float warp = ValueNoise2D(x * 0.02f + seed, y * 0.02f + seed) * 0.5f;
                 float cracks1 = VoronoiCracks2D(x * 0.03f + seed + warp, y * 0.03f + seed + warp);
-                
-                // Layer 2: Smaller surface cracks
                 float cracks2 = VoronoiCracks2D(x * 0.1f + seed * 2.0f, y * 0.1f + seed * 3.0f);
-                
                 float surface_v = ValueNoise2D(x * 0.05f + seed, y * 0.05f + seed);
-                
-                // Softened material mixing
                 float mat_n = ValueNoise2D(x * 0.04f + seed * 4.0f, y * 0.04f + seed * 4.0f);
-                float mix_val = fmaxf(0.0f, fminf(1.0f, (mat_n - 0.3f) * 1.5f)); // Smoother transition
+                float mix_val = fmaxf(0.0f, fminf(1.0f, (mat_n - 0.3f) * 1.5f)); 
 
-                // Determine material colors (more desaturated, natural tones)
                 float a_theme = DeterministicHash((int)(seed * 789.0f), 123);
                 float r1, g1, b1, r2, g2, b2;
-                if (a_theme > 0.7f) { // Iron-tinted
-                    r1 = 0.5f; g1 = 0.45f; b1 = 0.42f; r2 = 0.75f; g2 = 0.4f; b2 = 0.35f;
-                } else if (a_theme > 0.4f) { // Silicate-tinted
-                    r1 = 0.55f; g1 = 0.55f; b1 = 0.6f; r2 = 0.45f; g2 = 0.5f; b2 = 0.75f;
-                } else { // Carbonaceous-tinted
-                    r1 = 0.35f; g1 = 0.35f; b1 = 0.38f; r2 = 0.55f; g2 = 0.55f; b2 = 0.58f;
-                }
+                if (a_theme > 0.7f) { r1 = 0.5f; g1 = 0.45f; b1 = 0.42f; r2 = 0.75f; g2 = 0.4f; b2 = 0.35f; }
+                else if (a_theme > 0.4f) { r1 = 0.55f; g1 = 0.55f; b1 = 0.6f; r2 = 0.45f; g2 = 0.5f; b2 = 0.75f; }
+                else { r1 = 0.35f; g1 = 0.35f; b1 = 0.38f; r2 = 0.55f; g2 = 0.55f; b2 = 0.58f; }
 
-                // Interpolate materials with less vibrance
                 float tr = r1 * (1.0f - mix_val) + r2 * mix_val;
                 float tg = g1 * (1.0f - mix_val) + g2 * mix_val;
                 float tb = b1 * (1.0f - mix_val) + b2 * mix_val;
 
-                // Base brightness variation (slightly darker)
                 float base_val = 30.0f + surface_v * 35.0f + shape_n * 15.0f;
-                
-                // Crack darkening
                 float c1_factor = fmaxf(0.0f, fminf(1.0f, cracks1 / 0.4f));
                 float soft_darken1 = 0.4f + 0.6f * powf(c1_factor, 0.5f);
                 float c2_factor = fmaxf(0.0f, fminf(1.0f, cracks2 / 0.2f));
@@ -235,8 +220,27 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
                 Uint8 r = (Uint8)fminf(255, base_val * tr * soft_darken1 * soft_darken2);
                 Uint8 g = (Uint8)fminf(255, base_val * tg * soft_darken1 * soft_darken2);
                 Uint8 b = (Uint8)fminf(255, base_val * tb * soft_darken1 * soft_darken2);
-
                 pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+            } else {
+                // IRREGULAR DUST CLOUD - Lower freq and softer fade
+                float dust_noise = PerlinNoise2D(cosf(angle) * 0.8f + seed + 100, sinf(angle) * 0.8f + seed + 100);
+                float dust_outer = base_radius * (1.5f + dust_noise * 3.0f); 
+                
+                if (dist <= dust_outer) {
+                    float dust_t = (dist - distorted_radius) / (dust_outer - distorted_radius);
+                    // Lower frequency for larger whisps (0.02 instead of 0.04)
+                    float detail_n = PerlinNoise2D(x * 0.02f + seed + 500, y * 0.02f + seed);
+                    
+                    float edge_dist = fminf(fminf(x, (size-1)-x), fminf(y, (size-1)-y));
+                    float edge_falloff = fminf(1.0f, edge_dist / 30.0f);
+
+                    // Softer fade (power 2.5 instead of 1.5)
+                    float alpha_f = powf(1.0f - dust_t, 2.5f) * detail_n * edge_falloff;
+                    if (alpha_f > 0.01f) {
+                        Uint8 val = (Uint8)(35 + detail_n * 25); 
+                        pixels[y * size + x] = ((Uint8)(alpha_f * 100) << 24) | (val << 16) | (val << 8) | val;
+                    }
+                }
             }
         }
     }
@@ -265,7 +269,8 @@ void Renderer_GeneratePlanetStep(AppState *s) {
         SDL_free(pixels);
     } else {
         int a_idx = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT);
-        int a_size = 256; Uint32 *pixels = SDL_malloc(a_size * a_size * sizeof(Uint32));
+        int a_size = 512; // Increased size for expanding dust
+        Uint32 *pixels = SDL_malloc(a_size * a_size * sizeof(Uint32));
         SDL_memset(pixels, 0, a_size * a_size * sizeof(Uint32));
         DrawAsteroidToBuffer(pixels, a_size, (float)a_idx * 432.1f + 11.0f);
         s->asteroid_textures[a_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, a_size, a_size);
