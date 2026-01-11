@@ -7,7 +7,6 @@
 
 typedef struct { float pos; float r, g, b; } ColorStop;
 
-// --- Helper Types ---
 typedef struct {
     int gx, gy;
     float seed;
@@ -15,8 +14,6 @@ typedef struct {
 } LayerCell;
 
 typedef void (*LayerDrawFn)(SDL_Renderer *r, const AppState *s, const LayerCell *cell);
-
-// --- Refactored Helpers ---
 
 static Vec2 GetParallaxCam(const AppState *s, float parallax, int win_w, int win_h) {
     float cx = win_w / 2.0f, cy = win_h / 2.0f;
@@ -43,7 +40,6 @@ static void DrawParallaxLayer(SDL_Renderer *r, const AppState *s, int win_w, int
     int sgx = (int)floorf(p_cam.x / cell_size), sgy = (int)floorf(p_cam.y / cell_size);
     int egx = (int)ceilf((p_cam.x + win_w / s->zoom) / cell_size);
     int egy = (int)ceilf((p_cam.y + win_h / s->zoom) / cell_size);
-
     for (int gy = sgy; gy <= egy; gy++) {
         for (int gx = sgx; gx <= egx; gx++) {
             LayerCell cell;
@@ -55,8 +51,6 @@ static void DrawParallaxLayer(SDL_Renderer *r, const AppState *s, int win_w, int
         }
     }
 }
-
-// --- Original Logic ---
 
 static void GetNebulaColor(float t, float *r, float *g, float *b) {
   static const ColorStop stops[] = { {0.00f, 2, 2, 6}, {0.40f, 10, 10, 25}, {0.70f, 25, 15, 45}, {0.90f, 35, 60, 80}, {1.00f, 50, 80, 100} };
@@ -77,15 +71,10 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
     float atmo_outer = radius * 2.5f;
     float theme = DeterministicHash((int)(seed * 1000), 42);
     float rm, gm, bm;
-    if (theme > 0.75f) {      // Red
-        rm = 0.9f; gm = 0.2f; bm = 0.2f; 
-    } else if (theme > 0.50f) { // Green
-        rm = 0.2f; gm = 0.8f; bm = 0.3f;
-    } else if (theme > 0.25f) { // Violet
-        rm = 0.6f; gm = 0.3f; bm = 0.9f;
-    } else {                    // Blue
-        rm = 0.3f; gm = 0.5f; bm = 0.8f;
-    }
+    if (theme > 0.75f) { rm = 0.9f; gm = 0.2f; bm = 0.2f; }
+    else if (theme > 0.50f) { rm = 0.2f; gm = 0.8f; bm = 0.3f; }
+    else if (theme > 0.25f) { rm = 0.6f; gm = 0.3f; bm = 0.9f; }
+    else { rm = 0.3f; gm = 0.5f; bm = 0.8f; }
 
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
@@ -110,9 +99,7 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
                     float an = PerlinNoise2D((float)x * 0.01f + seed, (float)y * 0.01f);
                     float af = (1.0f - atmo_t) * (0.2f + an * 0.8f);
                     alpha = (Uint8)(af * 80);
-                    r = (Uint8)(r * 0.2f + 255 * rm * af); 
-                    g = (Uint8)(g * 0.2f + 255 * gm * af); 
-                    b = (Uint8)(b * 0.2f + 255 * bm * af);
+                    r = (Uint8)(r * 0.2f + 255 * rm * af); g = (Uint8)(g * 0.2f + 255 * gm * af); b = (Uint8)(b * 0.2f + 255 * bm * af);
                 }
                 pixels[y * size + x] = (alpha << 24) | (b << 16) | (g << 8) | r;
             }
@@ -120,23 +107,93 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
     }
 }
 
+static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
+    int center = size / 2;
+    float twist = 4.0f + DeterministicHash((int)seed, 7) * 4.0f;
+    int arms = 2 + (int)(DeterministicHash((int)seed, 13) * 3);
+    float core_rad = size * 0.05f;
+    float theme = DeterministicHash((int)seed, 42);
+
+    float tr, tg, tb; // Primary color
+    float tr2, tg2, tb2; // Secondary color
+    if (theme > 0.75f) { // Gold to Purple
+        tr = 1.0f; tg = 0.8f; tb = 0.2f; tr2 = 0.6f; tg2 = 0.1f; tb2 = 1.0f;
+    } else if (theme > 0.50f) { // Red to Cyan
+        tr = 1.0f; tg = 0.1f; tb = 0.1f; tr2 = 0.1f; tg2 = 0.9f; tb2 = 1.0f;
+    } else if (theme > 0.25f) { // Green to Magenta
+        tr = 0.1f; tg = 1.0f; tb = 0.2f; tr2 = 1.0f; tg2 = 0.1f; tb2 = 0.8f;
+    } else { // Deep Blue to Orange
+        tr = 0.1f; tg = 0.3f; tb = 1.0f; tr2 = 1.0f; tg2 = 0.5f; tb2 = 0.1f;
+    }
+
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            float dx = (float)(x - center), dy = (float)(y - center);
+            float dist = sqrtf(dx*dx + dy*dy);
+            float max_dist = size * 0.45f;
+            if (dist > max_dist) continue;
+            float angle = atan2f(dy, dx);
+            float norm_dist = dist / max_dist;
+            float twisted_angle = angle - norm_dist * twist;
+            float arm_sin = powf(fabsf(cosf(twisted_angle * (float)arms / 2.0f)), 3.0f);
+            float n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f);
+            float intensity = (arm_sin * 0.8f + 0.2f) * n;
+            float falloff = 1.0f - powf(norm_dist, 0.4f);
+            float core = expf(-dist / core_rad);
+            float final_val = fminf(1.0f, (intensity * falloff + core) * 1.5f);
+            
+            if (final_val > 0.05f) {
+                // Sharper multi-color clumping
+                float cn = PerlinNoise2D(x * 0.025f + seed + 500, y * 0.025f);
+                
+                // Boost contrast: push values away from 0.5 towards 0.0 or 1.0
+                float mix_val = (cn - 0.5f) * 2.5f + 0.5f;
+                mix_val = fmaxf(0.0f, fminf(1.0f, mix_val));
+
+                float cr = tr * (1.0f - mix_val) + tr2 * mix_val;
+                float cg = tg * (1.0f - mix_val) + tg2 * mix_val;
+                float cb = tb * (1.0f - mix_val) + tb2 * mix_val;
+
+                // Core pushes everything to white
+                Uint8 rv = (Uint8)fminf(255, final_val * (cr * 200 + core * 255));
+                Uint8 gv = (Uint8)fminf(255, final_val * (cg * 200 + core * 255));
+                Uint8 bv = (Uint8)fminf(255, final_val * (cb * 200 + core * 255));
+                Uint8 av = (Uint8)(final_val * 255 * fminf(1.0f, falloff * 3.0f));
+                pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
+            }
+        }
+    }
+}
+
 void Renderer_GeneratePlanetStep(AppState *s) {
-    if (s->planets_generated >= PLANET_COUNT) { s->is_loading = false; return; }
-    int p_size = 512;
-    Uint32 *pixels = SDL_malloc(p_size * p_size * sizeof(Uint32));
-    SDL_memset(pixels, 0, p_size * p_size * sizeof(Uint32));
-    DrawPlanetToBuffer(pixels, p_size, (float)s->planets_generated * 567.89f);
-    s->planet_textures[s->planets_generated] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, p_size, p_size);
-    SDL_SetTextureBlendMode(s->planet_textures[s->planets_generated], SDL_BLENDMODE_BLEND);
-    SDL_UpdateTexture(s->planet_textures[s->planets_generated], NULL, pixels, p_size * 4);
-    SDL_free(pixels);
-    s->planets_generated++;
+    int total_assets = PLANET_COUNT + GALAXY_COUNT;
+    if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
+    if (s->assets_generated < PLANET_COUNT) {
+        int p_size = 512; Uint32 *pixels = SDL_malloc(p_size * p_size * sizeof(Uint32));
+        SDL_memset(pixels, 0, p_size * p_size * sizeof(Uint32));
+        DrawPlanetToBuffer(pixels, p_size, (float)s->assets_generated * 567.89f);
+        s->planet_textures[s->assets_generated] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, p_size, p_size);
+        SDL_SetTextureBlendMode(s->planet_textures[s->assets_generated], SDL_BLENDMODE_BLEND);
+        SDL_UpdateTexture(s->planet_textures[s->assets_generated], NULL, pixels, p_size * 4);
+        SDL_free(pixels);
+    } else {
+        int g_idx = s->assets_generated - PLANET_COUNT;
+        int g_size = 1024; Uint32 *pixels = SDL_malloc(g_size * g_size * sizeof(Uint32));
+        SDL_memset(pixels, 0, g_size * g_size * sizeof(Uint32));
+        DrawGalaxyToBuffer(pixels, g_size, (float)g_idx * 123.45f + 99.0f);
+        s->galaxy_textures[g_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, g_size, g_size);
+        SDL_SetTextureBlendMode(s->galaxy_textures[g_idx], SDL_BLENDMODE_BLEND);
+        SDL_UpdateTexture(s->galaxy_textures[g_idx], NULL, pixels, g_size * 4);
+        SDL_free(pixels);
+    }
+    s->assets_generated++;
+    if (s->assets_generated >= total_assets) s->is_loading = false;
 }
 
 void Renderer_DrawLoading(AppState *s) {
     int win_w, win_h; SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
     SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
-    float progress = (float)s->planets_generated / (float)PLANET_COUNT;
+    float progress = (float)s->assets_generated / (float)(PLANET_COUNT + GALAXY_COUNT);
     float bar_w = 400.0f, bar_h = 20.0f; float x = (win_w - bar_w) / 2.0f, y = (win_h - bar_h) / 2.0f;
     SDL_SetRenderDrawColor(s->renderer, 50, 50, 50, 255); SDL_RenderFillRect(s->renderer, &(SDL_FRect){ x, y, bar_w, bar_h });
     SDL_SetRenderDrawColor(s->renderer, 100, 200, 255, 255); SDL_RenderFillRect(s->renderer, &(SDL_FRect){ x, y, bar_w * progress, bar_h });
@@ -194,7 +251,7 @@ void Renderer_Init(AppState *s) {
   s->bg_mutex = SDL_CreateMutex();
   SDL_SetAtomicInt(&s->bg_should_quit, 0); SDL_SetAtomicInt(&s->bg_request_update, 0); SDL_SetAtomicInt(&s->bg_data_ready, 0);
   s->bg_target_cam_pos = s->camera_pos; s->bg_target_zoom = s->zoom; s->bg_target_time = s->current_time;
-  s->is_loading = true; s->planets_generated = 0;
+  s->is_loading = true; s->assets_generated = 0;
   SDL_SetAtomicInt(&s->bg_request_update, 1);
   s->bg_thread = SDL_CreateThread(BackgroundGenerationThread, "BG_Gen", s);
 }
@@ -218,8 +275,6 @@ static void UpdateBackground(AppState *s) {
   }
 }
 
-// --- Draw Callbacks ---
-
 static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
     if (cell->seed > 0.85f) {
         int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
@@ -230,38 +285,45 @@ static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cel
         float dy = cosf(s->current_time * 0.15f + cell->seed * 5.0f) * 15.0f;
         float sx = cell->screen_x + (ox + dx) * s->zoom;
         float sy = cell->screen_y + (oy + dy) * s->zoom;
-
         float sz_s = DeterministicHash(cell->gx + 55, cell->gy + 66);
         float sz = (sz_s > 0.98f) ? 3.0f : (sz_s > 0.90f ? 2.0f : 1.0f);
         float s_sz = sz * s->zoom;
-
         if (!IsVisible(sx, sy, s_sz / 2, win_w, win_h)) return;
-
         float b_s = DeterministicHash(cell->gx + 77, cell->gy + 88), c_s = DeterministicHash(cell->gx + 99, cell->gy + 11);
         Uint8 val = (Uint8)(100 + b_s * 155), rv = val, gv = val, bv = val;
         if (c_s > 0.90f) { rv = (Uint8)(val * 0.8f); gv = (Uint8)(val * 0.9f); bv = 255; }
         else if (c_s > 0.80f) { rv = 220; gv = (Uint8)(val * 0.7f); bv = 255; }
-
         SDL_SetRenderDrawColor(r, rv, gv, bv, 200);
         if (s_sz <= 1.0f) SDL_RenderPoint(r, sx, sy);
         else { SDL_FRect rct = { sx - s_sz / 2, sy - s_sz / 2, s_sz, s_sz }; SDL_RenderFillRect(r, &rct); }
     }
 }
 
-static void PlanetLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
-    if (cell->seed > 0.95f || (cell->gx == 0 && cell->gy == 0)) {
+static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
+    // Occupancy check: either galaxy or planet in this 6000x6000px quadrant
+    if (cell->seed > 0.90f || (cell->gx == 0 && cell->gy == 0)) {
         int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
-        int cell_size = 5000;
+        int cell_size = 6000;
         float ox = (cell->gx == 0 && cell->gy == 0) ? cell_size / 2 : DeterministicHash(cell->gx + 5, cell->gy + 9) * cell_size;
         float oy = (cell->gx == 0 && cell->gy == 0) ? cell_size / 2 : DeterministicHash(cell->gx + 12, cell->gy + 3) * cell_size;
         float sx = cell->screen_x + ox * s->zoom, sy = cell->screen_y + oy * s->zoom;
-        float r_s = DeterministicHash(cell->gx + 7, cell->gy + 11), rad = (150.0f + r_s * 450.0f) * s->zoom;
-        
-        if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
 
-        int p_idx = (int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT);
-        float t_sz = rad * 2.5f;
-        SDL_RenderTexture(r, s->planet_textures[p_idx], NULL, &(SDL_FRect){ sx - t_sz / 2, sy - t_sz / 2, t_sz, t_sz });
+        // Deterministic choice between Planet and Galaxy
+        float type_seed = DeterministicHash(cell->gx, cell->gy + 2000);
+        if (type_seed > 0.80f) {
+            // GALAXY
+            float r_s = DeterministicHash(cell->gx + 3, cell->gy + 5), rad = (2000.0f + r_s * 4000.0f) * s->zoom;
+            if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
+            int g_idx = (int)(DeterministicHash(cell->gx + 9, cell->gy + 2) * GALAXY_COUNT);
+            SDL_RenderTexture(r, s->galaxy_textures[g_idx], NULL, &(SDL_FRect){ sx - rad, sy - rad, rad * 2, rad * 2 });
+        } else {
+            // PLANET
+            float r_s = DeterministicHash(cell->gx + 7, cell->gy + 11), rad = (150.0f + r_s * 450.0f) * s->zoom;
+            if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
+            int p_idx = (int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT);
+            float t_sz = rad * 2.5f;
+            SDL_RenderTexture(r, s->planet_textures[p_idx], NULL, &(SDL_FRect){ sx - t_sz / 2, sy - t_sz / 2, t_sz, t_sz });
+        }
     }
 }
 
@@ -297,59 +359,36 @@ static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) 
 }
 
 static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
-    float mm_size = 200.0f;
-    float mm_margin = 20.0f;
-    float mm_x = win_w - mm_size - mm_margin;
-    float mm_y = win_h - mm_size - mm_margin;
-    float mm_range = 60000.0f; 
-    float world_to_mm = mm_size / mm_range;
-
-    // Background
-    SDL_SetRenderDrawColor(r, 20, 20, 30, 180);
-    SDL_RenderFillRect(r, &(SDL_FRect){ mm_x, mm_y, mm_size, mm_size });
-    SDL_SetRenderDrawColor(r, 80, 80, 100, 255);
-    SDL_RenderRect(r, &(SDL_FRect){ mm_x, mm_y, mm_size, mm_size });
-
-    // Use the SAME parallax camera as the distant planets (0.7)
-    float parallax = 0.7f;
-    Vec2 p_cam = GetParallaxCam(s, parallax, win_w, win_h);
-    float p_cam_center_x = p_cam.x + (win_w / 2.0f) / s->zoom;
-    float p_cam_center_y = p_cam.y + (win_h / 2.0f) / s->zoom;
-
-    // Planets
-    int cell_size = 5000;
-    int r_cells = (int)(mm_range / cell_size) + 1;
+    float mm_size = 200.0f; float mm_margin = 20.0f;
+    float mm_x = win_w - mm_size - mm_margin; float mm_y = win_h - mm_size - mm_margin;
+    float mm_range = 60000.0f; float world_to_mm = mm_size / mm_range;
+    SDL_SetRenderDrawColor(r, 20, 20, 30, 180); SDL_RenderFillRect(r, &(SDL_FRect){ mm_x, mm_y, mm_size, mm_size });
+    SDL_SetRenderDrawColor(r, 80, 80, 100, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x, mm_y, mm_size, mm_size });
+    float parallax = 0.7f; Vec2 p_cam = GetParallaxCam(s, parallax, win_w, win_h);
+    float p_cam_center_x = p_cam.x + (win_w / 2.0f) / s->zoom; float p_cam_center_y = p_cam.y + (win_h / 2.0f) / s->zoom;
+    int cell_size = 6000; int r_cells = (int)(mm_range / cell_size) + 1;
     int scx = (int)floorf((p_cam_center_x - mm_range/2) / cell_size);
     int scy = (int)floorf((p_cam_center_y - mm_range/2) / cell_size);
-
     for (int gy = scy; gy <= scy + r_cells; gy++) {
         for (int gx = scx; gx <= scx + r_cells; gx++) {
             float seed = DeterministicHash(gx, gy + 1000);
-            if (seed > 0.95f || (gx == 0 && gy == 0)) {
+            if (seed > 0.90f || (gx == 0 && gy == 0)) {
                 float ox = (gx==0&&gy==0) ? cell_size/2 : DeterministicHash(gx+5, gy+9)*cell_size;
                 float oy = (gx==0&&gy==0) ? cell_size/2 : DeterministicHash(gx+12, gy+3)*cell_size;
-                float wx = gx * cell_size + ox;
-                float wy = gy * cell_size + oy;
-
-                float dx = (wx - p_cam_center_x);
-                float dy = (wy - p_cam_center_y);
-
+                float wx = gx * cell_size + ox; float wy = gy * cell_size + oy;
+                float dx = (wx - p_cam_center_x); float dy = (wy - p_cam_center_y);
                 if (fabsf(dx) < mm_range/2 && fabsf(dy) < mm_range/2) {
-                    float px = mm_x + mm_size/2 + dx * world_to_mm;
-                    float py = mm_y + mm_size/2 + dy * world_to_mm;
-                    SDL_SetRenderDrawColor(r, 100, 200, 255, 255);
-                    // Move to top-left corner instead of middle
+                    float px = mm_x + mm_size/2 + dx * world_to_mm; float py = mm_y + mm_size/2 + dy * world_to_mm;
+                    float type_seed = DeterministicHash(gx, gy + 2000);
+                    if (type_seed > 0.80f) SDL_SetRenderDrawColor(r, 200, 150, 255, 255); // Galaxy color
+                    else SDL_SetRenderDrawColor(r, 100, 200, 255, 255); // Planet color
                     SDL_RenderFillRect(r, &(SDL_FRect){ px, py, 4, 4 });
                 }
             }
         }
     }
-
-    // Camera Viewport
-    float view_w = (win_w / s->zoom) * world_to_mm;
-    float view_h = (win_h / s->zoom) * world_to_mm;
-    SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
-    SDL_RenderRect(r, &(SDL_FRect){ mm_x + (mm_size - view_w)/2, mm_y + (mm_size - view_h)/2, view_w, view_h });
+    float view_w = (win_w / s->zoom) * world_to_mm; float view_h = (win_h / s->zoom) * world_to_mm;
+    SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x + (mm_size - view_w)/2, mm_y + (mm_size - view_h)/2, view_w, view_h });
 }
 
 void Renderer_Draw(AppState *s) {
@@ -357,7 +396,7 @@ void Renderer_Draw(AppState *s) {
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
   UpdateBackground(s);
   DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
-  DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, PlanetLayerFn);
+  DrawParallaxLayer(s->renderer, s, ww, wh, 6000, 0.7f, 1000, SystemLayerFn);
   if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
   DrawDebugInfo(s->renderer, s, ww);
