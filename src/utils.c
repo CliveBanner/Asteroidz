@@ -143,9 +143,9 @@ float GetAsteroidDensity(Vec2 p) {
                 float dist_sq = dx*dx + dy*dy;
                 
                 if (b_type > 0.95f) { // Galaxy
-                    if (dist_sq > 3000.0f*3000.0f && dist_sq < 8000.0f*8000.0f) density += 1.5f;
+                    if (dist_sq > 3000.0f*3000.0f && dist_sq < 8000.0f*8000.0f) density += 0.375f;
                 } else { // Planet
-                    if (dist_sq > 1500.0f*1500.0f && dist_sq < 4500.0f*4500.0f) density += 1.2f;
+                    if (dist_sq > 1500.0f*1500.0f && dist_sq < 4500.0f*4500.0f) density += 0.3f;
                 }
             }
         }

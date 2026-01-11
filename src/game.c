@@ -130,9 +130,9 @@ void Game_Update(AppState *s, float dt) {
                 Asteroid a = s->asteroids[i], b = s->asteroids[j];
                 s->asteroids[i].active = false; s->asteroids[j].active = false;
                 s->asteroid_count -= 2;
-                SpawnExplosion(s, (Vec2){a.pos.x + dx*0.5f, a.pos.y + dy*0.5f}, 40, (a.radius + b.radius) / 100.0f);
+                                SpawnExplosion(s, (Vec2){a.pos.x + dx*0.5f, a.pos.y + dy*0.5f}, 40, (a.radius + b.radius) / 100.0f);
                 float collision_angle = atan2f(dy, dx);
-                if (a.radius > 30.0f) {
+                if (a.radius > 60.0f) {
                     float child_rad = a.radius * 0.6f;
                     for (int k = 0; k < 2; k++) {
                         float split_angle = (k == 0) ? (collision_angle + 1.5708f) : (collision_angle - 1.5708f);
@@ -140,7 +140,7 @@ void Game_Update(AppState *s, float dt) {
                         SpawnAsteroid(s, (Vec2){a.pos.x + dir.x * child_rad, a.pos.y + dir.y * child_rad}, dir, child_rad);
                     }
                 }
-                if (b.radius > 30.0f) {
+                if (b.radius > 60.0f) {
                     float child_rad = b.radius * 0.6f;
                     for (int k = 0; k < 2; k++) {
                         float split_angle = (k == 0) ? (collision_angle + 1.5708f) : (collision_angle - 1.5708f);
