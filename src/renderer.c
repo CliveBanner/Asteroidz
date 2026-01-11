@@ -187,23 +187,39 @@ static void DrawInfiniteStars(SDL_Renderer *renderer, const AppState *s, int win
         for (int gx = start_x; gx <= end_x; gx++) {
             float seed = DeterministicHash(gx, gy);
             if (seed > 0.85f) { 
+                // Deterministic variation for position
                 float off_x = DeterministicHash(gx + 10, gy + 20) * cell_size;
                 float off_y = DeterministicHash(gx + 30, gy + 40) * cell_size;
                 
+                // Morphing drift
                 float drift_x = sinf(s->current_time * 0.2f + seed * 10.0f) * 15.0f;
                 float drift_y = cosf(s->current_time * 0.15f + seed * 5.0f) * 15.0f;
 
                 float world_x = gx * cell_size + off_x + drift_x;
                 float world_y = gy * cell_size + off_y + drift_y;
 
-                // FIX: Subtraction for correct parallax movement
                 float screen_x = world_x - cam_x;
                 float screen_y = world_y - cam_y;
 
-                // REDUCE BRIGHTNESS and ADD ALPHA
-                Uint8 val = (Uint8)(80 + seed * 100); // 80-180 instead of 150-255
-                SDL_SetRenderDrawColor(renderer, val, val, val, 150); // Semi-transparent
-                SDL_RenderPoint(renderer, screen_x, screen_y);
+                // Deterministic Size (mostly 1px, some 2px, few 3px)
+                float size_seed = DeterministicHash(gx + 55, gy + 66);
+                float size = 1.0f;
+                if (size_seed > 0.98f) size = 3.0f;
+                else if (size_seed > 0.90f) size = 2.0f;
+
+                // Deterministic Brightness & Opacity
+                float bright_seed = DeterministicHash(gx + 77, gy + 88);
+                Uint8 color_val = (Uint8)(100 + bright_seed * 155);
+                Uint8 alpha = (Uint8)(100 + bright_seed * 100);
+
+                SDL_SetRenderDrawColor(renderer, color_val, color_val, color_val, alpha);
+                
+                if (size <= 1.0f) {
+                    SDL_RenderPoint(renderer, screen_x, screen_y);
+                } else {
+                    SDL_FRect star_rect = { screen_x - size/2.0f, screen_y - size/2.0f, size, size };
+                    SDL_RenderFillRect(renderer, &star_rect);
+                }
             }
         }
     }
