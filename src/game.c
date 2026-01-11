@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define TARGET_ASTEROID_COUNT_BASE 150
-#define DESPAWN_RANGE 15000.0f
+
 #define SPAWN_SAFE_ZONE 1500.0f
 
 static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
@@ -76,8 +76,8 @@ void Game_Update(AppState *s, float dt) {
     if (s->mouse_pos.y > (win_h - EDGE_SCROLL_THRESHOLD)) s->camera_pos.y += move_speed * dt;
 
     float local_density = GetAsteroidDensity(cam_center);
-    // Lowered scaling: 20 baseline, 200 maximum in densest clusters
-    int dynamic_target_count = (int)(20 + local_density * 180.0f);
+    // Baseline of 20, scaling up to MAX_DYNAMIC_ASTEROIDS
+    int dynamic_target_count = (int)(20 + local_density * (MAX_DYNAMIC_ASTEROIDS - 20));
 
     for (int i = 0; i < MAX_ASTEROIDS; i++) {
         if (!s->asteroids[i].active) continue;

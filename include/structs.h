@@ -9,11 +9,7 @@ typedef struct {
     float x, y;
 } Vec2;
 
-#define PLANET_COUNT 8
-#define GALAXY_COUNT 4
-#define ASTEROID_TYPE_COUNT 16
-#define MAX_ASTEROIDS 2048
-#define MAX_PARTICLES 4096
+
 
 typedef enum {
     PARTICLE_SPARK,

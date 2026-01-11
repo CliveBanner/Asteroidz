@@ -596,7 +596,7 @@ static void DrawDensityGrid(SDL_Renderer *r, const AppState *s, int win_w, int w
                     float swy = wy + (syy / (float)sub_res) * d_cell;
                     float d = GetAsteroidDensity((Vec2){swx, swy});
                     if (d > 0.05f) {
-                        Uint8 rv = (Uint8)(fminf(1.0f, d / 1.5f) * 150.0f);
+                        Uint8 rv = (Uint8)(d * 150.0f);
                         SDL_SetRenderDrawColor(r, rv, 0, 50, 40);
                         SDL_RenderFillRect(r, &(SDL_FRect){ sc_pos.x + sxx * sub_sz, sc_pos.y + syy * sub_sz, sub_sz + 1, sub_sz + 1 });
                     }

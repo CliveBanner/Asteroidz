@@ -128,10 +128,9 @@ Vec2 WorldToParallax(Vec2 world_pos, float parallax) {
 }
 
 float GetAsteroidDensity(Vec2 p) {
-    float density = 0.02f; 
+    float val = DENSITY_BASELINE;
     const float body_grid = 5000.0f;
     
-    // Both p and celestial bodies are in the 1.0 world.
     int gx_center = (int)floorf(p.x / body_grid);
     int gy_center = (int)floorf(p.y / body_grid);
     
@@ -143,12 +142,19 @@ float GetAsteroidDensity(Vec2 p) {
                 float dist_sq = dx*dx + dy*dy;
                 
                 if (b_type > 0.95f) { // Galaxy
-                    if (dist_sq > 3000.0f*3000.0f && dist_sq < 8000.0f*8000.0f) density += 0.375f;
+                    if (dist_sq > 3000.0f*3000.0f && dist_sq < 8000.0f*8000.0f) val += DENSITY_GALAXY_WEIGHT;
                 } else { // Planet
-                    if (dist_sq > 1500.0f*1500.0f && dist_sq < 4500.0f*4500.0f) density += 0.3f;
+                    if (dist_sq > 1500.0f*1500.0f && dist_sq < 4500.0f*4500.0f) val += DENSITY_PLANET_WEIGHT;
                 }
             }
         }
     }
-    return density;
+    // Return normalized 0-1
+    float norm = val / DENSITY_MAX;
+    
+    // Add noise for less uniform distribution (only subtractive)
+    float noise_val = PerlinNoise2D(p.x * 0.0005f, p.y * 0.0005f); // 0.0 to 1.0
+    norm += (noise_val - 1.0f) * 0.6f; // -0.6 to 0.0 contribution
+
+    return fmaxf(0.0f, fminf(1.0f, norm));
 }
