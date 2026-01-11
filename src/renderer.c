@@ -608,11 +608,13 @@ static void StarLayerFn(SDL_Renderer *r, const AppState *s,
                         const LayerCell *cell) {
   if (cell->seed > 0.85f) {
     float scale = cell->parallax * s->zoom;
-    
+
     // Add jitter within the cell
-    float jx = DeterministicHash(cell->gx + 7, cell->gy + 3) * (float)cell->cell_size;
-    float jy = DeterministicHash(cell->gx + 1, cell->gy + 9) * (float)cell->cell_size;
-    
+    float jx =
+        DeterministicHash(cell->gx + 7, cell->gy + 3) * (float)cell->cell_size;
+    float jy =
+        DeterministicHash(cell->gx + 1, cell->gy + 9) * (float)cell->cell_size;
+
     float sx = cell->screen_x + jx * scale;
     float sy = cell->screen_y + jy * scale;
 
@@ -650,7 +652,8 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s,
   Vec2 b_pos;
   float type_seed;
   if (GetCelestialBodyInfo(cell->gx, cell->gy, &b_pos, &type_seed)) {
-    Vec2 screen_pos = WorldToScreenParallax(b_pos, cell->parallax, s, cell->win_w, cell->win_h);
+    Vec2 screen_pos = WorldToScreenParallax(b_pos, cell->parallax, s,
+                                            cell->win_w, cell->win_h);
     float sx = screen_pos.x, sy = screen_pos.y;
 
     if (type_seed > 0.95f) {
@@ -735,6 +738,30 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
     Vec2 s1 = WorldToScreenParallax((Vec2){0, y}, 1.0f, s, win_w, win_h);
     SDL_RenderLine(renderer, 0, s1.y, (float)win_w, s1.y);
   }
+  SDL_SetRenderDrawColor(renderer, 100, 100, 100, 80);
+  int gl = 1000;
+  int slx = (int)floorf(s->camera_pos.x / gl) * gl,
+      sly = (int)floorf(s->camera_pos.y / gl) * gl;
+  for (float x = slx; x < s->camera_pos.x + win_w / s->zoom + gl; x += gl) {
+    float sx = (x - s->camera_pos.x) * s->zoom;
+    SDL_RenderLine(renderer, sx, 0, sx, (float)win_h);
+  }
+  for (float y = sly; y < s->camera_pos.y + win_h / s->zoom + gl; y += gl) {
+    float sy = (y - s->camera_pos.y) * s->zoom;
+    SDL_RenderLine(renderer, 0, sy, (float)win_w, sy);
+  }
+  SDL_SetRenderDrawColor(renderer, 150, 150, 150, 150);
+  for (float x = slx; x < s->camera_pos.x + win_w / s->zoom + gl; x += gl) {
+    for (float y = sly; y < s->camera_pos.y + win_h / s->zoom + gl; y += gl) {
+      float sx = (x - s->camera_pos.x) * s->zoom,
+            sy = (y - s->camera_pos.y) * s->zoom;
+      if (sx >= -10 && sx < win_w && sy >= -10 && sy < win_h) {
+        char l[32];
+        snprintf(l, sizeof(l), "(%.0fk,%.0fk)", x / 1000.0f, y / 1000.0f);
+        SDL_RenderDebugText(renderer, sx + 5, sy + 5, l);
+      }
+    }
+  }
 
   // Density visualization patches (1.0 world grid)
   int d_cell = 2000; // Smaller grid for density overlay visibility
@@ -779,7 +806,8 @@ static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s,
   snprintf(ct, sizeof(ct), "Cam: %.1f, %.1f (x%.4f)", s->camera_pos.x,
            s->camera_pos.y, s->zoom);
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-  SDL_RenderDebugText(renderer, (float)win_w - (SDL_strlen(ct) * 8) - 20, 20, ct);
+  SDL_RenderDebugText(renderer, (float)win_w - (SDL_strlen(ct) * 8) - 20, 20,
+                      ct);
   char ft[32];
   snprintf(ft, sizeof(ft), "FPS: %.0f", s->current_fps);
   SDL_RenderDebugText(renderer, 20, 20, ft);
