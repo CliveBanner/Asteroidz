@@ -109,21 +109,22 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
 
 static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
-    float twist = 4.0f + DeterministicHash((int)seed, 7) * 4.0f;
-    int arms = 2 + (int)(DeterministicHash((int)seed, 13) * 3);
-    float core_rad = size * 0.05f;
+    float twist = 8.0f + DeterministicHash((int)seed, 7) * 6.0f;
+    int arms = 4 + (int)(DeterministicHash((int)seed, 13) * 6);
+    float core_rad = size * 0.005f; 
     float theme = DeterministicHash((int)seed, 42);
 
-    float tr, tg, tb; // Primary color
-    float tr2, tg2, tb2; // Secondary color
-    if (theme > 0.75f) { // Gold to Purple
-        tr = 1.0f; tg = 0.8f; tb = 0.2f; tr2 = 0.6f; tg2 = 0.1f; tb2 = 1.0f;
-    } else if (theme > 0.50f) { // Red to Cyan
-        tr = 1.0f; tg = 0.1f; tb = 0.1f; tr2 = 0.1f; tg2 = 0.9f; tb2 = 1.0f;
-    } else if (theme > 0.25f) { // Green to Magenta
-        tr = 0.1f; tg = 1.0f; tb = 0.2f; tr2 = 1.0f; tg2 = 0.1f; tb2 = 0.8f;
-    } else { // Deep Blue to Orange
-        tr = 0.1f; tg = 0.3f; tb = 1.0f; tr2 = 1.0f; tg2 = 0.5f; tb2 = 0.1f;
+    float tr, tg, tb, tr2, tg2, tb2;
+    if (theme > 0.90f) { // Rare: Gold/Red
+        tr = 1.0f; tg = 0.8f; tb = 0.2f; tr2 = 1.0f; tg2 = 0.1f; tb2 = 0.1f;
+    } else if (theme > 0.80f) { // Rare: Green/Yellow
+        tr = 0.2f; tg = 1.0f; tb = 0.3f; tr2 = 1.0f; tg2 = 1.0f; tb2 = 0.2f;
+    } else if (theme > 0.50f) { // Common: Deep Blue/Cyan
+        tr = 0.1f; tg = 0.2f; tb = 1.0f; tr2 = 0.2f; tg2 = 0.9f; tb2 = 1.0f;
+    } else if (theme > 0.25f) { // Common: Violet/Magenta
+        tr = 0.5f; tg = 0.1f; tb = 1.0f; tr2 = 1.0f; tg2 = 0.2f; tb2 = 0.8f;
+    } else { // Common: Teal/Blue
+        tr = 0.1f; tg = 0.8f; tb = 0.8f; tr2 = 0.1f; tg2 = 0.3f; tb2 = 1.0f;
     }
 
     for (int y = 0; y < size; y++) {
@@ -135,30 +136,41 @@ static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
             float angle = atan2f(dy, dx);
             float norm_dist = dist / max_dist;
             float twisted_angle = angle - norm_dist * twist;
-            float arm_sin = powf(fabsf(cosf(twisted_angle * (float)arms / 2.0f)), 3.0f);
+            
+            // Very wide arms (power 1.5 instead of 3.0 or 12.0)
+            float arm_sin = powf(fabsf(cosf(twisted_angle * (float)arms / 2.0f)), 1.5f);
+            
             float n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f);
-            float intensity = (arm_sin * 0.8f + 0.2f) * n;
-            float falloff = 1.0f - powf(norm_dist, 0.4f);
-            float core = expf(-dist / core_rad);
+            
+            // High-weight clumpy gaseous layer
+            float cloud_n = PerlinNoise2D(x * 0.01f + seed + 200, y * 0.01f + 300);
+            float cloud = powf(cloud_n, 1.1f) * 2.0f; 
+
+            float intensity = (arm_sin * 0.5f + 0.1f) * n + cloud;
+            
+            // Aggressive radial falloff (power 0.3)
+            float falloff = 1.0f - powf(norm_dist, 0.3f);
+            float core = expf(-dist / core_rad) * 4.0f;
             float final_val = fminf(1.0f, (intensity * falloff + core) * 1.5f);
             
-            if (final_val > 0.05f) {
-                // Sharper multi-color clumping
+            if (final_val > 0.02f) {
                 float cn = PerlinNoise2D(x * 0.025f + seed + 500, y * 0.025f);
-                
-                // Boost contrast: push values away from 0.5 towards 0.0 or 1.0
-                float mix_val = (cn - 0.5f) * 2.5f + 0.5f;
-                mix_val = fmaxf(0.0f, fminf(1.0f, mix_val));
+                float contrast_boost = 1.0f + norm_dist * 3.0f; 
+                float mix_val = fmaxf(0.0f, fminf(1.0f, (cn - 0.5f) * contrast_boost + 0.5f));
 
                 float cr = tr * (1.0f - mix_val) + tr2 * mix_val;
                 float cg = tg * (1.0f - mix_val) + tg2 * mix_val;
                 float cb = tb * (1.0f - mix_val) + tb2 * mix_val;
 
-                // Core pushes everything to white
-                Uint8 rv = (Uint8)fminf(255, final_val * (cr * 200 + core * 255));
-                Uint8 gv = (Uint8)fminf(255, final_val * (cg * 200 + core * 255));
-                Uint8 bv = (Uint8)fminf(255, final_val * (cb * 200 + core * 255));
-                Uint8 av = (Uint8)(final_val * 255 * fminf(1.0f, falloff * 3.0f));
+                float saturation = fminf(1.0f, norm_dist * 8.0f);
+                cr = cr * saturation + (1.0f - saturation);
+                cg = cg * saturation + (1.0f - saturation);
+                cb = cb * saturation + (1.0f - saturation);
+
+                Uint8 rv = (Uint8)fminf(255, final_val * (cr * 180 + core * 255));
+                Uint8 gv = (Uint8)fminf(255, final_val * (cg * 180 + core * 255));
+                Uint8 bv = (Uint8)fminf(255, final_val * (cb * 180 + core * 255));
+                Uint8 av = (Uint8)fminf(255, final_val * 255 * fminf(1.0f, falloff * 5.0f));
                 pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
             }
         }
