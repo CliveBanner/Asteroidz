@@ -1,0 +1,16 @@
+#ifndef CONSTANTS_H
+#define CONSTANTS_H
+
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
+
+#define WORLD_WIDTH 2000
+#define WORLD_HEIGHT 2000
+
+#define CAMERA_SPEED 800.0f
+#define MIN_ZOOM 0.5f
+#define MAX_ZOOM 3.0f
+
+#define EDGE_SCROLL_THRESHOLD 20
+
+#endif
