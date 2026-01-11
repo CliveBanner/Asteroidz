@@ -289,6 +289,62 @@ static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) 
   SDL_RenderDebugText(renderer, 20, 20, ft);
 }
 
+static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+    float mm_size = 200.0f;
+    float mm_margin = 20.0f;
+    float mm_x = win_w - mm_size - mm_margin;
+    float mm_y = win_h - mm_size - mm_margin;
+    float mm_range = 60000.0f; 
+    float world_to_mm = mm_size / mm_range;
+
+    // Background
+    SDL_SetRenderDrawColor(r, 20, 20, 30, 180);
+    SDL_RenderFillRect(r, &(SDL_FRect){ mm_x, mm_y, mm_size, mm_size });
+    SDL_SetRenderDrawColor(r, 80, 80, 100, 255);
+    SDL_RenderRect(r, &(SDL_FRect){ mm_x, mm_y, mm_size, mm_size });
+
+    // Use the SAME parallax camera as the distant planets (0.7)
+    float parallax = 0.7f;
+    Vec2 p_cam = GetParallaxCam(s, parallax, win_w, win_h);
+    float p_cam_center_x = p_cam.x + (win_w / 2.0f) / s->zoom;
+    float p_cam_center_y = p_cam.y + (win_h / 2.0f) / s->zoom;
+
+    // Planets
+    int cell_size = 5000;
+    int r_cells = (int)(mm_range / cell_size) + 1;
+    int scx = (int)floorf((p_cam_center_x - mm_range/2) / cell_size);
+    int scy = (int)floorf((p_cam_center_y - mm_range/2) / cell_size);
+
+    for (int gy = scy; gy <= scy + r_cells; gy++) {
+        for (int gx = scx; gx <= scx + r_cells; gx++) {
+            float seed = DeterministicHash(gx, gy + 1000);
+            if (seed > 0.95f || (gx == 0 && gy == 0)) {
+                float ox = (gx==0&&gy==0) ? cell_size/2 : DeterministicHash(gx+5, gy+9)*cell_size;
+                float oy = (gx==0&&gy==0) ? cell_size/2 : DeterministicHash(gx+12, gy+3)*cell_size;
+                float wx = gx * cell_size + ox;
+                float wy = gy * cell_size + oy;
+
+                float dx = (wx - p_cam_center_x);
+                float dy = (wy - p_cam_center_y);
+
+                if (fabsf(dx) < mm_range/2 && fabsf(dy) < mm_range/2) {
+                    float px = mm_x + mm_size/2 + dx * world_to_mm;
+                    float py = mm_y + mm_size/2 + dy * world_to_mm;
+                    SDL_SetRenderDrawColor(r, 100, 200, 255, 255);
+                    // Move to top-left corner instead of middle
+                    SDL_RenderFillRect(r, &(SDL_FRect){ px, py, 4, 4 });
+                }
+            }
+        }
+    }
+
+    // Camera Viewport
+    float view_w = (win_w / s->zoom) * world_to_mm;
+    float view_h = (win_h / s->zoom) * world_to_mm;
+    SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
+    SDL_RenderRect(r, &(SDL_FRect){ mm_x + (mm_size - view_w)/2, mm_y + (mm_size - view_h)/2, view_w, view_h });
+}
+
 void Renderer_Draw(AppState *s) {
   int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
@@ -298,5 +354,6 @@ void Renderer_Draw(AppState *s) {
   if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
   DrawDebugInfo(s->renderer, s, ww);
+  DrawMinimap(s->renderer, s, ww, wh);
   SDL_RenderPresent(s->renderer);
 }
