@@ -3,17 +3,23 @@
 #include <math.h>
 #include <stdlib.h>
 
-static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel, float radius) {
+static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
     if (s->asteroid_count >= MAX_ASTEROIDS) return;
     
     // Find an inactive slot
     for (int i = 0; i < MAX_ASTEROIDS; i++) {
         if (!s->asteroids[i].active) {
             s->asteroids[i].pos = pos;
-            s->asteroids[i].velocity = vel;
+            
+            // Speed is inversely proportional to radius
+            // Base speed factor of 15000 (15000/200 = 75 units/s, 15000/30 = 500 units/s)
+            float speed = 15000.0f / radius;
+            s->asteroids[i].velocity.x = vel_dir.x * speed;
+            s->asteroids[i].velocity.y = vel_dir.y * speed;
+
             s->asteroids[i].radius = radius;
             s->asteroids[i].rotation = (float)(rand() % 360);
-            s->asteroids[i].rot_speed = ((float)(rand() % 100) / 50.0f - 1.0f) * 20.0f;
+            s->asteroids[i].rot_speed = ((float)(rand() % 100) / 50.0f - 1.0f) * (400.0f / radius);
             s->asteroids[i].tex_idx = rand() % ASTEROID_TYPE_COUNT;
             s->asteroids[i].active = true;
             s->asteroid_count++;
@@ -22,12 +28,63 @@ static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel, float radius) {
     }
 }
 
+static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult) {
+    // 1. Spawn Puffs (Smoke/Dust)
+    int puff_count = count / 4;
+    for (int i = 0; i < puff_count; i++) {
+        int idx = s->particle_next_idx;
+        s->particles[idx].active = true;
+        s->particles[idx].type = PARTICLE_PUFF;
+        s->particles[idx].pos = pos;
+        
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        float speed = (float)(rand() % 100 + 20) * size_mult;
+        s->particles[idx].velocity.x = cosf(angle) * speed;
+        s->particles[idx].velocity.y = sinf(angle) * speed;
+        
+        s->particles[idx].life = 1.0f;
+        s->particles[idx].size = (float)(rand() % 100 + 50) * size_mult;
+        
+        // Grey/Brownish dust colors
+        Uint8 v = (Uint8)(rand() % 50 + 100);
+        s->particles[idx].color = (SDL_Color){v, (Uint8)(v * 0.9f), (Uint8)(v * 0.8f), 255};
+        
+        s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+    }
+
+    // 2. Spawn Sparks (Fire/Rock)
+    for (int i = 0; i < count; i++) {
+        int idx = s->particle_next_idx;
+        s->particles[idx].active = true;
+        s->particles[idx].type = PARTICLE_SPARK;
+        s->particles[idx].pos = pos;
+        
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        float speed = (float)(rand() % 300 + 100) * size_mult;
+        s->particles[idx].velocity.x = cosf(angle) * speed;
+        s->particles[idx].velocity.y = sinf(angle) * speed;
+        
+        s->particles[idx].life = 1.0f;
+        s->particles[idx].size = (float)(rand() % 6 + 2) * size_mult;
+        
+        if (rand() % 2 == 0) {
+            s->particles[idx].color = (SDL_Color){255, (Uint8)(rand()%100+150), 50, 255}; // Fire
+        } else {
+            s->particles[idx].color = (SDL_Color){(Uint8)(rand()%50+150), (Uint8)(rand()%50+150), (Uint8)(rand()%50+150), 255}; // Rock
+        }
+        
+        s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+    }
+}
+
 void Game_Init(AppState *s) {
     // Initial spawn of many large asteroids over a wide area
     for (int i = 0; i < 150; i++) {
         Vec2 pos = { (float)(rand() % 20000 - 10000), (float)(rand() % 20000 - 10000) };
-        Vec2 vel = { (float)(rand() % 100 - 50), (float)(rand() % 100 - 50) };
-        SpawnAsteroid(s, pos, vel, 80.0f + (rand() % 120));
+        // Generate a random direction vector
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        Vec2 dir = { cosf(angle), sinf(angle) };
+        SpawnAsteroid(s, pos, dir, 80.0f + (rand() % 120));
     }
 }
 
@@ -48,7 +105,16 @@ void Game_Update(AppState *s, float dt) {
         s->asteroids[i].rotation += s->asteroids[i].rot_speed * dt;
     }
 
-    // 3. Collision and Splitting
+    // 3. Particle Update
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (!s->particles[i].active) continue;
+        s->particles[i].pos.x += s->particles[i].velocity.x * dt;
+        s->particles[i].pos.y += s->particles[i].velocity.y * dt;
+        s->particles[i].life -= dt * 1.5f; // Faster fade
+        if (s->particles[i].life <= 0) s->particles[i].active = false;
+    }
+
+    // 4. Collision and Splitting
     for (int i = 0; i < MAX_ASTEROIDS; i++) {
         if (!s->asteroids[i].active) continue;
         for (int j = i + 1; j < MAX_ASTEROIDS; j++) {
@@ -58,13 +124,11 @@ void Game_Update(AppState *s, float dt) {
             float dy = s->asteroids[j].pos.y - s->asteroids[i].pos.y;
             float dist_sq = dx*dx + dy*dy;
             
-            // Tight hitbox: only collide at 50% of visual radius
             float r1 = s->asteroids[i].radius * 0.5f;
             float r2 = s->asteroids[j].radius * 0.5f;
             float min_dist = r1 + r2;
 
             if (dist_sq < min_dist * min_dist) {
-                // COLLISION! 
                 Asteroid a = s->asteroids[i];
                 Asteroid b = s->asteroids[j];
                 
@@ -72,22 +136,38 @@ void Game_Update(AppState *s, float dt) {
                 s->asteroids[j].active = false;
                 s->asteroid_count -= 2;
 
-                // Spawn smaller pieces if they were big enough
+                // Spawn Explosion
+                Vec2 contact_point = { a.pos.x + dx*0.5f, a.pos.y + dy*0.5f };
+                SpawnExplosion(s, contact_point, 40, (a.radius + b.radius) / 100.0f);
+
+                // Calculate collision angle (from a to b)
+                float collision_angle = atan2f(dy, dx);
+
                 if (a.radius > 30.0f) {
+                    float child_rad = a.radius * 0.6f;
+                    // Spawn 2 pieces of A perpendicular to the collision axis
                     for (int k = 0; k < 2; k++) {
-                        Vec2 off = { (float)(rand()%40-20), (float)(rand()%40-20) };
-                        Vec2 v = { a.velocity.x + (rand()%60-30), a.velocity.y + (rand()%60-30) };
-                        SpawnAsteroid(s, (Vec2){a.pos.x + off.x, a.pos.y + off.y}, v, a.radius * 0.6f);
+                        float split_angle = (k == 0) ? (collision_angle + 1.5708f) : (collision_angle - 1.5708f);
+                        Vec2 dir = { cosf(split_angle), sinf(split_angle) };
+                        // Spawn at an offset to prevent instant re-collision
+                        Vec2 spawn_pos = { a.pos.x + dir.x * child_rad, a.pos.y + dir.y * child_rad };
+                        SpawnAsteroid(s, spawn_pos, dir, child_rad);
                     }
                 }
                 if (b.radius > 30.0f) {
+                    float child_rad = b.radius * 0.6f;
+                    // Spawn 2 pieces of B perpendicular to the collision axis
                     for (int k = 0; k < 2; k++) {
-                        Vec2 off = { (float)(rand()%40-20), (float)(rand()%40-20) };
-                        Vec2 v = { b.velocity.x + (rand()%60-30), b.velocity.y + (rand()%60-30) };
-                        SpawnAsteroid(s, (Vec2){b.pos.x + off.x, b.pos.y + off.y}, v, b.radius * 0.6f);
+                        float split_angle = (k == 0) ? (collision_angle + 1.5708f) : (collision_angle - 1.5708f);
+                        Vec2 dir = { cosf(split_angle), sinf(split_angle) };
+                        // Offset from B's center
+                        Vec2 spawn_pos = { b.pos.x + dir.x * child_rad, b.pos.y * dir.y * child_rad };
+                        // Pieces of B move in the opposite general direction of A's pieces? 
+                        // No, let's keep it simple: split along the same axis but from B's center.
+                        SpawnAsteroid(s, spawn_pos, dir, child_rad);
                     }
                 }
-                break; // Break j loop as i is now gone
+                break;
             }
         }
     }

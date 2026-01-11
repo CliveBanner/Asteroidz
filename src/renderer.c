@@ -67,7 +67,6 @@ static void GetNebulaColor(float t, float *r, float *g, float *b) {
 
 static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
-    // Scale planet radius down so atmosphere fits in the 512x512 buffer
     float radius = (size / 2.0f) * 0.18f; 
     float atmo_outer = (size / 2.0f) * 0.98f; 
     float theme = DeterministicHash((int)(seed * 1000), 42);
@@ -108,32 +107,30 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
     }
 }
 
+static void HueToRGB(float h, float *r, float *g, float *b) {
+    float r_f = fabsf(h * 6.0f - 3.0f) - 1.0f;
+    float g_f = 2.0f - fabsf(h * 6.0f - 2.0f);
+    float b_f = 2.0f - fabsf(h * 6.0f - 4.0f);
+    *r = fmaxf(0.0f, fminf(1.0f, r_f));
+    *g = fmaxf(0.0f, fminf(1.0f, g_f));
+    *b = fmaxf(0.0f, fminf(1.0f, b_f));
+}
+
 static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
     int s_int = (int)(seed * 1000000.0f);
-    
     float twist = 5.0f + DeterministicHash(s_int, 7) * 15.0f;
     int arms = 2 + (int)(DeterministicHash(s_int, 13) * 10);
     float arm_thickness = 1.0f + DeterministicHash(s_int, 88) * 3.0f;
     float core_rad = size * (0.002f + DeterministicHash(s_int, 19) * 0.01f);
-    
     float theme = DeterministicHash(s_int, 42);
     float tr, tg, tb, tr2, tg2, tb2;
-
-    if (theme > 0.90f) { // Rare: Gold/Red
-        tr = 1.0f; tg = 0.8f; tb = 0.2f; tr2 = 1.0f; tg2 = 0.1f; tb2 = 0.1f;
-    } else if (theme > 0.80f) { // Rare: Green/Yellow
-        tr = 0.2f; tg = 1.0f; tb = 0.3f; tr2 = 1.0f; tg2 = 1.0f; tb2 = 0.2f;
-    } else if (theme > 0.50f) { // Common: Deep Blue/Cyan
-        tr = 0.1f; tg = 0.2f; tb = 1.0f; tr2 = 0.2f; tg2 = 0.9f; tb2 = 1.0f;
-    } else if (theme > 0.25f) { // Common: Violet/Magenta
-        tr = 0.5f; tg = 0.1f; tb = 1.0f; tr2 = 1.0f; tg2 = 0.2f; tb2 = 0.8f;
-    } else { // Common: Teal/Blue
-        tr = 0.1f; tg = 0.8f; tb = 0.8f; tr2 = 0.1f; tg2 = 0.3f; tb2 = 1.0f;
-    }
-
+    if (theme > 0.90f) { tr = 1.0f; tg = 0.8f; tb = 0.2f; tr2 = 1.0f; tg2 = 0.1f; tb2 = 0.1f; }
+    else if (theme > 0.80f) { tr = 0.2f; tg = 1.0f; tb = 0.3f; tr2 = 1.0f; tg2 = 1.0f; tb2 = 0.2f; }
+    else if (theme > 0.50f) { tr = 0.1f; tg = 0.2f; tb = 1.0f; tr2 = 0.2f; tg2 = 0.9f; tb2 = 1.0f; }
+    else if (theme > 0.25f) { tr = 0.5f; tg = 0.1f; tb = 1.0f; tr2 = 1.0f; tg2 = 0.2f; tb2 = 0.8f; }
+    else { tr = 0.1f; tg = 0.8f; tb = 0.8f; tr2 = 0.1f; tg2 = 0.3f; tb2 = 1.0f; }
     float cloud_scale = 0.5f + DeterministicHash(s_int, 55) * 2.0f;
-
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             float dx = (float)(x - center), dy = (float)(y - center);
@@ -151,7 +148,6 @@ static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
             float falloff = 1.0f - powf(norm_dist, 0.3f);
             float core = expf(-dist / core_rad) * 4.0f;
             float final_val = fminf(1.0f, (intensity * falloff + core) * 1.5f);
-            
             if (final_val > 0.02f) {
                 float cn = PerlinNoise2D(x * 0.025f + seed + 500, y * 0.025f);
                 float contrast_boost = 1.0f + norm_dist * 4.0f; 
@@ -175,16 +171,13 @@ static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
 
 static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
-    // Smaller base radius relative to 512px to give dust more room
     float base_radius = size * 0.15f; 
-    
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             float dx = (float)(x - center), dy = (float)(y - center);
             float dist = sqrtf(dx*dx + dy*dy);
             if (dist < 1.0f) continue;
             float angle = atan2f(dy, dx);
-            
             float shape_n = 0.0f;
             float s_freq = 1.2f, s_amp = 0.6f;
             for(int o=0; o<3; o++) {
@@ -192,7 +185,6 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
                 s_freq *= 2.0f; s_amp *= 0.5f;
             }
             float distorted_radius = base_radius * (1.0f + shape_n);
-            
             if (dist <= distorted_radius) {
                 float warp = ValueNoise2D(x * 0.02f + seed, y * 0.02f + seed) * 0.5f;
                 float cracks1 = VoronoiCracks2D(x * 0.03f + seed + warp, y * 0.03f + seed + warp);
@@ -200,41 +192,31 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
                 float surface_v = ValueNoise2D(x * 0.05f + seed, y * 0.05f + seed);
                 float mat_n = ValueNoise2D(x * 0.04f + seed * 4.0f, y * 0.04f + seed * 4.0f);
                 float mix_val = fmaxf(0.0f, fminf(1.0f, (mat_n - 0.3f) * 1.5f)); 
-
                 float a_theme = DeterministicHash((int)(seed * 789.0f), 123);
                 float r1, g1, b1, r2, g2, b2;
                 if (a_theme > 0.7f) { r1 = 0.5f; g1 = 0.45f; b1 = 0.42f; r2 = 0.75f; g2 = 0.4f; b2 = 0.35f; }
                 else if (a_theme > 0.4f) { r1 = 0.55f; g1 = 0.55f; b1 = 0.6f; r2 = 0.45f; g2 = 0.5f; b2 = 0.75f; }
                 else { r1 = 0.35f; g1 = 0.35f; b1 = 0.38f; r2 = 0.55f; g2 = 0.55f; b2 = 0.58f; }
-
                 float tr = r1 * (1.0f - mix_val) + r2 * mix_val;
                 float tg = g1 * (1.0f - mix_val) + g2 * mix_val;
                 float tb = b1 * (1.0f - mix_val) + b2 * mix_val;
-
                 float base_val = 30.0f + surface_v * 35.0f + shape_n * 15.0f;
                 float c1_factor = fmaxf(0.0f, fminf(1.0f, cracks1 / 0.4f));
                 float soft_darken1 = 0.4f + 0.6f * powf(c1_factor, 0.5f);
                 float c2_factor = fmaxf(0.0f, fminf(1.0f, cracks2 / 0.2f));
                 float soft_darken2 = 0.7f + 0.3f * powf(c2_factor, 0.5f);
-                
                 Uint8 r = (Uint8)fminf(255, base_val * tr * soft_darken1 * soft_darken2);
                 Uint8 g = (Uint8)fminf(255, base_val * tg * soft_darken1 * soft_darken2);
                 Uint8 b = (Uint8)fminf(255, base_val * tb * soft_darken1 * soft_darken2);
                 pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
             } else {
-                // IRREGULAR DUST CLOUD - Lower freq and softer fade
                 float dust_noise = PerlinNoise2D(cosf(angle) * 0.8f + seed + 100, sinf(angle) * 0.8f + seed + 100);
                 float dust_outer = base_radius * (1.5f + dust_noise * 3.0f); 
-                
                 if (dist <= dust_outer) {
                     float dust_t = (dist - distorted_radius) / (dust_outer - distorted_radius);
-                    // Lower frequency for larger whisps (0.02 instead of 0.04)
                     float detail_n = PerlinNoise2D(x * 0.02f + seed + 500, y * 0.02f + seed);
-                    
                     float edge_dist = fminf(fminf(x, (size-1)-x), fminf(y, (size-1)-y));
                     float edge_falloff = fminf(1.0f, edge_dist / 30.0f);
-
-                    // Softer fade (power 2.5 instead of 1.5)
                     float alpha_f = powf(1.0f - dust_t, 2.5f) * detail_n * edge_falloff;
                     if (alpha_f > 0.01f) {
                         Uint8 val = (Uint8)(35 + detail_n * 25); 
@@ -246,10 +228,30 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
     }
 }
 
-void Renderer_GeneratePlanetStep(AppState *s) {
-    int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT;
-    if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
+static void DrawExplosionPuffToBuffer(Uint32 *pixels, int size, float seed) {
+    int center = size / 2;
+    float max_rad = size * 0.45f;
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            float dx = (float)(x - center), dy = (float)(y - center);
+            float dist = sqrtf(dx*dx + dy*dy);
+            if (dist > max_rad) continue;
+            float norm_dist = dist / max_rad;
+            float n1 = PerlinNoise2D(x * 0.05f + seed, y * 0.05f + seed);
+            float n2 = PerlinNoise2D(x * 0.1f + seed * 2, y * 0.1f + seed * 2);
+            float noise = (n1 * 0.7f + n2 * 0.3f);
+            float alpha_f = powf(1.0f - norm_dist, 1.5f) * noise;
+            if (alpha_f > 0.05f) {
+                Uint8 val = (Uint8)(100 + noise * 100);
+                pixels[y * size + x] = ((Uint8)(alpha_f * 255) << 24) | (val << 16) | (val << 8) | val;
+            }
+        }
+    }
+}
 
+void Renderer_GeneratePlanetStep(AppState *s) {
+    int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + 1;
+    if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
     if (s->assets_generated < PLANET_COUNT) {
         int p_size = 1024; Uint32 *pixels = SDL_malloc(p_size * p_size * sizeof(Uint32));
         SDL_memset(pixels, 0, p_size * p_size * sizeof(Uint32));
@@ -267,18 +269,24 @@ void Renderer_GeneratePlanetStep(AppState *s) {
         SDL_SetTextureBlendMode(s->galaxy_textures[g_idx], SDL_BLENDMODE_BLEND);
         SDL_UpdateTexture(s->galaxy_textures[g_idx], NULL, pixels, g_size * 4);
         SDL_free(pixels);
-    } else {
+    } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT) {
         int a_idx = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT);
-        int a_size = 512; // Increased size for expanding dust
-        Uint32 *pixels = SDL_malloc(a_size * a_size * sizeof(Uint32));
+        int a_size = 512; Uint32 *pixels = SDL_malloc(a_size * a_size * sizeof(Uint32));
         SDL_memset(pixels, 0, a_size * a_size * sizeof(Uint32));
         DrawAsteroidToBuffer(pixels, a_size, (float)a_idx * 432.1f + 11.0f);
         s->asteroid_textures[a_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, a_size, a_size);
         SDL_SetTextureBlendMode(s->asteroid_textures[a_idx], SDL_BLENDMODE_BLEND);
         SDL_UpdateTexture(s->asteroid_textures[a_idx], NULL, pixels, a_size * 4);
         SDL_free(pixels);
+    } else {
+        int e_size = 256; Uint32 *pixels = SDL_malloc(e_size * e_size * sizeof(Uint32));
+        SDL_memset(pixels, 0, e_size * e_size * sizeof(Uint32));
+        DrawExplosionPuffToBuffer(pixels, e_size, 777.7f);
+        s->explosion_puff_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, e_size, e_size);
+        SDL_SetTextureBlendMode(s->explosion_puff_texture, SDL_BLENDMODE_BLEND);
+        SDL_UpdateTexture(s->explosion_puff_texture, NULL, pixels, e_size * 4);
+        SDL_free(pixels);
     }
-    
     s->assets_generated++;
     if (s->assets_generated >= total_assets) s->is_loading = false;
 }
@@ -286,7 +294,7 @@ void Renderer_GeneratePlanetStep(AppState *s) {
 void Renderer_DrawLoading(AppState *s) {
     int win_w, win_h; SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
     SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
-    float progress = (float)s->assets_generated / (float)(PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT);
+    float progress = (float)s->assets_generated / (float)(PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + 1);
     float bar_w = 400.0f, bar_h = 20.0f; 
     float x = (win_w - bar_w) / 2.0f, y = (win_h - bar_h) / 2.0f;
     float title_scale = 4.0f;
@@ -315,26 +323,21 @@ static int SDLCALL BackgroundGenerationThread(void *data) {
       SDL_LockMutex(s->bg_mutex);
       Vec2 cam_pos = s->bg_target_cam_pos; float zoom = s->bg_target_zoom; float time = s->bg_target_time;
       SDL_UnlockMutex(s->bg_mutex);
-      
       float s_macro = 0.0002f, s_low = 0.001f, s_med = 0.003f, color_scale = 0.00001f;
       float w_macro = 0.6f, w_low = 0.3f, w_med = 0.1f;
       float dmx = time * 0.05f, dmy = time * 0.03f, ddx = time * 0.15f, ddy = time * 0.1f;
-      
       for (int i = 0; i < s->bg_w * s->bg_h; i++) {
         int x = i % s->bg_w, y = i / s->bg_w;
         float wx = cam_pos.x + (x * BG_SCALE_FACTOR) / zoom;
         float wy = cam_pos.y + (y * BG_SCALE_FACTOR) / zoom;
-        
         float n = ValueNoise2D(wx * s_macro + dmx, wy * s_macro + dmy) * w_macro +
                   ValueNoise2D(wx * s_low   + ddx, wy * s_low   + ddy) * w_low +
                   ValueNoise2D(wx * s_med   + ddx, wy * s_med   + ddy) * w_med;
-        
         float variation = ValueNoise2D(wx * color_scale + 12345.0f, wy * color_scale + 67890.0f);
         if (n > 1.0f) n = 1.0f; float r_f, g_f, b_f; GetNebulaColor(n, &r_f, &g_f, &b_f);
         r_f *= (0.95f + variation * 0.1f); g_f *= (0.95f + (1.0f - variation) * 0.1f);
         float intensity = 0.5f + n * 0.5f;
         Uint8 r = (Uint8)fminf(r_f * intensity, 255.0f), g = (Uint8)fminf(g_f * intensity, 255.0f), b = (Uint8)fminf(b_f * intensity, 255.0f);
-        
         float af = (n - 0.1f) / 0.6f; af = fmaxf(0.0f, fminf(1.0f, af)); 
         Uint8 a = (Uint8)(af * 160); 
         s->bg_pixel_buffer[i] = (a << 24) | (b << 16) | (g << 8) | r;
@@ -415,31 +418,57 @@ static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cel
 }
 
 static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
-    // Rarer spawning: 1 in 50 cells (seed > 0.98)
     if (cell->seed > 0.98f || (cell->gx == 0 && cell->gy == 0)) {
         int win_w, win_h; SDL_GetRenderOutputSize(r, &win_w, &win_h);
         int cell_size = 5000;
-        
-        // Centered position with slight jitter (+/- 1000px)
         float jitter_x = (DeterministicHash(cell->gx + 5, cell->gy + 9) - 0.5f) * 2000.0f;
         float jitter_y = (DeterministicHash(cell->gx + 12, cell->gy + 3) - 0.5f) * 2000.0f;
         float ox = (cell_size / 2.0f) + jitter_x;
         float oy = (cell_size / 2.0f) + jitter_y;
-        
         float sx = cell->screen_x + ox * s->zoom, sy = cell->screen_y + oy * s->zoom;
         float type_seed = DeterministicHash(cell->gx, cell->gy + 2000);
-        
-        if (type_seed > 0.95f) { // 5% chance for Galaxy
+        if (type_seed > 0.95f) {
             float r_s = DeterministicHash(cell->gx + 3, cell->gy + 5), rad = (2000.0f + r_s * 4000.0f) * s->zoom;
             if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
             int g_idx = (int)(DeterministicHash(cell->gx + 9, cell->gy + 2) * GALAXY_COUNT);
             SDL_RenderTexture(r, s->galaxy_textures[g_idx], NULL, &(SDL_FRect){ sx - rad, sy - rad, rad * 2, rad * 2 });
-        } else { // 95% chance for Planet
+        } else {
             float r_s = DeterministicHash(cell->gx + 7, cell->gy + 11), rad = (150.0f + r_s * 450.0f) * s->zoom;
             if (!IsVisible(sx, sy, rad, win_w, win_h)) return;
             int p_idx = (int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT);
             float t_sz = rad * 4.5f; 
             SDL_RenderTexture(r, s->planet_textures[p_idx], NULL, &(SDL_FRect){ sx - t_sz / 2, sy - t_sz / 2, t_sz, t_sz });
+        }
+    }
+}
+
+static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+    for (int i = 0; i < MAX_ASTEROIDS; i++) {
+        if (!s->asteroids[i].active) continue;
+        float sx = (s->asteroids[i].pos.x - s->camera_pos.x) * s->zoom;
+        float sy = (s->asteroids[i].pos.y - s->camera_pos.y) * s->zoom;
+        float rad = s->asteroids[i].radius * s->zoom;
+        if (!IsVisible(sx, sy, rad * 1.5f, win_w, win_h)) continue;
+        SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, 
+                                 &(SDL_FRect){ sx - rad * 1.5f, sy - rad * 1.5f, rad * 3.0f, rad * 3.0f }, 
+                                 s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
+    }
+}
+
+static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (!s->particles[i].active) continue;
+        float sx = (s->particles[i].pos.x - s->camera_pos.x) * s->zoom;
+        float sy = (s->particles[i].pos.y - s->camera_pos.y) * s->zoom;
+        float sz = s->particles[i].size * s->zoom;
+        if (!IsVisible(sx, sy, sz, win_w, win_h)) continue;
+        if (s->particles[i].type == PARTICLE_PUFF && s->explosion_puff_texture) {
+            SDL_SetTextureColorMod(s->explosion_puff_texture, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b);
+            SDL_SetTextureAlphaMod(s->explosion_puff_texture, (Uint8)(s->particles[i].life * 180));
+            SDL_RenderTexture(r, s->explosion_puff_texture, NULL, &(SDL_FRect){ sx - sz/2, sy - sz/2, sz, sz });
+        } else {
+            SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(s->particles[i].life * 255));
+            SDL_RenderFillRect(r, &(SDL_FRect){ sx - sz/2, sy - sz/2, sz, sz });
         }
     }
 }
@@ -497,8 +526,8 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
                 if (fabsf(dx) < MINIMAP_RANGE/2 && fabsf(dy) < MINIMAP_RANGE/2) {
                     float px = mm_x + MINIMAP_SIZE/2 + dx * world_to_mm; float py = mm_y + MINIMAP_SIZE/2 + dy * world_to_mm;
                     float type_seed = DeterministicHash(gx, gy + 2000);
-                    if (type_seed > 0.95f) SDL_SetRenderDrawColor(r, 200, 150, 255, 255); // Galaxy
-                    else SDL_SetRenderDrawColor(r, 100, 200, 255, 255); // Planet
+                    if (type_seed > 0.95f) SDL_SetRenderDrawColor(r, 200, 150, 255, 255);
+                    else SDL_SetRenderDrawColor(r, 100, 200, 255, 255);
                     SDL_RenderFillRect(r, &(SDL_FRect){ px, py, 4, 4 });
                 }
             }
@@ -508,22 +537,6 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){ mm_x + (MINIMAP_SIZE - view_w)/2, mm_y + (MINIMAP_SIZE - view_h)/2, view_w, view_h });
 }
 
-static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
-    for (int i = 0; i < MAX_ASTEROIDS; i++) {
-        if (!s->asteroids[i].active) continue;
-        
-        float sx = (s->asteroids[i].pos.x - s->camera_pos.x) * s->zoom;
-        float sy = (s->asteroids[i].pos.y - s->camera_pos.y) * s->zoom;
-        float rad = s->asteroids[i].radius * s->zoom;
-        
-        if (!IsVisible(sx, sy, rad * 1.5f, win_w, win_h)) continue;
-
-        SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, 
-                                 &(SDL_FRect){ sx - rad * 1.5f, sy - rad * 1.5f, rad * 3.0f, rad * 3.0f }, 
-                                 s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
-    }
-}
-
 void Renderer_Draw(AppState *s) {
   int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
@@ -531,11 +544,9 @@ void Renderer_Draw(AppState *s) {
   if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   DrawParallaxLayer(s->renderer, s, ww, wh, 128, 0.4f, 0, StarLayerFn);
   DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, SystemLayerFn);
-  
-  // 4. Primary Layer (Asteroid Entities)
   if (s->show_grid) { DrawGrid(s->renderer, s, ww, wh); }
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);
-  
+  Renderer_DrawParticles(s->renderer, s, ww, wh);
   DrawDebugInfo(s->renderer, s, ww);
   DrawMinimap(s->renderer, s, ww, wh);
   SDL_RenderPresent(s->renderer);

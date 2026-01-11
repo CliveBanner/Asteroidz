@@ -13,6 +13,22 @@ typedef struct {
 #define GALAXY_COUNT 4
 #define ASTEROID_TYPE_COUNT 16
 #define MAX_ASTEROIDS 1024
+#define MAX_PARTICLES 4096
+
+typedef enum {
+    PARTICLE_SPARK,
+    PARTICLE_PUFF
+} ParticleType;
+
+typedef struct {
+    Vec2 pos;
+    Vec2 velocity;
+    float life;       // 1.0 down to 0.0
+    float size;
+    SDL_Color color;
+    ParticleType type;
+    bool active;
+} Particle;
 
 typedef struct {
     Vec2 pos;
@@ -37,8 +53,12 @@ typedef struct {
     Asteroid asteroids[MAX_ASTEROIDS];
     int asteroid_count;
 
+    Particle particles[MAX_PARTICLES];
+    int particle_next_idx;
+
     // Rendering
     SDL_Texture *bg_texture;
+    SDL_Texture *explosion_puff_texture;
     int bg_w, bg_h;
     float current_fps;
     float current_time;
