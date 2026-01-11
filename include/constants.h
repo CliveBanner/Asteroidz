@@ -13,4 +13,8 @@
 
 #define EDGE_SCROLL_THRESHOLD 20
 
+#define MINIMAP_SIZE 200.0f
+#define MINIMAP_MARGIN 20.0f
+#define MINIMAP_RANGE 60000.0f
+
 #endif

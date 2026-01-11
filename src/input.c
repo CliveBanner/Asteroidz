@@ -31,6 +31,31 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
             s->mouse_pos.y = event->motion.y;
             break;
 
+        case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+            if (event->button.button == SDL_BUTTON_LEFT) {
+                int win_w, win_h; SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
+                float mm_x = win_w - MINIMAP_SIZE - MINIMAP_MARGIN;
+                float mm_y = win_h - MINIMAP_SIZE - MINIMAP_MARGIN;
+
+                if (event->button.x >= mm_x && event->button.x <= mm_x + MINIMAP_SIZE &&
+                    event->button.y >= mm_y && event->button.y <= mm_y + MINIMAP_SIZE) {
+                    
+                    // Clicked on minimap
+                    float rel_x = (event->button.x - mm_x) - (MINIMAP_SIZE / 2.0f);
+                    float rel_y = (event->button.y - mm_y) - (MINIMAP_SIZE / 2.0f);
+                    float world_to_mm = MINIMAP_SIZE / MINIMAP_RANGE;
+
+                    // Jump camera (parallax 0.7 adjustment for planets)
+                    float jump_x = rel_x / world_to_mm;
+                    float jump_y = rel_y / world_to_mm;
+                    
+                    s->camera_pos.x += jump_x / 0.7f;
+                    s->camera_pos.y += jump_y / 0.7f;
+                }
+            }
+            break;
+        }
+
         case SDL_EVENT_KEY_DOWN:
             if (event->key.key == SDLK_H) {
                 s->show_grid = !s->show_grid;

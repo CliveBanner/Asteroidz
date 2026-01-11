@@ -10,6 +10,7 @@ typedef struct {
 } Vec2;
 
 #define PLANET_COUNT 8
+#define GALAXY_COUNT 4
 
 typedef struct {
     // Camera
@@ -27,8 +28,9 @@ typedef struct {
     float current_time;
 
     SDL_Texture *planet_textures[PLANET_COUNT];
+    SDL_Texture *galaxy_textures[GALAXY_COUNT];
     bool is_loading;
-    int planets_generated;
+    int assets_generated;
 
     // Background Threading
     SDL_Thread *bg_thread;
