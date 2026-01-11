@@ -47,13 +47,15 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
             if (dist <= radius) {
                 float nx = dx / radius, ny = dy / radius;
                 float nz = sqrtf(fmaxf(0.0f, 1.0f - nx*nx - ny*ny));
-                float noise = Noise2D((float)x * 0.03f + seed, (float)y * 0.03f + seed * 2.0f) * 0.7f +
-                              Noise2D((float)x * 0.15f + seed, (float)y * 0.15f) * 0.3f;
+                
+                // PLANETS USE PERLIN NOISE
+                float noise = PerlinNoise2D((float)x * 0.015f + seed, (float)y * 0.015f + seed * 2.0f);
+                
                 float dot = fmaxf(0.05f, nx * -0.6f + ny * -0.6f + nz * 0.5f);
                 float shading = powf(dot, 0.8f);
                 Uint8 r = (Uint8)fminf(255.0f, (80 + noise * 175) * r_m * shading);
-                Uint8 g = (Uint8)fminf(255.0f, (80 + noise * 175) * g_m * shading);
-                Uint8 b = (Uint8)fminf(255.0f, (80 + noise * 175) * b_m * shading);
+                Uint8 g = (Uint8)fminf(255.0f, (100 + noise * 175) * g_m * shading);
+                Uint8 b = (Uint8)fminf(255.0f, (100 + noise * 175) * b_m * shading);
                 pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
             }
         }
@@ -86,23 +88,18 @@ static int SDLCALL BackgroundGenerationThread(void *data) {
       for (int i = 0; i < s->bg_w * s->bg_h; i++) {
         int x = i % s->bg_w, y = i / s->bg_w;
         float world_x = cam_pos.x + (x * BG_SCALE_FACTOR) / zoom, world_y = cam_pos.y + (y * BG_SCALE_FACTOR) / zoom;
-        float n = Noise2D(world_x * s_macro + drift_macro_x, world_y * s_macro + drift_macro_y) * w_macro +
-                  Noise2D(world_x * s_low   + drift_detail_x, world_y * s_low   + drift_detail_y) * w_low +
-                  Noise2D(world_x * s_med   + drift_detail_x, world_y * s_med   + drift_detail_y) * w_med;
-        float variation = Noise2D(world_x * color_scale + 12345.0f, world_y * color_scale + 67890.0f);
+        
+        // NEBULA USES VALUE NOISE
+        float n = ValueNoise2D(world_x * s_macro + drift_macro_x, world_y * s_macro + drift_macro_y) * w_macro +
+                  ValueNoise2D(world_x * s_low   + drift_detail_x, world_y * s_low   + drift_detail_y) * w_low +
+                  ValueNoise2D(world_x * s_med   + drift_detail_x, world_y * s_med   + drift_detail_y) * w_med;
+        
+        float variation = ValueNoise2D(world_x * color_scale + 12345.0f, world_y * color_scale + 67890.0f);
         if (n > 1.0f) n = 1.0f; float r_f, g_f, b_f; GetNebulaColor(n, &r_f, &g_f, &b_f);
         r_f *= (0.95f + variation * 0.1f); g_f *= (0.95f + (1.0f - variation) * 0.1f);
         float intensity = 0.5f + n * 0.5f;
-        Uint8 r = (Uint8)fminf(r_f * intensity, 255.0f); 
-        Uint8 g = (Uint8)fminf(g_f * intensity, 255.0f); 
-        Uint8 b = (Uint8)fminf(b_f * intensity, 255.0f);
-        
-        // DYNAMIC ALPHA: Increase visibility
-        // Start fading in earlier (at 0.1 noise) and reach full opacity faster
-        float alpha_f = (n - 0.1f) / 0.6f;
-        alpha_f = fmaxf(0.0f, fminf(1.0f, alpha_f));
-        Uint8 alpha = (Uint8)(alpha_f * 255);
-
+        Uint8 r = (Uint8)fminf(r_f * intensity, 255.0f); Uint8 g = (Uint8)fminf(g_f * intensity, 255.0f); Uint8 b = (Uint8)fminf(b_f * intensity, 255.0f);
+        float alpha_f = (n - 0.1f) / 0.6f; alpha_f = fmaxf(0.0f, fminf(1.0f, alpha_f)); Uint8 alpha = (Uint8)(alpha_f * 255);
         s->bg_pixel_buffer[i] = (alpha << 24) | (b << 16) | (g << 8) | r;
       }
       for (int pass = 0; pass < 1; pass++) {
@@ -171,8 +168,8 @@ static void DrawInfiniteStars(SDL_Renderer *renderer, const AppState *s, int win
                 float drift_x = sinf(s->current_time * 0.2f + seed * 10.0f) * 15.0f, drift_y = cosf(s->current_time * 0.15f + seed * 5.0f) * 15.0f;
                 float world_x = gx * cell_size + off_x + drift_x, world_y = gy * cell_size + off_y + drift_y;
                 float screen_x = (world_x - cam_x_p) * s->zoom, screen_y = (world_y - cam_y_p) * s->zoom;
-                float size_seed = DeterministicHash(gx + 55, gy + 66), size = 1.0f;
-                if (size_seed > 0.98f) size = 3.0f; else if (size_seed > 0.90f) size = 2.0f;
+                float size_seed = DeterministicHash(gx + 55, gy + 66);
+                float size = 1.0f; if (size_seed > 0.98f) size = 3.0f; else if (size_seed > 0.90f) size = 2.0f;
                 float bright_seed = DeterministicHash(gx + 77, gy + 88);
                 Uint8 color_val = (Uint8)(100 + bright_seed * 155), color_seed = DeterministicHash(gx + 99, gy + 11);
                 Uint8 r = color_val, g = color_val, b = color_val;
@@ -253,18 +250,10 @@ void Renderer_Draw(AppState *s) {
   SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255);
   SDL_RenderClear(s->renderer);
-  
   UpdateBackground(s);
-
-  // 1. STARS & PLANETS (Now deep background)
   DrawInfiniteStars(s->renderer, s, win_w, win_h);
   DrawDistantPlanets(s->renderer, s, win_w, win_h);
-
-  // 2. NEBULA (On top, but with per-pixel alpha holes!)
-  if (s->bg_texture) { 
-    SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); 
-  }
-  
+  if (s->bg_texture) { SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL); }
   if (s->show_grid) { DrawGrid(s->renderer, s, win_w, win_h); }
   DrawDebugInfo(s->renderer, s, win_w);
   SDL_RenderPresent(s->renderer);
