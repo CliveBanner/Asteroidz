@@ -655,14 +655,14 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s,
                           const LayerCell *cell) {
   Vec2 b_pos;
   float type_seed;
-  if (GetCelestialBodyInfo(cell->gx, cell->gy, &b_pos, &type_seed)) {
+  float b_radius;
+  if (GetCelestialBodyInfo(cell->gx, cell->gy, &b_pos, &type_seed, &b_radius)) {
     Vec2 screen_pos = WorldToScreenParallax(b_pos, cell->parallax, s,
                                             cell->win_w, cell->win_h);
     float sx = screen_pos.x, sy = screen_pos.y;
+    float rad = b_radius * s->zoom;
 
     if (type_seed > 0.95f) {
-      float r_s = DeterministicHash(cell->gx + 3, cell->gy + 5),
-            rad = (2000.0f + r_s * 4000.0f) * s->zoom;
       if (!IsVisible(sx, sy, rad, cell->win_w, cell->win_h))
         return;
       int g_idx =
@@ -670,8 +670,6 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s,
       SDL_RenderTexture(r, s->galaxy_textures[g_idx], NULL,
                         &(SDL_FRect){sx - rad, sy - rad, rad * 2, rad * 2});
     } else {
-      float r_s = DeterministicHash(cell->gx + 7, cell->gy + 11),
-            rad = (150.0f + r_s * 450.0f) * s->zoom;
       if (!IsVisible(sx, sy, rad, cell->win_w, cell->win_h))
         return;
       int p_idx =
@@ -768,7 +766,7 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
   }
 
   // Density visualization patches (1.0 world grid)
-  int d_cell = 2000; // Smaller grid for density overlay visibility
+  int d_cell = DENSITY_CELL_SIZE; // Smaller grid for density overlay visibility
   float sw = (float)win_w, sh = (float)win_h;
   float vw = sw / s->zoom, vh = sh / s->zoom;
 
@@ -784,16 +782,17 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
           WorldToScreenParallax((Vec2){wx, wy}, 1.0f, s, win_w, win_h);
       float sz = (float)d_cell * s->zoom;
 
-      int sub_res = 5;
+      int sub_res = GRID_DENSITY_SUB_RES;
       float sub_sz = sz / sub_res;
       for (int syy = 0; syy < sub_res; syy++) {
         for (int sxx = 0; sxx < sub_res; sxx++) {
           float swx = wx + (sxx / (float)sub_res) * d_cell;
           float swy = wy + (syy / (float)sub_res) * d_cell;
           float d = GetAsteroidDensity((Vec2){swx, swy});
-          if (d > 0.05f) {
-            Uint8 rv = (Uint8)(d * 150.0f);
-            SDL_SetRenderDrawColor(renderer, rv, 0, 50, 40);
+          if (d > 0.01f) {
+            Uint8 rv = (Uint8)fminf(255.0f, d * 255.0f);
+            Uint8 av = (Uint8)fminf(40.0f, d * 60.0f + 5.0f);
+            SDL_SetRenderDrawColor(renderer, rv, 0, 50, av);
             SDL_RenderFillRect(renderer, &(SDL_FRect){sc_pos.x + sxx * sub_sz,
                                                       sc_pos.y + syy * sub_sz,
                                                       sub_sz + 1, sub_sz + 1});
@@ -834,7 +833,7 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w,
   SDL_RenderRect(r, &(SDL_FRect){mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE});
 
   // Draw density overlay on minimap
-  float mm_density_cell = MINIMAP_RANGE / 40.0f; // Roughly 1500 units per cell
+  float mm_density_cell = (float)DENSITY_CELL_SIZE;
   int dsgx = (int)floorf((cx - MINIMAP_RANGE / 2) / mm_density_cell);
   int dsgy = (int)floorf((cy - MINIMAP_RANGE / 2) / mm_density_cell);
   int degx = (int)ceilf((cx + MINIMAP_RANGE / 2) / mm_density_cell);
@@ -844,11 +843,12 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w,
     for (int gx = dsgx; gx <= degx; gx++) {
       float wx = (float)gx * mm_density_cell, wy = (float)gy * mm_density_cell;
       float d = GetAsteroidDensity((Vec2){wx, wy});
-      if (d > 0.05f) { // Only draw if there's significant density
-        Uint8 rv = (Uint8)(d * 100.0f); // Scale to a visible range for minimap
-        SDL_SetRenderDrawColor(
-            r, rv, rv / 2, 0,
-            (Uint8)(d * 150.0f)); // Orange-ish, semi-transparent
+      if (d > 0.01f) { // Only draw if there's significant density
+        Uint8 rv = (Uint8)fminf(
+            255.0f, d * 255.0f); // Scale to a visible range for minimap
+        Uint8 av = (Uint8)fminf(200.0f, d * 200.0f + 50.0f);
+        SDL_SetRenderDrawColor(r, rv, rv / 2, 0,
+                               av); // Orange-ish, semi-transparent
 
         float px = mm_x + MINIMAP_SIZE / 2 + (wx - cx) * world_to_mm;
         float py = mm_y + MINIMAP_SIZE / 2 + (wy - cy) * world_to_mm;
@@ -860,7 +860,7 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w,
   }
 
   // Draw celestial bodies on minimap
-  int cell_size = 5000;
+  int cell_size = SYSTEM_LAYER_CELL_SIZE;
   int r_cells = (int)(MINIMAP_RANGE / cell_size) + 1;
   int scx = (int)floorf((cx - MINIMAP_RANGE / 2) / cell_size);
   int scy = (int)floorf((cy - MINIMAP_RANGE / 2) / cell_size);
@@ -868,16 +868,17 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w,
     for (int gx = scx; gx <= scx + r_cells; gx++) {
       Vec2 b_pos;
       float type_seed;
-      if (GetCelestialBodyInfo(gx, gy, &b_pos, &type_seed)) {
+      float b_radius;
+      if (GetCelestialBodyInfo(gx, gy, &b_pos, &type_seed, &b_radius)) {
         float dx = (b_pos.x - cx);
         float dy = (b_pos.y - cy);
         if (fabsf(dx) < MINIMAP_RANGE / 2 && fabsf(dy) < MINIMAP_RANGE / 2) {
-          float px = mm_x + MINIMAP_SIZE / 2 + dx * world_to_mm;
-          float py = mm_y + MINIMAP_SIZE / 2 + dy * world_to_mm;
-          float dot_size = (type_seed > 0.95f) ? 6 : 4; // Galaxies larger
-
-          if (type_seed > 0.95f)
-            SDL_SetRenderDrawColor(r, 200, 150, 255, 255); // Galaxy color
+                    float px = mm_x + MINIMAP_SIZE / 2 + dx * world_to_mm;
+                    float py = mm_y + MINIMAP_SIZE / 2 + dy * world_to_mm;
+                    // Scale dot size loosely by radius
+                    float dot_size = (b_radius > MINIMAP_LARGE_BODY_THRESHOLD) ? 6 : 4; 
+          
+                    if (type_seed > 0.95f)            SDL_SetRenderDrawColor(r, 200, 150, 255, 255); // Galaxy color
           else
             SDL_SetRenderDrawColor(r, 100, 200, 255, 255); // Planet color
 

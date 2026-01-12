@@ -1,5 +1,5 @@
-#include "game.h"
 #include "constants.h"
+#include "game.h"
 #include <math.h>
 
 Vec2 Vector_Sub(Vec2 a, Vec2 b) { return (Vec2){a.x - b.x, a.y - b.y}; }
@@ -113,17 +113,28 @@ float VoronoiCracks2D(float x, float y) {
   return sqrtf(f2) - sqrtf(f1);
 }
 
-bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed) {
+bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed,
+                          float *out_radius) {
+
   float seed = DeterministicHash(gx, gy + 1000);
   if (seed > 0.98f || (gx == 0 && gy == 0)) {
     float jx = (DeterministicHash(gx + 5, gy + 9) - 0.5f) * 2000.0f;
     float jy = (DeterministicHash(gx + 12, gy + 3) - 0.5f) * 2000.0f;
-    out_pos->x = (float)gx * CELESTIAL_GRID_SIZE_F + (CELESTIAL_GRID_SIZE_F / 2.0f) + jx;
-    out_pos->y = (float)gy * CELESTIAL_GRID_SIZE_F + (CELESTIAL_GRID_SIZE_F / 2.0f) + jy;
+    out_pos->x =
+        (float)gx * CELESTIAL_GRID_SIZE_F + (CELESTIAL_GRID_SIZE_F / 2.0f) + jx;
+    out_pos->y =
+        (float)gy * CELESTIAL_GRID_SIZE_F + (CELESTIAL_GRID_SIZE_F / 2.0f) + jy;
     *out_type_seed = DeterministicHash(gx, gy + 2000);
-    return true;
-  }
-  return false;
+        // Calculate Radius
+        if (*out_type_seed > 0.95f) {
+            float r_s = DeterministicHash(gx + 3, gy + 5);
+            *out_radius = GALAXY_RADIUS_MIN + r_s * GALAXY_RADIUS_VARIANCE;
+        } else {
+            float r_s = DeterministicHash(gx + 7, gy + 11);
+            *out_radius = PLANET_RADIUS_MIN + r_s * PLANET_RADIUS_VARIANCE;
+        }
+        return true;
+      }  return false;
 }
 
 Vec2 WorldToParallax(Vec2 world_pos, float parallax) {
@@ -141,27 +152,65 @@ float GetAsteroidDensity(Vec2 p) {
     for (int ox = -1; ox <= 1; ox++) {
       Vec2 b_pos;
       float b_type;
-      if (GetCelestialBodyInfo(gx_center + ox, gy_center + oy, &b_pos,
-                               &b_type)) {
+      float b_radius;
+      if (GetCelestialBodyInfo(gx_center + ox, gy_center + oy, &b_pos, &b_type,
+                               &b_radius)) {
         float dx = p.x - b_pos.x, dy = p.y - b_pos.y;
         float dist_sq = dx * dx + dy * dy;
 
         if (b_type > 0.95f) { // Galaxy
-          if (dist_sq > 3000.0f * 3000.0f && dist_sq < 8000.0f * 8000.0f)
+          float min_r = b_radius * GALAXY_BELT_INNER_MULT;
+          float max_r = b_radius * GALAXY_BELT_OUTER_MULT;
+          if (dist_sq > min_r * min_r && dist_sq < max_r * max_r)
             val += DENSITY_GALAXY_WEIGHT;
         } else { // Planet
-          if (dist_sq > 1500.0f * 1500.0f && dist_sq < 4500.0f * 4500.0f)
+          float min_r = b_radius * PLANET_BELT_INNER_MULT;
+          float max_r = b_radius * PLANET_BELT_OUTER_MULT;
+          if (dist_sq > min_r * min_r && dist_sq < max_r * max_r)
             val += DENSITY_PLANET_WEIGHT;
         }
       }
     }
   }
+
+  // --- Global Asteroid Belts (Linear) ---
+  // Rotate coordinates for primary belts
+  float rx = p.x * cosf(GLOBAL_BELT_ANGLE) - p.y * sinf(GLOBAL_BELT_ANGLE);
+  float ry = p.x * sinf(GLOBAL_BELT_ANGLE) + p.y * cosf(GLOBAL_BELT_ANGLE);
+
+  float period = 2.0f * 3.14159f;
+
+  // Primary Sine wave bands
+  float phase1 = ry * GLOBAL_BELT_FREQ;
+  int belt_idx1 = (int)floorf(phase1 / period);
+  
+  if (DeterministicHash(belt_idx1, 123) < GLOBAL_BELT_KEEP_PROB) {
+      float wave = sinf(phase1);
+      if (wave > GLOBAL_BELT_WIDTH) {
+          val += (wave - GLOBAL_BELT_WIDTH) * (1.0f / (1.0f - GLOBAL_BELT_WIDTH)) * GLOBAL_BELT_WEIGHT;
+      }
+  }
+
+  // Orthogonal Sine wave bands (rotated 90 degrees relative to primary)
+  float phase2 = rx * GLOBAL_BELT_SEC_FREQ;
+  int belt_idx2 = (int)floorf(phase2 / period);
+
+  if (DeterministicHash(belt_idx2, 456) < GLOBAL_BELT_KEEP_PROB) {
+      float wave2 = sinf(phase2);
+      if (wave2 > GLOBAL_BELT_SEC_WIDTH) {
+          val += (wave2 - GLOBAL_BELT_SEC_WIDTH) * (1.0f / (1.0f - GLOBAL_BELT_SEC_WIDTH)) * GLOBAL_BELT_SEC_WEIGHT;
+      }
+  }
+  
+  if (val <= 0.0001f)
+    return 0.0f;
+
   // Return normalized 0-1
   float norm = val / DENSITY_MAX;
 
   // Add noise for less uniform distribution (only subtractive)
   float noise_val = PerlinNoise2D(p.x * 0.0005f, p.y * 0.0005f); // 0.0 to 1.0
-  norm += (noise_val - 1.0f) * 0.6f; // -0.6 to 0.0 contribution
+  norm += norm * (noise_val - 1.0f) * 0.5f; // -0.5 to 0.0 contribution
 
   return fmaxf(0.0f, fminf(1.0f, norm));
 }

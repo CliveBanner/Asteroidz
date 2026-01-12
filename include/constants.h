@@ -58,9 +58,39 @@
 #define SYSTEM_LAYER_PARALLAX 0.7f
 #define GRID_SIZE_SMALL 200
 #define GRID_SIZE_LARGE 1000
+#define DENSITY_CELL_SIZE 1000
+#define GRID_DENSITY_SUB_RES 2
 
 // World Generation
 #define CELESTIAL_GRID_SIZE 5000
 #define CELESTIAL_GRID_SIZE_F 5000.0f
+
+// Celestial Body Sizes
+#define GALAXY_RADIUS_MIN 2000.0f
+#define GALAXY_RADIUS_VARIANCE 4000.0f
+#define PLANET_RADIUS_MIN 150.0f
+#define PLANET_RADIUS_VARIANCE 450.0f
+
+// Asteroid Belt Scaling
+#define GALAXY_BELT_INNER_MULT 1.2f
+#define GALAXY_BELT_OUTER_MULT 2.5f
+#define PLANET_BELT_INNER_MULT 4.0f
+#define PLANET_BELT_OUTER_MULT 10.0f
+
+// Global Asteroid Belts (Linear)
+#define GLOBAL_BELT_FREQ 0.0001f
+#define GLOBAL_BELT_WIDTH                                                      \
+  0.8f // Higher means thinner belts (threshold for sine)
+#define GLOBAL_BELT_WEIGHT 0.5f
+#define GLOBAL_BELT_ANGLE 0.6f // Radians
+
+#define GLOBAL_BELT_SEC_FREQ 0.00015f
+#define GLOBAL_BELT_SEC_WIDTH 0.6f
+#define GLOBAL_BELT_SEC_WEIGHT 0.4f
+#define GLOBAL_BELT_KEEP_PROB                                                  \
+  0.7f // Probability (0.0-1.0) that a generated belt is actually kept
+
+// Minimap
+#define MINIMAP_LARGE_BODY_THRESHOLD 1000.0f
 
 #endif

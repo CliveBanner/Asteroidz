@@ -14,8 +14,8 @@ static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
       s->asteroids[i].velocity.y = vel_dir.y * speed;
       s->asteroids[i].radius = radius;
       s->asteroids[i].rotation = (float)(rand() % 360);
-      s->asteroids[i].rot_speed =
-          ((float)(rand() % 100) / 50.0f - 1.0f) * (ASTEROID_ROTATION_SPEED_FACTOR / radius);
+      s->asteroids[i].rot_speed = ((float)(rand() % 100) / 50.0f - 1.0f) *
+                                  (ASTEROID_ROTATION_SPEED_FACTOR / radius);
       s->asteroids[i].tex_idx = rand() % ASTEROID_TYPE_COUNT;
       s->asteroids[i].active = true;
       s->asteroid_count++;
@@ -86,7 +86,8 @@ void Game_Update(AppState *s, float dt) {
   float local_density = GetAsteroidDensity(cam_center);
   // Baseline of 20, scaling up to MAX_DYNAMIC_ASTEROIDS
   int dynamic_target_count =
-      (int)(MIN_DYNAMIC_ASTEROIDS + local_density * (MAX_DYNAMIC_ASTEROIDS - MIN_DYNAMIC_ASTEROIDS));
+      (int)(MIN_DYNAMIC_ASTEROIDS +
+            local_density * (MAX_DYNAMIC_ASTEROIDS - MIN_DYNAMIC_ASTEROIDS));
 
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active)
@@ -111,7 +112,8 @@ void Game_Update(AppState *s, float dt) {
     if (((float)rand() / (float)RAND_MAX) < p_density) {
       float move_angle = (float)(rand() % 360) * 0.0174533f;
       SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)},
-                    ASTEROID_BASE_RADIUS_MIN + (rand() % ASTEROID_BASE_RADIUS_VARIANCE));
+                    ASTEROID_BASE_RADIUS_MIN +
+                        (rand() % ASTEROID_BASE_RADIUS_VARIANCE));
     }
   }
 
