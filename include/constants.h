@@ -4,6 +4,9 @@
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 
+#define LOGICAL_WIDTH 1280
+#define LOGICAL_HEIGHT 720
+
 #define WORLD_WIDTH 2000
 #define WORLD_HEIGHT 2000
 
@@ -29,7 +32,7 @@
 #define DESPAWN_RANGE 12000.0f
 #define MAX_ASTEROIDS 2048
 #define MIN_DYNAMIC_ASTEROIDS 20
-#define MAX_DYNAMIC_ASTEROIDS 100
+#define MAX_DYNAMIC_ASTEROIDS 500
 
 // Entity Counts
 #define PLANET_COUNT 8
@@ -79,8 +82,7 @@
 
 // Global Asteroid Belts (Linear)
 #define GLOBAL_BELT_FREQ 0.0001f
-#define GLOBAL_BELT_WIDTH                                                      \
-  0.8f // Higher means thinner belts (threshold for sine)
+#define GLOBAL_BELT_WIDTH 0.8f // Higher means thinner
 #define GLOBAL_BELT_WEIGHT 0.5f
 #define GLOBAL_BELT_ANGLE 0.6f // Radians
 

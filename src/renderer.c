@@ -3,6 +3,8 @@
 #include <math.h>
 #include <stdio.h>
 
+void Renderer_StartBackgroundThreads(AppState *s);
+
 typedef struct {
   float pos;
   float r, g, b;
@@ -445,7 +447,12 @@ void Renderer_GenerateAssetStep(AppState *s) {
 
 void Renderer_DrawLoading(AppState *s) {
   int win_w, win_h;
-  SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
+  SDL_GetRenderLogicalPresentation(s->renderer, &win_w, &win_h, NULL);
+  
+  if (win_w == 0 || win_h == 0) {
+      SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
+  }
+
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255);
   SDL_RenderClear(s->renderer);
   float progress =
@@ -470,6 +477,59 @@ void Renderer_DrawLoading(AppState *s) {
   SDL_SetRenderDrawColor(s->renderer, 100, 200, 255, 255);
   SDL_RenderFillRect(s->renderer, &(SDL_FRect){x, y, bar_w * progress, bar_h});
   SDL_RenderPresent(s->renderer);
+}
+
+void Renderer_DrawLauncher(AppState *s) {
+    int w, h;
+    SDL_GetRenderLogicalPresentation(s->renderer, &w, &h, NULL);
+    if (w == 0 || h == 0) {
+        SDL_GetRenderOutputSize(s->renderer, &w, &h);
+    }
+    SDL_SetRenderDrawColor(s->renderer, 20, 20, 30, 255);
+    SDL_RenderClear(s->renderer);
+
+    float cx = w / 2.0f;
+    float cy = h / 2.0f;
+
+    // Title
+    SDL_SetRenderScale(s->renderer, 4.0f, 4.0f);
+    SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+    SDL_RenderDebugText(s->renderer, (cx / 4.0f) - 36, (cy / 4.0f) - 40, "Asteroidz");
+    
+    // Reset scale for buttons
+    SDL_SetRenderScale(s->renderer, 1.0f, 1.0f);
+
+    // Resolution Button
+    SDL_FRect res_rect = {cx - 150, cy - 20, 300, 40};
+    if (s->launcher.res_hovered) SDL_SetRenderDrawColor(s->renderer, 60, 60, 80, 255);
+    else SDL_SetRenderDrawColor(s->renderer, 40, 40, 60, 255);
+    SDL_RenderFillRect(s->renderer, &res_rect);
+    
+    SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+    const char* res_text = s->launcher.selected_res_index == 0 ? "1280 x 720" : "1920 x 1080";
+    SDL_RenderDebugText(s->renderer, cx - (SDL_strlen(res_text) * 4), cy - 20 + (40 - 8) / 2.0f, res_text);
+
+    // Fullscreen Button
+    SDL_FRect fs_rect = {cx - 150, cy + 40, 300, 40};
+    if (s->launcher.fs_hovered) SDL_SetRenderDrawColor(s->renderer, 60, 60, 80, 255);
+    else SDL_SetRenderDrawColor(s->renderer, 40, 40, 60, 255);
+    SDL_RenderFillRect(s->renderer, &fs_rect);
+    
+    SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+    const char* fs_text = s->launcher.fullscreen ? "Fullscreen: ON" : "Fullscreen: OFF";
+    SDL_RenderDebugText(s->renderer, cx - (SDL_strlen(fs_text) * 4), cy + 40 + (40 - 8) / 2.0f, fs_text);
+
+    // Start Button
+    SDL_FRect start_rect = {cx - 150, cy + 120, 300, 50};
+    if (s->launcher.start_hovered) SDL_SetRenderDrawColor(s->renderer, 80, 180, 80, 255);
+    else SDL_SetRenderDrawColor(s->renderer, 50, 150, 50, 255);
+    SDL_RenderFillRect(s->renderer, &start_rect);
+    
+    SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+    const char* start_text = "START GAME";
+    SDL_RenderDebugText(s->renderer, cx - (SDL_strlen(start_text) * 4), cy + 120 + (50 - 8) / 2.0f, start_text);
+
+    SDL_RenderPresent(s->renderer);
 }
 
 static int SDLCALL BackgroundGenerationThread(void *data) {
@@ -679,6 +739,9 @@ void Renderer_Init(AppState *s) {
 
   s->is_loading = true;
   s->assets_generated = 0;
+}
+
+void Renderer_StartBackgroundThreads(AppState *s) {
   SDL_SetAtomicInt(&s->bg_request_update, 1);
   s->bg_thread = SDL_CreateThread(BackgroundGenerationThread, "BG_Gen", s);
   s->density_thread = SDL_CreateThread(DensityGenerationThread, "Density_Gen", s);
@@ -995,7 +1058,10 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w,
 
 void Renderer_Draw(AppState *s) {
   int ww, wh;
-  SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
+  SDL_GetRenderLogicalPresentation(s->renderer, &ww, &wh, NULL);
+  if (ww == 0 || wh == 0) {
+      SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
+  }
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255);
   SDL_RenderClear(s->renderer);
   UpdateBackground(s);

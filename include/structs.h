@@ -9,7 +9,18 @@ typedef struct {
     float x, y;
 } Vec2;
 
+typedef enum {
+    STATE_LAUNCHER,
+    STATE_GAME
+} GameState;
 
+typedef struct {
+    int selected_res_index; // 0: 1280x720, 1: 1920x1080
+    bool fullscreen;
+    bool start_hovered;
+    bool res_hovered;
+    bool fs_hovered;
+} LauncherState;
 
 typedef enum {
     PARTICLE_SPARK,
@@ -37,6 +48,10 @@ typedef struct {
 } Asteroid;
 
 typedef struct {
+    // State
+    GameState state;
+    LauncherState launcher;
+
     // Camera
     Vec2 camera_pos;      // Top-left position of the camera in the world
     float zoom;
