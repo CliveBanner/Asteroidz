@@ -1,4 +1,5 @@
 #include "game.h"
+#include "constants.h"
 #include <math.h>
 
 Vec2 Vector_Sub(Vec2 a, Vec2 b) { return (Vec2){a.x - b.x, a.y - b.y}; }
@@ -19,11 +20,11 @@ float DeterministicHash(int x, int y) {
   return (float)(h & 0x7FFFFFFF) / (float)0x7FFFFFFF;
 }
 
+// --- Value Noise ---
 static float Smooth(float t) {
   return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
 }
 
-// --- Value Noise ---
 static float Hash(float x, float y) {
   float dot = x * 12.9898f + y * 78.233f;
   float sin_val = sinf(dot) * 43758.5453f;
@@ -117,8 +118,8 @@ bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed) {
   if (seed > 0.98f || (gx == 0 && gy == 0)) {
     float jx = (DeterministicHash(gx + 5, gy + 9) - 0.5f) * 2000.0f;
     float jy = (DeterministicHash(gx + 12, gy + 3) - 0.5f) * 2000.0f;
-    out_pos->x = (float)gx * 5000.0f + 2500.0f + jx;
-    out_pos->y = (float)gy * 5000.0f + 2500.0f + jy;
+    out_pos->x = (float)gx * CELESTIAL_GRID_SIZE_F + (CELESTIAL_GRID_SIZE_F / 2.0f) + jx;
+    out_pos->y = (float)gy * CELESTIAL_GRID_SIZE_F + (CELESTIAL_GRID_SIZE_F / 2.0f) + jy;
     *out_type_seed = DeterministicHash(gx, gy + 2000);
     return true;
   }
@@ -131,7 +132,7 @@ Vec2 WorldToParallax(Vec2 world_pos, float parallax) {
 
 float GetAsteroidDensity(Vec2 p) {
   float val = DENSITY_BASELINE;
-  const float body_grid = 5000.0f;
+  const float body_grid = CELESTIAL_GRID_SIZE_F;
 
   int gx_center = (int)floorf(p.x / body_grid);
   int gy_center = (int)floorf(p.y / body_grid);

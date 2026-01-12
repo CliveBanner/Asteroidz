@@ -3,8 +3,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#define BG_SCALE_FACTOR 16
-
 typedef struct {
   float pos;
   float r, g, b;
@@ -733,7 +731,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s,
 static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
                      int win_h) {
   SDL_SetRenderDrawColor(renderer, 50, 50, 50, 40);
-  int gs = 200;
+  int gs = GRID_SIZE_SMALL;
   int stx = (int)floorf(s->camera_pos.x / gs) * gs,
       sty = (int)floorf(s->camera_pos.y / gs) * gs;
   for (float x = stx; x < s->camera_pos.x + win_w / s->zoom + gs; x += gs) {
@@ -745,7 +743,7 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
     SDL_RenderLine(renderer, 0, s1.y, (float)win_w, s1.y);
   }
   SDL_SetRenderDrawColor(renderer, 100, 100, 100, 80);
-  int gl = 1000;
+  int gl = GRID_SIZE_LARGE;
   int slx = (int)floorf(s->camera_pos.x / gl) * gl,
       sly = (int)floorf(s->camera_pos.y / gl) * gl;
   for (float x = slx; x < s->camera_pos.x + win_w / s->zoom + gl; x += gl) {
@@ -907,8 +905,10 @@ void Renderer_Draw(AppState *s) {
   if (s->bg_texture) {
     SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
   }
-  DrawParallaxLayer(s->renderer, s, ww, wh, 256, 0.4f, 0, StarLayerFn);
-  DrawParallaxLayer(s->renderer, s, ww, wh, 5000, 0.7f, 1000, SystemLayerFn);
+  DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE,
+                    STAR_LAYER_PARALLAX, 0, StarLayerFn);
+  DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE,
+                    SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
 
   if (s->show_grid) {
     DrawGrid(s->renderer, s, ww, wh);

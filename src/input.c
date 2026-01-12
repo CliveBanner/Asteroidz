@@ -13,9 +13,9 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
 
     // 2. Apply Zoom
     if (event->wheel.y > 0)
-      s->zoom *= 1.1f;
+      s->zoom *= ZOOM_STEP;
     if (event->wheel.y < 0)
-      s->zoom /= 1.1f;
+      s->zoom /= ZOOM_STEP;
 
     // Clamp zoom
     if (s->zoom < MIN_ZOOM)

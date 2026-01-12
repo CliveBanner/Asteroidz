@@ -3,23 +3,19 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define TARGET_ASTEROID_COUNT_BASE 150
-
-#define SPAWN_SAFE_ZONE 1500.0f
-
 static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
   if (s->asteroid_count >= MAX_ASTEROIDS)
     return;
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active) {
       s->asteroids[i].pos = pos;
-      float speed = 15000.0f / radius;
+      float speed = ASTEROID_SPEED_FACTOR / radius;
       s->asteroids[i].velocity.x = vel_dir.x * speed;
       s->asteroids[i].velocity.y = vel_dir.y * speed;
       s->asteroids[i].radius = radius;
       s->asteroids[i].rotation = (float)(rand() % 360);
       s->asteroids[i].rot_speed =
-          ((float)(rand() % 100) / 50.0f - 1.0f) * (400.0f / radius);
+          ((float)(rand() % 100) / 50.0f - 1.0f) * (ASTEROID_ROTATION_SPEED_FACTOR / radius);
       s->asteroids[i].tex_idx = rand() % ASTEROID_TYPE_COUNT;
       s->asteroids[i].active = true;
       s->asteroid_count++;
@@ -29,7 +25,7 @@ static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
 }
 
 static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult) {
-  int puff_count = count / 4;
+  int puff_count = count / EXPLOSION_PUFF_DIVISOR;
   for (int i = 0; i < puff_count; i++) {
     int idx = s->particle_next_idx;
     s->particles[idx].active = true;
@@ -39,7 +35,7 @@ static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult) {
     float speed = (float)(rand() % 100 + 20) * size_mult;
     s->particles[idx].velocity.x = cosf(angle) * speed;
     s->particles[idx].velocity.y = sinf(angle) * speed;
-    s->particles[idx].life = 1.0f;
+    s->particles[idx].life = PARTICLE_LIFE_BASE;
     s->particles[idx].size = (float)(rand() % 100 + 50) * size_mult;
     Uint8 v = (Uint8)(rand() % 50 + 100);
     s->particles[idx].color =
@@ -55,7 +51,7 @@ static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult) {
     float speed = (float)(rand() % 300 + 100) * size_mult;
     s->particles[idx].velocity.x = cosf(angle) * speed;
     s->particles[idx].velocity.y = sinf(angle) * speed;
-    s->particles[idx].life = 1.0f;
+    s->particles[idx].life = PARTICLE_LIFE_BASE;
     s->particles[idx].size = (float)(rand() % 6 + 2) * size_mult;
     if (rand() % 2 == 0) {
       s->particles[idx].color =
@@ -90,7 +86,7 @@ void Game_Update(AppState *s, float dt) {
   float local_density = GetAsteroidDensity(cam_center);
   // Baseline of 20, scaling up to MAX_DYNAMIC_ASTEROIDS
   int dynamic_target_count =
-      (int)(20 + local_density * (MAX_DYNAMIC_ASTEROIDS - 20));
+      (int)(MIN_DYNAMIC_ASTEROIDS + local_density * (MAX_DYNAMIC_ASTEROIDS - MIN_DYNAMIC_ASTEROIDS));
 
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active)
@@ -115,7 +111,7 @@ void Game_Update(AppState *s, float dt) {
     if (((float)rand() / (float)RAND_MAX) < p_density) {
       float move_angle = (float)(rand() % 360) * 0.0174533f;
       SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)},
-                    80.0f + (rand() % 120));
+                    ASTEROID_BASE_RADIUS_MIN + (rand() % ASTEROID_BASE_RADIUS_VARIANCE));
     }
   }
 
@@ -132,7 +128,7 @@ void Game_Update(AppState *s, float dt) {
       continue;
     s->particles[i].pos.x += s->particles[i].velocity.x * dt;
     s->particles[i].pos.y += s->particles[i].velocity.y * dt;
-    s->particles[i].life -= dt * 1.5f;
+    s->particles[i].life -= dt * PARTICLE_LIFE_DECAY;
     if (s->particles[i].life <= 0)
       s->particles[i].active = false;
   }
@@ -154,11 +150,12 @@ void Game_Update(AppState *s, float dt) {
         s->asteroids[i].active = false;
         s->asteroids[j].active = false;
         s->asteroid_count -= 2;
-        SpawnExplosion(s, (Vec2){a.pos.x + dx * 0.5f, a.pos.y + dy * 0.5f}, 40,
+        SpawnExplosion(s, (Vec2){a.pos.x + dx * 0.5f, a.pos.y + dy * 0.5f},
+                       EXPLOSION_PARTICLE_COUNT,
                        (a.radius + b.radius) / 100.0f);
         float collision_angle = atan2f(dy, dx);
-        if (a.radius > 60.0f) {
-          float child_rad = a.radius * 0.6f;
+        if (a.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
+          float child_rad = a.radius * ASTEROID_SPLIT_FACTOR;
           for (int k = 0; k < 2; k++) {
             float split_angle = (k == 0) ? (collision_angle + 1.5708f)
                                          : (collision_angle - 1.5708f);
@@ -169,8 +166,8 @@ void Game_Update(AppState *s, float dt) {
                           dir, child_rad);
           }
         }
-        if (b.radius > 60.0f) {
-          float child_rad = b.radius * 0.6f;
+        if (b.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
+          float child_rad = b.radius * ASTEROID_SPLIT_FACTOR;
           for (int k = 0; k < 2; k++) {
             float split_angle = (k == 0) ? (collision_angle + 1.5708f)
                                          : (collision_angle - 1.5708f);
