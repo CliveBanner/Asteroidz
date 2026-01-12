@@ -1,5 +1,6 @@
 #include "constants.h"
 #include "game.h"
+#include <math.h>
 
 void Input_ProcessEvent(AppState *s, SDL_Event *event) {
   switch (event->type) {
@@ -33,44 +34,145 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
   case SDL_EVENT_MOUSE_MOTION:
     s->mouse_pos.x = event->motion.x;
     s->mouse_pos.y = event->motion.y;
+    if (s->box_active) {
+        s->box_current = s->mouse_pos;
+    }
     break;
 
   case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+    int win_w, win_h;
+    SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
+
     if (event->button.button == SDL_BUTTON_LEFT) {
-      int win_w, win_h;
-      SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
       float mm_x = win_w - MINIMAP_SIZE - MINIMAP_MARGIN;
       float mm_y = win_h - MINIMAP_SIZE - MINIMAP_MARGIN;
 
       if (event->button.x >= mm_x && event->button.x <= mm_x + MINIMAP_SIZE &&
           event->button.y >= mm_y && event->button.y <= mm_y + MINIMAP_SIZE) {
-
-        // 1. Get relative click pos on minimap (-0.5 to 0.5)
+        // Minimap click logic
         float rel_x = (event->button.x - mm_x) / MINIMAP_SIZE - 0.5f;
         float rel_y = (event->button.y - mm_y) / MINIMAP_SIZE - 0.5f;
-
-        // 2. World displacement from current camera center
-        float dx = rel_x * MINIMAP_RANGE;
-        float dy = rel_y * MINIMAP_RANGE;
-
-        // 3. New target center in world space (Parallax 0.7 correction)
-        // The planet at world_pos P appears at P * 0.7 in the 1.0 space.
-        // To center the camera on it, we need to move the camera to P / 0.7?
-        // No, our WorldToScreenParallax uses (pos * 0.7) - (cam * 0.7).
-        // So we just need to move the cam to the clicked world pos.
-        s->camera_pos.x += dx;
-        s->camera_pos.y += dy;
+        s->camera_pos.x += rel_x * MINIMAP_RANGE;
+        s->camera_pos.y += rel_y * MINIMAP_RANGE;
+      } else {
+          // Start box selection
+          s->box_active = true;
+          s->box_start = (Vec2){event->button.x, event->button.y};
+          s->box_current = s->box_start;
       }
+    } else if (event->button.button == SDL_BUTTON_RIGHT) {
+        float wx = s->camera_pos.x + (event->button.x) / s->zoom;
+        float wy = s->camera_pos.y + (event->button.y) / s->zoom;
+        
+        for (int i = 0; i < MAX_UNITS; i++) {
+            if (!s->units[i].active || !s->unit_selected[i]) continue;
+            
+            Unit *u = &s->units[i];
+            
+            // If active mode is Attack or Patrol, right click becomes an Attack order
+            CommandType click_type = CMD_MOVE;
+            if (s->active_cmd_type == CMD_ATTACK || s->active_cmd_type == CMD_PATROL) {
+                click_type = CMD_ATTACK;
+            }
+
+            Command cmd = { (Vec2){wx, wy}, click_type };
+            
+            if (s->shift_down) {
+                if (u->command_count < MAX_COMMANDS) {
+                    u->command_queue[u->command_count++] = cmd;
+                    u->has_target = true;
+                }
+            } else {
+                u->command_queue[0] = cmd;
+                u->command_count = 1;
+                u->command_current_idx = 0;
+                u->has_target = true;
+                if (cmd.type == CMD_PATROL) {
+                    u->patrol_start = u->pos;
+                }
+            }
+        }
     }
     break;
   }
 
+  case SDL_EVENT_MOUSE_BUTTON_UP: {
+      if (event->button.button == SDL_BUTTON_LEFT && s->box_active) {
+          s->box_active = false;
+          
+          float x1 = fminf(s->box_start.x, s->box_current.x);
+          float y1 = fminf(s->box_start.y, s->box_current.y);
+          float x2 = fmaxf(s->box_start.x, s->box_current.x);
+          float y2 = fmaxf(s->box_start.y, s->box_current.y);
+          
+          // Selection logic
+          bool any_selected = false;
+          for (int i = 0; i < MAX_UNITS; i++) {
+              if (!s->units[i].active) { s->unit_selected[i] = false; continue; }
+              
+              Vec2 sp = { (s->units[i].pos.x - s->camera_pos.x) * s->zoom, 
+                          (s->units[i].pos.y - s->camera_pos.y) * s->zoom };
+              
+              if (sp.x >= x1 && sp.x <= x2 && sp.y >= y1 && sp.y <= y2) {
+                  s->unit_selected[i] = true;
+                  s->selected_unit_idx = i;
+                  any_selected = true;
+              } else if (!s->shift_down) {
+                  s->unit_selected[i] = false;
+              }
+          }
+          if (!any_selected && !s->shift_down) s->selected_unit_idx = -1;
+      }
+      break;
+  }
+
   case SDL_EVENT_KEY_DOWN:
+    if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) {
+        s->shift_down = true;
+    }
+    
+    CommandType cmd_type = -1;
+    if (event->key.key == SDLK_Q) cmd_type = CMD_PATROL;
+    if (event->key.key == SDLK_W) cmd_type = CMD_MOVE;
+    if (event->key.key == SDLK_E) cmd_type = CMD_ATTACK;
+    if (event->key.key == SDLK_R) cmd_type = CMD_HOLD;
+
+    if (cmd_type != -1) {
+        s->active_cmd_type = cmd_type;
+        float wx = s->camera_pos.x + (s->mouse_pos.x) / s->zoom;
+        float wy = s->camera_pos.y + (s->mouse_pos.y) / s->zoom;
+        
+        for (int i = 0; i < MAX_UNITS; i++) {
+            if (!s->units[i].active || !s->unit_selected[i]) continue;
+            Unit *u = &s->units[i];
+            Command cmd = { (Vec2){wx, wy}, cmd_type };
+            
+            if (s->shift_down) {
+                if (u->command_count < MAX_COMMANDS) {
+                    u->command_queue[u->command_count++] = cmd;
+                    u->has_target = true;
+                }
+            } else {
+                u->command_queue[0] = cmd;
+                u->command_count = 1;
+                u->command_current_idx = 0;
+                u->has_target = true;
+                if (cmd.type == CMD_PATROL) u->patrol_start = u->pos;
+            }
+        }
+    }
+
     if (event->key.key == SDLK_G) {
       s->show_grid = !s->show_grid;
     }
     if (event->key.key == SDLK_D) {
       s->show_density = !s->show_density;
+    }
+    break;
+
+  case SDL_EVENT_KEY_UP:
+    if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) {
+        s->shift_down = false;
     }
     break;
   }

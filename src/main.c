@@ -33,6 +33,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
   s->camera_pos.x = 0.0f;
   s->camera_pos.y = 0.0f;
   s->show_grid = true;
+  s->selected_unit_idx = -1;
 
   Game_Init(s);
   Renderer_Init(s); // Only sets up textures, doesn't start threads yet
@@ -144,7 +145,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   AppState *s = (AppState *)appstate;
   if (s) {
-    // Stop background thread
+    // Stop all background threads
     if (s->bg_thread) {
       SDL_SetAtomicInt(&s->bg_should_quit, 1);
       SDL_WaitThread(s->bg_thread, NULL);
@@ -153,18 +154,26 @@ void SDL_AppQuit(void *appstate, SDL_AppResult result) {
       SDL_SetAtomicInt(&s->density_should_quit, 1);
       SDL_WaitThread(s->density_thread, NULL);
     }
-    if (s->bg_mutex) {
-      SDL_DestroyMutex(s->bg_mutex);
+    if (s->radar_thread) {
+      SDL_SetAtomicInt(&s->radar_should_quit, 1);
+      SDL_WaitThread(s->radar_thread, NULL);
     }
-    if (s->density_mutex) {
-      SDL_DestroyMutex(s->density_mutex);
+    if (s->unit_fx_thread) {
+      SDL_SetAtomicInt(&s->unit_fx_should_quit, 1);
+      SDL_WaitThread(s->unit_fx_thread, NULL);
     }
-    if (s->bg_pixel_buffer) {
-      SDL_free(s->bg_pixel_buffer);
-    }
-    if (s->density_pixel_buffer) {
-      SDL_free(s->density_pixel_buffer);
-    }
+
+    // Destroy all mutexes
+    if (s->bg_mutex) SDL_DestroyMutex(s->bg_mutex);
+    if (s->density_mutex) SDL_DestroyMutex(s->density_mutex);
+    if (s->radar_mutex) SDL_DestroyMutex(s->radar_mutex);
+    if (s->unit_fx_mutex) SDL_DestroyMutex(s->unit_fx_mutex);
+
+    // Free all pixel buffers
+    if (s->bg_pixel_buffer) SDL_free(s->bg_pixel_buffer);
+    if (s->density_pixel_buffer) SDL_free(s->density_pixel_buffer);
+    if (s->mothership_hull_buffer) SDL_free(s->mothership_hull_buffer);
+    if (s->mothership_arm_buffer) SDL_free(s->mothership_arm_buffer);
 
     SDL_free(s);
   }
