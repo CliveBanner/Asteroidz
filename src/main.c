@@ -88,11 +88,21 @@ void SDL_AppQuit(void *appstate, SDL_AppResult result) {
       SDL_SetAtomicInt(&s->bg_should_quit, 1);
       SDL_WaitThread(s->bg_thread, NULL);
     }
+    if (s->density_thread) {
+      SDL_SetAtomicInt(&s->density_should_quit, 1);
+      SDL_WaitThread(s->density_thread, NULL);
+    }
     if (s->bg_mutex) {
       SDL_DestroyMutex(s->bg_mutex);
     }
+    if (s->density_mutex) {
+      SDL_DestroyMutex(s->density_mutex);
+    }
     if (s->bg_pixel_buffer) {
       SDL_free(s->bg_pixel_buffer);
+    }
+    if (s->density_pixel_buffer) {
+      SDL_free(s->density_pixel_buffer);
     }
 
     SDL_free(s);

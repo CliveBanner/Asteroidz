@@ -550,9 +550,90 @@ static int SDLCALL BackgroundGenerationThread(void *data) {
   return 0;
 }
 
+static int SDLCALL DensityGenerationThread(void *data) {
+  AppState *s = (AppState *)data;
+  while (SDL_GetAtomicInt(&s->density_should_quit) == 0) {
+    if (SDL_GetAtomicInt(&s->density_request_update) == 1) {
+      SDL_LockMutex(s->density_mutex);
+      Vec2 cam_pos = s->density_target_cam_pos;
+      SDL_UnlockMutex(s->density_mutex);
+
+      // Map covers MINIMAP_RANGE around cam_pos
+      float range = MINIMAP_RANGE;
+      float start_x = cam_pos.x - range / 2.0f;
+      float start_y = cam_pos.y - range / 2.0f;
+      
+      // Resolution based on DENSITY_CELL_SIZE / SUB_RES
+      // We want to match the visual fidelity
+      float cell_size = (float)DENSITY_CELL_SIZE / (float)GRID_DENSITY_SUB_RES;
+      
+      for (int i = 0; i < s->density_w * s->density_h; i++) {
+          int x = i % s->density_w;
+          int y = i / s->density_w;
+          
+          float wx = start_x + (float)x * cell_size;
+          float wy = start_y + (float)y * cell_size;
+          
+          float d = GetAsteroidDensity((Vec2){wx, wy});
+          
+          Uint32 color = 0;
+          if (d > 0.01f) {
+            Uint8 rv = (Uint8)fminf(255.0f, d * 255.0f);
+            Uint8 av = (Uint8)fminf(40.0f, d * 60.0f + 5.0f);
+            // Pre-multiplied alpha for blending? Or just straight RGBA
+            // Texture is ABGR8888 usually
+            color = (av << 24) | (0 << 16) | (0 << 8) | rv;
+          }
+          s->density_pixel_buffer[i] = color;
+      }
+
+      SDL_SetAtomicInt(&s->density_request_update, 0);
+      SDL_SetAtomicInt(&s->density_data_ready, 1);
+    } else {
+      SDL_Delay(20);
+    }
+  }
+  return 0;
+}
+
+static void UpdateDensityMap(AppState *s) {
+  if (!s->density_texture) return;
+
+  if (SDL_GetAtomicInt(&s->density_data_ready) == 1) {
+    void *pixels;
+    int pitch;
+    if (SDL_LockTexture(s->density_texture, NULL, &pixels, &pitch)) {
+      Uint8 *dst = (Uint8 *)pixels;
+      Uint8 *src = (Uint8 *)s->density_pixel_buffer;
+      for (int i = 0; i < s->density_h; ++i)
+        SDL_memcpy(dst + i * pitch, src + i * s->density_w * 4, s->density_w * 4);
+      SDL_UnlockTexture(s->density_texture);
+      
+      // Update the valid texture position now that new data is uploaded
+      SDL_LockMutex(s->density_mutex);
+      s->density_texture_cam_pos = s->density_target_cam_pos;
+      SDL_UnlockMutex(s->density_mutex);
+    }
+    SDL_SetAtomicInt(&s->density_data_ready, 0);
+  }
+
+  if (SDL_GetAtomicInt(&s->density_request_update) == 0) {
+    SDL_LockMutex(s->density_mutex);
+    // Snap camera pos to avoid jitter?
+    // We snap to cell_size to keep the grid aligned
+    float cell_size = (float)DENSITY_CELL_SIZE / (float)GRID_DENSITY_SUB_RES;
+    s->density_target_cam_pos.x = floorf(s->camera_pos.x / cell_size) * cell_size;
+    s->density_target_cam_pos.y = floorf(s->camera_pos.y / cell_size) * cell_size;
+    SDL_UnlockMutex(s->density_mutex);
+    SDL_SetAtomicInt(&s->density_request_update, 1);
+  }
+}
+
 void Renderer_Init(AppState *s) {
   int w, h;
   SDL_GetRenderOutputSize(s->renderer, &w, &h);
+  
+  // Background Init
   s->bg_w = w / BG_SCALE_FACTOR;
   s->bg_h = h / BG_SCALE_FACTOR;
   s->bg_pixel_buffer = SDL_calloc(s->bg_w * s->bg_h, sizeof(Uint32));
@@ -563,7 +644,23 @@ void Renderer_Init(AppState *s) {
     SDL_SetTextureScaleMode(s->bg_texture, SDL_SCALEMODE_LINEAR);
     SDL_SetTextureBlendMode(s->bg_texture, SDL_BLENDMODE_BLEND);
   }
+  
+  // Density Init
+  float cell_size = (float)DENSITY_CELL_SIZE / (float)GRID_DENSITY_SUB_RES;
+  s->density_w = (int)(MINIMAP_RANGE / cell_size);
+  s->density_h = (int)(MINIMAP_RANGE / cell_size);
+  s->density_pixel_buffer = SDL_calloc(s->density_w * s->density_h, sizeof(Uint32));
+  s->density_texture = 
+      SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888,
+                        SDL_TEXTUREACCESS_STREAMING, s->density_w, s->density_h);
+  if (s->density_texture) {
+      SDL_SetTextureScaleMode(s->density_texture, SDL_SCALEMODE_LINEAR); // Smooth interpolation
+      SDL_SetTextureBlendMode(s->density_texture, SDL_BLENDMODE_BLEND);
+  }
+
   SDL_SetRenderDrawBlendMode(s->renderer, SDL_BLENDMODE_BLEND);
+  
+  // Background Thread
   s->bg_mutex = SDL_CreateMutex();
   SDL_SetAtomicInt(&s->bg_should_quit, 0);
   SDL_SetAtomicInt(&s->bg_request_update, 0);
@@ -571,10 +668,20 @@ void Renderer_Init(AppState *s) {
   s->bg_target_cam_pos = s->camera_pos;
   s->bg_target_zoom = s->zoom;
   s->bg_target_time = s->current_time;
+  
+  // Density Thread
+  s->density_mutex = SDL_CreateMutex();
+  SDL_SetAtomicInt(&s->density_should_quit, 0);
+  SDL_SetAtomicInt(&s->density_request_update, 1); // Start immediately
+  SDL_SetAtomicInt(&s->density_data_ready, 0);
+  s->density_target_cam_pos = s->camera_pos;
+  s->density_texture_cam_pos = s->camera_pos;
+
   s->is_loading = true;
   s->assets_generated = 0;
   SDL_SetAtomicInt(&s->bg_request_update, 1);
   s->bg_thread = SDL_CreateThread(BackgroundGenerationThread, "BG_Gen", s);
+  s->density_thread = SDL_CreateThread(DensityGenerationThread, "Density_Gen", s);
 }
 
 static void UpdateBackground(AppState *s) {
@@ -728,6 +835,24 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s,
 
 static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
                      int win_h) {
+  // Draw Density Texture
+  if (s->density_texture) {
+      // Calculate world pos of texture top-left
+      float range = MINIMAP_RANGE;
+      SDL_LockMutex(s->density_mutex);
+      Vec2 tex_center = s->density_texture_cam_pos;
+      SDL_UnlockMutex(s->density_mutex);
+      
+      float tex_world_x = tex_center.x - range / 2.0f;
+      float tex_world_y = tex_center.y - range / 2.0f;
+      
+      Vec2 screen_tl = WorldToScreenParallax((Vec2){tex_world_x, tex_world_y}, 1.0f, s, win_w, win_h);
+      float screen_size = range * s->zoom;
+      
+      SDL_RenderTexture(renderer, s->density_texture, NULL, 
+        &(SDL_FRect){screen_tl.x, screen_tl.y, screen_size, screen_size});
+  }
+
   SDL_SetRenderDrawColor(renderer, 50, 50, 50, 40);
   int gs = GRID_SIZE_SMALL;
   int stx = (int)floorf(s->camera_pos.x / gs) * gs,
@@ -764,43 +889,6 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w,
       }
     }
   }
-
-  // Density visualization patches (1.0 world grid)
-  int d_cell = DENSITY_CELL_SIZE; // Smaller grid for density overlay visibility
-  float sw = (float)win_w, sh = (float)win_h;
-  float vw = sw / s->zoom, vh = sh / s->zoom;
-
-  int dsgx = (int)floorf(s->camera_pos.x / d_cell);
-  int dsgy = (int)floorf(s->camera_pos.y / d_cell);
-  int degx = (int)ceilf((s->camera_pos.x + vw) / d_cell);
-  int degy = (int)ceilf((s->camera_pos.y + vh) / d_cell);
-
-  for (int gy = dsgy; gy <= degy; gy++) {
-    for (int gx = dsgx; gx <= degx; gx++) {
-      float wx = (float)gx * d_cell, wy = (float)gy * d_cell;
-      Vec2 sc_pos =
-          WorldToScreenParallax((Vec2){wx, wy}, 1.0f, s, win_w, win_h);
-      float sz = (float)d_cell * s->zoom;
-
-      int sub_res = GRID_DENSITY_SUB_RES;
-      float sub_sz = sz / sub_res;
-      for (int syy = 0; syy < sub_res; syy++) {
-        for (int sxx = 0; sxx < sub_res; sxx++) {
-          float swx = wx + (sxx / (float)sub_res) * d_cell;
-          float swy = wy + (syy / (float)sub_res) * d_cell;
-          float d = GetAsteroidDensity((Vec2){swx, swy});
-          if (d > 0.01f) {
-            Uint8 rv = (Uint8)fminf(255.0f, d * 255.0f);
-            Uint8 av = (Uint8)fminf(40.0f, d * 60.0f + 5.0f);
-            SDL_SetRenderDrawColor(renderer, rv, 0, 50, av);
-            SDL_RenderFillRect(renderer, &(SDL_FRect){sc_pos.x + sxx * sub_sz,
-                                                      sc_pos.y + syy * sub_sz,
-                                                      sub_sz + 1, sub_sz + 1});
-          }
-        }
-      }
-    }
-  }
 }
 
 static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s,
@@ -829,37 +917,45 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w,
 
   SDL_SetRenderDrawColor(r, 20, 20, 30, 180);
   SDL_RenderFillRect(r, &(SDL_FRect){mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE});
-  SDL_SetRenderDrawColor(r, 80, 80, 100, 255);
-  SDL_RenderRect(r, &(SDL_FRect){mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE});
-
-  // Draw density overlay on minimap
-  float mm_density_cell = (float)DENSITY_CELL_SIZE;
-  int dsgx = (int)floorf((cx - MINIMAP_RANGE / 2) / mm_density_cell);
-  int dsgy = (int)floorf((cy - MINIMAP_RANGE / 2) / mm_density_cell);
-  int degx = (int)ceilf((cx + MINIMAP_RANGE / 2) / mm_density_cell);
-  int degy = (int)ceilf((cy + MINIMAP_RANGE / 2) / mm_density_cell);
-
-  for (int gy = dsgy; gy <= degy; gy++) {
-    for (int gx = dsgx; gx <= degx; gx++) {
-      float wx = (float)gx * mm_density_cell, wy = (float)gy * mm_density_cell;
-      float d = GetAsteroidDensity((Vec2){wx, wy});
-      if (d > 0.01f) { // Only draw if there's significant density
-        Uint8 rv = (Uint8)fminf(
-            255.0f, d * 255.0f); // Scale to a visible range for minimap
-        Uint8 av = (Uint8)fminf(200.0f, d * 200.0f + 50.0f);
-        SDL_SetRenderDrawColor(r, rv, rv / 2, 0,
-                               av); // Orange-ish, semi-transparent
-
-        float px = mm_x + MINIMAP_SIZE / 2 + (wx - cx) * world_to_mm;
-        float py = mm_y + MINIMAP_SIZE / 2 + (wy - cy) * world_to_mm;
-        float cell_mm_size = mm_density_cell * world_to_mm;
-
-        SDL_RenderFillRect(r, &(SDL_FRect){px, py, cell_mm_size, cell_mm_size});
-      }
+    SDL_SetRenderDrawColor(r, 80, 80, 100, 255);
+    SDL_RenderRect(r, &(SDL_FRect){mm_x, mm_y, MINIMAP_SIZE, MINIMAP_SIZE});
+  
+    // Draw density overlay using texture
+    if (s->density_texture) {
+        // Texture is centered on s->density_target_cam_pos (world space)
+        // Minimap is centered on s->camera_pos (world space)
+        // We need to find the subset of the texture that corresponds to the minimap area
+        
+        // But wait, the density map COVERS MINIMAP_RANGE around density_target_cam_pos.
+        // And the minimap SHOWS MINIMAP_RANGE around camera_pos.
+        // Since density_target_cam_pos is snapped to camera_pos, they are very close.
+              // We can just draw the whole texture, offset by the difference.
+              
+              SDL_LockMutex(s->density_mutex);
+              Vec2 tex_center = s->density_texture_cam_pos;
+              SDL_UnlockMutex(s->density_mutex);
+              
+              float dx = tex_center.x - cx;
+              float dy = tex_center.y - cy;        
+        // world_to_mm scales world units to minimap pixels
+        float mm_dx = dx * world_to_mm;
+        float mm_dy = dy * world_to_mm;
+        
+        // Center of texture in minimap coords (relative to mm_x, mm_y)
+        float tex_mm_x = MINIMAP_SIZE / 2 + mm_dx;
+        float tex_mm_y = MINIMAP_SIZE / 2 + mm_dy;
+        
+        float tex_mm_size = MINIMAP_RANGE * world_to_mm; // Should be MINIMAP_SIZE
+        
+        // Clip rendering to minimap rect? SDL_RenderTexture doesn't clip automatically to parent rect
+        // But we can set the clip rect
+        SDL_SetRenderClipRect(r, &(SDL_Rect){(int)mm_x, (int)mm_y, (int)MINIMAP_SIZE, (int)MINIMAP_SIZE});
+        SDL_RenderTexture(r, s->density_texture, NULL, 
+          &(SDL_FRect){mm_x + tex_mm_x - tex_mm_size / 2, mm_y + tex_mm_y - tex_mm_size / 2, tex_mm_size, tex_mm_size});
+        SDL_SetRenderClipRect(r, NULL);
     }
-  }
-
-  // Draw celestial bodies on minimap
+  
+    // Draw celestial bodies on minimap
   int cell_size = SYSTEM_LAYER_CELL_SIZE;
   int r_cells = (int)(MINIMAP_RANGE / cell_size) + 1;
   int scx = (int)floorf((cx - MINIMAP_RANGE / 2) / cell_size);
@@ -903,6 +999,7 @@ void Renderer_Draw(AppState *s) {
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255);
   SDL_RenderClear(s->renderer);
   UpdateBackground(s);
+  UpdateDensityMap(s);
   if (s->bg_texture) {
     SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
   }

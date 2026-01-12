@@ -67,7 +67,7 @@ typedef struct {
     bool is_loading;
     int assets_generated;
 
-    // Background Threading
+    // Background Threading (Nebula)
     SDL_Thread *bg_thread;
     SDL_Mutex *bg_mutex;
     SDL_AtomicInt bg_should_quit;
@@ -78,6 +78,19 @@ typedef struct {
     Vec2 bg_target_cam_pos;
     float bg_target_zoom;
     float bg_target_time;
+
+    // Density Threading
+    SDL_Thread *density_thread;
+    SDL_Mutex *density_mutex;
+    SDL_AtomicInt density_should_quit;
+    SDL_AtomicInt density_request_update;
+    SDL_AtomicInt density_data_ready;
+
+    Uint32 *density_pixel_buffer;
+    int density_w, density_h;
+    Vec2 density_target_cam_pos;
+    Vec2 density_texture_cam_pos; // Position of the currently uploaded texture
+    SDL_Texture *density_texture;
 
     SDL_Renderer *renderer;
     SDL_Window *window;

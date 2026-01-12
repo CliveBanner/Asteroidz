@@ -148,8 +148,9 @@ float GetAsteroidDensity(Vec2 p) {
   int gx_center = (int)floorf(p.x / body_grid);
   int gy_center = (int)floorf(p.y / body_grid);
 
-  for (int oy = -1; oy <= 1; oy++) {
-    for (int ox = -1; ox <= 1; ox++) {
+  // Expanded search range to account for large galaxy belts
+  for (int oy = -3; oy <= 3; oy++) {
+    for (int ox = -3; ox <= 3; ox++) {
       Vec2 b_pos;
       float b_type;
       float b_radius;
