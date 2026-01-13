@@ -386,7 +386,8 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
         attempts++;
         Vec2 target_center = s->sim_anchors[rand() % s->sim_anchor_count].pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float dist = 3000.0f + (float)(rand() % (int)(DESPAWN_RANGE * 0.8f - 3000.0f));
+        // Increased min dist from 3000 to 4500 to account for 0.2 zoom (width ~6400)
+        float dist = 4500.0f + (float)(rand() % (int)(DESPAWN_RANGE * 0.8f - 4500.0f));
         Vec2 spawn_pos = {target_center.x + cosf(angle) * dist, target_center.y + sinf(angle) * dist};
         
         if (((float)rand() / (float)RAND_MAX) < GetAsteroidDensity(spawn_pos)) {

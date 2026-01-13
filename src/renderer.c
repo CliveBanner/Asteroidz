@@ -607,13 +607,66 @@ static void UpdateBackground(AppState *s) {
 
 static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
   if (cell->seed > 0.85f) {
-    float jx = DeterministicHash(cell->gx + 7, cell->gy + 3) * (float)cell->cell_size, jy = DeterministicHash(cell->gx + 1, cell->gy + 9) * (float)cell->cell_size;
-    float sx = cell->screen_x + (jx + sinf(s->current_time * 0.2f + cell->seed * 10.0f) * 5.0f) * cell->parallax * s->zoom, sy = cell->screen_y + (jy + cosf(s->current_time * 0.15f + cell->seed * 5.0f) * 5.0f) * cell->parallax * s->zoom;
-    float sz_s = DeterministicHash(cell->gx + 55, cell->gy + 66); float s_sz = ((sz_s > 0.98f) ? 3.0f : (sz_s > 0.90f ? 2.0f : 1.0f)) * s->zoom;
-    if (!IsVisible(sx, sy, s_sz / 2, cell->win_w, cell->win_h)) return;
-    float b_s = DeterministicHash(cell->gx + 77, cell->gy + 88), c_s = DeterministicHash(cell->gx + 99, cell->gy + 11); Uint8 val = (Uint8)(100 + b_s * 155), rv = val, gv = val, bv = val;
-    if (c_s > 0.90f) { rv = (Uint8)(val * 0.8f); gv = (Uint8)(val * 0.9f); bv = 255; } else if (c_s > 0.80f) { rv = 220; gv = (Uint8)(val * 0.7f); bv = 255; }
-    SDL_SetRenderDrawColor(r, rv, gv, bv, 200); if (s_sz <= 1.0f) SDL_RenderPoint(r, sx, sy); else SDL_RenderFillRect(r, &(SDL_FRect){sx - s_sz / 2, sy - s_sz / 2, s_sz, s_sz});
+    float jx = DeterministicHash(cell->gx + 7, cell->gy + 3) * (float)cell->cell_size;
+    float jy = DeterministicHash(cell->gx + 1, cell->gy + 9) * (float)cell->cell_size;
+    
+    // Parallax position (no drift for cleaner pixel look)
+    float sx = cell->screen_x + jx * cell->parallax * s->zoom;
+    float sy = cell->screen_y + jy * cell->parallax * s->zoom;
+    
+    // Discrete twinkling (0 or 1)
+    float twinkle = sinf(s->current_time * 2.5f + cell->seed * 50.0f);
+    if (twinkle < -0.4f && cell->seed < 0.93f) return; 
+
+    float sz_s = DeterministicHash(cell->gx + 55, cell->gy + 66);
+    int pattern = (sz_s > 0.98f) ? 3 : (sz_s > 0.85f ? 2 : 1);
+    
+    if (!IsVisible(sx, sy, 5.0f, cell->win_w, cell->win_h)) return;
+
+    float b_s = DeterministicHash(cell->gx + 77, cell->gy + 88), c_s = DeterministicHash(cell->gx + 99, cell->gy + 11);
+    Uint8 val = (Uint8)(180 + b_s * 75); // Brighter cores
+    if (twinkle < 0.2f) val = (Uint8)(val * 0.6f);
+    
+    Uint8 rv = val, gv = val, bv = val;
+    if (c_s > 0.94f) { rv = (Uint8)(val * 0.6f); gv = (Uint8)(val * 0.7f); bv = 255; } // Blue-ish
+    else if (c_s > 0.88f) { rv = 255; gv = (Uint8)(val * 0.8f); bv = (Uint8)(val * 0.6f); } // Warm-ish
+
+    // Integer align for chunky pixel feel
+    float rx = floorf(sx), ry = floorf(sy);
+    float p_sz = (s->zoom > 0.5f) ? 2.0f : 1.0f; // Scale pixel size slightly
+
+    if (pattern == 1) {
+        // Smallest is now a tiny 2x2 block
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 160);
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry, p_sz, p_sz});
+    } else if (pattern == 2) {
+        // Medium is a solid cross
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 255);
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry, p_sz, p_sz}); // Center
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 140); 
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry - p_sz, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry + p_sz, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx - p_sz, ry, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx + p_sz, ry, p_sz, p_sz});
+    } else {
+        // Large is an even bigger sparkle cross
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 255);
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry, p_sz, p_sz}); // Center core
+        
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 200);
+        // Primary Wings
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry - p_sz, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry + p_sz, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx - p_sz, ry, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx + p_sz, ry, p_sz, p_sz});
+        
+        // Secondary Wings
+        SDL_SetRenderDrawColor(r, rv, gv, bv, 100);
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry - p_sz * 2, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx, ry + p_sz * 2, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx - p_sz * 2, ry, p_sz, p_sz});
+        SDL_RenderFillRect(r, &(SDL_FRect){rx + p_sz * 2, ry, p_sz, p_sz});
+    }
   }
 }
 
