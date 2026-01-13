@@ -227,6 +227,7 @@ typedef struct {
     
     Uint32 *mothership_hull_buffer;
     Uint32 *mothership_arm_buffer;
+    SDL_AtomicInt mothership_data_ready;
     
     int mothership_fx_size;
     Vec2 unit_fx_cam_pos; // Camera position at time of last successful FX generation

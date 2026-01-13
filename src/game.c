@@ -50,7 +50,7 @@ static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult) {
   }
 
   // Debris fragments
-  int debris_count = (int)(5 * capped_mult);
+  int debris_count = (int)(12 * capped_mult);
   for (int i = 0; i < debris_count; i++) {
       int idx = s->particle_next_idx;
       s->particles[idx].active = true;
@@ -58,11 +58,11 @@ static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult) {
       s->particles[idx].pos = pos;
       s->particles[idx].tex_idx = rand() % DEBRIS_COUNT;
       float angle = (float)(rand() % 360) * 0.0174533f;
-      float speed = (float)(rand() % 200 + 50) * capped_mult;
+      float speed = (float)(rand() % 300 + 100) * capped_mult;
       s->particles[idx].velocity.x = cosf(angle) * speed;
       s->particles[idx].velocity.y = sinf(angle) * speed;
-      s->particles[idx].life = PARTICLE_LIFE_BASE * (0.5f + (float)rand()/(float)RAND_MAX);
-      s->particles[idx].size = (float)(rand() % 20 + 10) * capped_mult;
+      s->particles[idx].life = PARTICLE_LIFE_BASE * (0.8f + (float)rand()/(float)RAND_MAX);
+      s->particles[idx].size = (float)(rand() % 40 + 20) * capped_mult;
       s->particles[idx].rotation = (float)(rand() % 360);
       s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
   }
@@ -274,7 +274,7 @@ void Game_Update(AppState *s, float dt) {
       for (int j = 0; j < MAX_ASTEROIDS; j++) {
         if (!s->asteroids[j].active) continue;
         float dx = s->asteroids[j].pos.x - spawn_pos.x, dy = s->asteroids[j].pos.y - spawn_pos.y;
-        float dist_sq = dx * dx + dy * dy, min_dist = s->asteroids[j].radius + new_rad + 200.0f;
+        float dist_sq = dx * dx + dy * dy, min_dist = (s->asteroids[j].radius + new_rad) * 0.3f + 200.0f;
         if (dist_sq < min_dist * min_dist) { overlap = true; break; }
       }
       if (!overlap) {
@@ -402,7 +402,7 @@ void Game_Update(AppState *s, float dt) {
       if (!s->asteroids[j].active) continue;
       float dx = s->asteroids[j].pos.x - s->asteroids[i].pos.x, dy = s->asteroids[j].pos.y - s->asteroids[i].pos.y;
       float dist_sq = dx * dx + dy * dy;
-      float r1 = s->asteroids[i].radius, r2 = s->asteroids[j].radius;
+      float r1 = s->asteroids[i].radius * 0.3f, r2 = s->asteroids[j].radius * 0.3f;
       float min_dist = r1 + r2;
       if (dist_sq < min_dist * min_dist) {
         Asteroid a = s->asteroids[i], b = s->asteroids[j];
@@ -470,7 +470,7 @@ void Game_Update(AppState *s, float dt) {
     for (int u = 0; u < MAX_UNITS; u++) {
         if (!s->units[u].active) continue;
         float dx = s->units[u].pos.x - s->asteroids[i].pos.x, dy = s->units[u].pos.y - s->asteroids[i].pos.y;
-        float dsq = dx * dx + dy * dy, md = s->asteroids[i].radius * 0.5f + s->units[u].radius;
+        float dsq = dx * dx + dy * dy, md = s->asteroids[i].radius * 0.3f + s->units[u].radius;
         if (dsq < md * md) {
             s->units[u].health -= s->asteroids[i].radius * 0.5f;
             SpawnExplosion(s, s->asteroids[i].pos, 20, s->asteroids[i].radius / 100.0f);
