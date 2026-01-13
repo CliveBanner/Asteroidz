@@ -572,39 +572,51 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
     if (s->particles[i].type == PARTICLE_PUFF && s->explosion_puff_texture) { SDL_SetTextureColorMod(s->explosion_puff_texture, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b); SDL_SetTextureAlphaMod(s->explosion_puff_texture, (Uint8)(s->particles[i].life * 180)); SDL_RenderTexture(r, s->explosion_puff_texture, NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}); }
     else if (s->particles[i].type == PARTICLE_TRACER) {
         Vec2 tsx_y = WorldToScreenParallax(s->particles[i].target_pos, 1.0f, s, win_w, win_h); 
-        float a_f = fminf(1.0f, s->particles[i].life); // Linear fade out over entire life
-        float th = s->particles[i].size * s->zoom; 
+        float a_f = fminf(1.0f, s->particles[i].life); 
+        float th = s->particles[i].size * s->zoom * 0.4f; // Sharper base
         
-        if (th <= 1.5f) {
-            SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(a_f * 255));
-            SDL_RenderLine(r, sx_y.x, sx_y.y, tsx_y.x, tsx_y.y);
-        } else {
-            // Animate thickness with a sine wave for a "live" effect
-            float pulse = 1.0f + 0.2f * sinf(s->current_time * 20.0f);
+        float dx = tsx_y.x - sx_y.x, dy = tsx_y.y - sx_y.y;
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len > 0.1f) {
+            float nx = -dy / len, ny = dx / len;
+            
+            // 1. Draw Outer Glow (Additive) - Slightly smaller
+            SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
+            float glow_th = th * 2.0f;
+            SDL_Vertex vg[4];
+            SDL_FColor glow_col = { s->particles[i].color.r / 255.0f * 0.3f, s->particles[i].color.g / 255.0f * 0.3f, s->particles[i].color.b / 255.0f * 0.3f, a_f * 0.4f };
+            vg[0].position = (SDL_FPoint){ sx_y.x + nx * glow_th, sx_y.y + ny * glow_th }; vg[0].color = glow_col;
+            vg[1].position = (SDL_FPoint){ sx_y.x - nx * glow_th, sx_y.y - ny * glow_th }; vg[1].color = glow_col;
+            vg[2].position = (SDL_FPoint){ tsx_y.x + nx * glow_th, tsx_y.y + ny * glow_th }; vg[2].color = glow_col;
+            vg[3].position = (SDL_FPoint){ tsx_y.x - nx * glow_th, tsx_y.y - ny * glow_th }; vg[3].color = glow_col;
+            int indices[6] = { 0, 1, 2, 1, 2, 3 };
+            SDL_RenderGeometry(r, NULL, vg, 4, indices, 6);
+
+            // 2. Draw Main Beam with Bright Core
+            SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+            float pulse = 1.0f + 0.1f * sinf(s->current_time * 25.0f);
             float cur_th = th * pulse;
+            SDL_Vertex vb[6]; 
+            SDL_FColor edge_col = { s->particles[i].color.r / 255.0f, s->particles[i].color.g / 255.0f, s->particles[i].color.b / 255.0f, a_f };
+            SDL_FColor core_col = { 1.0f, 1.0f, 1.0f, a_f }; 
 
-            float dx = tsx_y.x - sx_y.x, dy = tsx_y.y - sx_y.y;
-            float len = sqrtf(dx * dx + dy * dy);
-            if (len > 0.1f) {
-                float nx = -dy / len, ny = dx / len; // Normal vector
-                SDL_Vertex v[4];
-                SDL_FColor col = { s->particles[i].color.r / 255.0f, s->particles[i].color.g / 255.0f, s->particles[i].color.b / 255.0f, a_f };
-                
-                v[0].position = (SDL_FPoint){ sx_y.x + nx * cur_th/2, sx_y.y + ny * cur_th/2 }; v[0].color = col;
-                v[1].position = (SDL_FPoint){ sx_y.x - nx * cur_th/2, sx_y.y - ny * cur_th/2 }; v[1].color = col;
-                v[2].position = (SDL_FPoint){ tsx_y.x + nx * cur_th/2, tsx_y.y + ny * cur_th/2 }; v[2].color = col;
-                v[3].position = (SDL_FPoint){ tsx_y.x - nx * cur_th/2, tsx_y.y - ny * cur_th/2 }; v[3].color = col;
-                
-                int indices[6] = { 0, 1, 2, 1, 2, 3 };
-                SDL_RenderGeometry(r, NULL, v, 4, indices, 6);
+            float core_th = cur_th * 0.3f; // Sharp white core
 
-                // Add a bright impact flash for large beams
-                if (th > 10.0f && a_f > 0.8f) {
-                    SDL_SetRenderDrawColor(r, 255, 255, 200, 255);
-                    float flash_r = th * 2.0f;
-                    SDL_FRect flash_rect = { tsx_y.x - flash_r/2, tsx_y.y - flash_r/2, flash_r, flash_r };
-                    SDL_RenderFillRect(r, &flash_rect);
-                }
+            vb[0].position = (SDL_FPoint){ sx_y.x + nx * cur_th, sx_y.y + ny * cur_th }; vb[0].color = edge_col;
+            vb[1].position = (SDL_FPoint){ sx_y.x, sx_y.y };                           vb[1].color = core_col;
+            vb[2].position = (SDL_FPoint){ sx_y.x - nx * cur_th, sx_y.y - ny * cur_th }; vb[2].color = edge_col;
+            vb[3].position = (SDL_FPoint){ tsx_y.x + nx * cur_th, tsx_y.y + ny * cur_th }; vb[3].color = edge_col;
+            vb[4].position = (SDL_FPoint){ tsx_y.x, tsx_y.y };                           vb[4].color = core_col;
+            vb[5].position = (SDL_FPoint){ tsx_y.x - nx * cur_th, tsx_y.y - ny * cur_th }; vb[5].color = edge_col;
+
+            int b_indices[12] = { 0, 1, 3, 1, 3, 4, 1, 2, 4, 2, 4, 5 };
+            SDL_RenderGeometry(r, NULL, vb, 6, b_indices, 12);
+
+            if (th > 5.0f && a_f > 0.8f) { // Adjusted threshold for smaller beams
+                SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
+                float flash_r = th * 2.5f;
+                SDL_FRect flash_rect = { tsx_y.x - flash_r/2, tsx_y.y - flash_r/2, flash_r, flash_r };
+                SDL_RenderFillRect(r, &flash_rect);
             }
         }
     } else if (s->particles[i].type == PARTICLE_DEBRIS) {

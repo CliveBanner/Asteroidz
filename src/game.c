@@ -158,7 +158,7 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     Vec2 impact_pos = a->pos;
 
     if (dist > 0.1f) {
-        float unit_r = u->radius;
+        float unit_r = u->radius * 2.5f; // Offset to the edge of the organic hull
         float ast_r = a->radius * 0.2f; // Hit deep inside to avoid gap
         start_pos.x += (dx / dist) * unit_r;
         start_pos.y += (dy / dist) * unit_r;
@@ -245,9 +245,8 @@ void Game_Update(AppState *s, float dt) {
   s->energy += ENERGY_REGEN_RATE * dt;
   if (s->energy > INITIAL_ENERGY) s->energy = INITIAL_ENERGY;
   float local_density = GetAsteroidDensity(cam_center);
-  int dynamic_target_count = (int)(MIN_DYNAMIC_ASTEROIDS + local_density * (MAX_DYNAMIC_ASTEROIDS - MIN_DYNAMIC_ASTEROIDS));
-  int total_target_count = dynamic_target_count * s->sim_anchor_count;
-  if (total_target_count > MAX_ASTEROIDS - 100) total_target_count = MAX_ASTEROIDS - 100;
+  int total_target_count = (int)(local_density * MAX_DYNAMIC_ASTEROIDS);
+  if (total_target_count > 200) total_target_count = 200; 
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active) continue;
     s->asteroids[i].targeted = false;
@@ -259,7 +258,7 @@ void Game_Update(AppState *s, float dt) {
     if (!in_range) { s->asteroids[i].active = false; s->asteroid_count--; }
   }
   int attempts = 0;
-  while (s->asteroid_count < total_target_count && attempts < 100) {
+  while (s->asteroid_count < total_target_count && attempts < 20) {
     attempts++;
     int anchor_idx = rand() % s->sim_anchor_count;
     Vec2 target_center = s->sim_anchors[anchor_idx].pos;
@@ -274,7 +273,7 @@ void Game_Update(AppState *s, float dt) {
       for (int j = 0; j < MAX_ASTEROIDS; j++) {
         if (!s->asteroids[j].active) continue;
         float dx = s->asteroids[j].pos.x - spawn_pos.x, dy = s->asteroids[j].pos.y - spawn_pos.y;
-        float dist_sq = dx * dx + dy * dy, min_dist = (s->asteroids[j].radius + new_rad) * 0.3f + 200.0f;
+        float dist_sq = dx * dx + dy * dy, min_dist = (s->asteroids[j].radius + new_rad) * 0.3f + 1000.0f;
         if (dist_sq < min_dist * min_dist) { overlap = true; break; }
       }
       if (!overlap) {
