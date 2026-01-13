@@ -42,41 +42,61 @@ static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult, Ex
 
   if (type == EXPLOSION_IMPACT) {
       // Fast, sharp sparks
-      int spark_count = (int)(count * 1.5f * count_mult);
+      int spark_count = (int)(count * 2.5f * count_mult); 
       for (int i = 0; i < spark_count; i++) {
         int idx = s->particle_next_idx;
         s->particles[idx].active = true;
         s->particles[idx].type = PARTICLE_SPARK;
         s->particles[idx].pos = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 600 + 200) * capped_mult; 
+        float speed = (float)(rand() % 800 + 400) * capped_mult; 
         s->particles[idx].velocity.x = cosf(angle) * speed;
         s->particles[idx].velocity.y = sinf(angle) * speed;
         s->particles[idx].life = PARTICLE_LIFE_BASE * 0.5f;
-        s->particles[idx].size = (float)(rand() % 5 + 3) * capped_mult;
+        s->particles[idx].size = (float)(rand() % 12 + 6) * capped_mult; // Increased from 8+4
         s->particles[idx].color = (SDL_Color){(Uint8)((base_col.r + 255)/2), (Uint8)((base_col.g + 220)/2), (Uint8)((base_col.b + 150)/2), 255};
         s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
       }
-      // Small puffs (Middle-ground density)
-      int puff_count = (int)(count * 0.25f * count_mult); 
+      // Small puffs
+      int puff_count = (int)(count * 1.2f * count_mult); 
       for (int i = 0; i < puff_count; i++) {
         int idx = s->particle_next_idx;
         s->particles[idx].active = true;
         s->particles[idx].type = PARTICLE_PUFF;
         s->particles[idx].pos = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 100 + 50) * capped_mult; 
+        float speed = (float)(rand() % 200 + 80) * capped_mult; 
         s->particles[idx].velocity.x = cosf(angle) * speed;
         s->particles[idx].velocity.y = sinf(angle) * speed;
-        s->particles[idx].life = PARTICLE_LIFE_BASE * 0.35f; // Middle ground
-        s->particles[idx].size = (float)(rand() % 50 + 30) * capped_mult; // Slightly smaller
+        s->particles[idx].life = PARTICLE_LIFE_BASE * 0.5f; 
+        s->particles[idx].size = (float)(rand() % 120 + 60) * capped_mult; // Increased from 80+40
         Uint8 v = (Uint8)(rand() % 40 + 80); 
         s->particles[idx].color = (SDL_Color){v, (Uint8)(v * 0.8f), (Uint8)(v * 0.6f), 255};
         s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
       }
       
-      // Debris - Fewer but chunkier
-      int debris_count = (int)(2 * count_mult); 
+      // Fine Debris
+      int fine_debris_count = (int)(10 * count_mult); 
+      for (int i = 0; i < fine_debris_count; i++) {
+          int idx = s->particle_next_idx;
+          s->particles[idx].active = true;
+          s->particles[idx].type = PARTICLE_DEBRIS;
+          s->particles[idx].asteroid_tex_idx = asteroid_tex_idx;
+          s->particles[idx].pos = pos;
+          s->particles[idx].tex_idx = rand() % DEBRIS_COUNT;
+          float angle = (float)(rand() % 360) * 0.0174533f;
+          float speed = (float)(rand() % 300 + 100) * capped_mult; 
+          s->particles[idx].velocity.x = cosf(angle) * speed;
+          s->particles[idx].velocity.y = sinf(angle) * speed;
+          s->particles[idx].life = PARTICLE_LIFE_BASE * 0.35f; 
+          s->particles[idx].size = (float)(rand() % 18 + 12) * chunky_mult; // Increased from 12+8
+          s->particles[idx].rotation = (float)(rand() % 360);
+          s->particles[idx].color = base_col;
+          s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+      }
+
+      // Main Debris
+      int debris_count = (int)(3 * count_mult); 
       for (int i = 0; i < debris_count; i++) {
           int idx = s->particle_next_idx;
           s->particles[idx].active = true;
@@ -85,15 +105,27 @@ static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult, Ex
           s->particles[idx].pos = pos;
           s->particles[idx].tex_idx = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 120 + 40) * capped_mult; 
+          float speed = (float)(rand() % 150 + 60) * capped_mult; 
           s->particles[idx].velocity.x = cosf(angle) * speed;
           s->particles[idx].velocity.y = sinf(angle) * speed;
-          s->particles[idx].life = PARTICLE_LIFE_BASE * 0.4f; 
-          s->particles[idx].size = (float)(rand() % 20 + 15) * chunky_mult; 
+          s->particles[idx].life = PARTICLE_LIFE_BASE * 0.45f; 
+          s->particles[idx].size = (float)(rand() % 45 + 35) * chunky_mult; // Increased from 30+20
           s->particles[idx].rotation = (float)(rand() % 360);
           s->particles[idx].color = base_col;
           s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
       }
+
+      // Energetic shockwave for impact
+      int sw_idx = s->particle_next_idx;
+      s->particles[sw_idx].active = true;
+      s->particles[sw_idx].type = PARTICLE_SHOCKWAVE;
+      s->particles[sw_idx].pos = pos;
+      s->particles[sw_idx].velocity = (Vec2){0,0};
+      s->particles[sw_idx].life = 0.3f; 
+      s->particles[sw_idx].size = 55.0f * capped_mult; // Increased from 40
+      s->particles[sw_idx].color = (SDL_Color){255, 255, 255, 200}; 
+      s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+
 
   } else {
       // EXPLOSION_COLLISION
@@ -251,7 +283,7 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
 
     if (dist > 0.1f) {
         float unit_r = u->stats->radius * LASER_START_OFFSET_MULT; // Offset to the edge of the organic hull
-        float ast_r = a->radius * 0.2f; // Hit deep inside to avoid gap
+        float ast_r = a->radius * 0.32f; // Hit visual surface (matches ASTEROID_HITBOX_MULT)
         start_pos.x += (dx / dist) * unit_r;
         start_pos.y += (dy / dist) * unit_r;
         impact_pos.x -= (dx / dist) * ast_r;
