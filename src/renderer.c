@@ -94,16 +94,24 @@ static void GetGreenBlueGradient(float t, Uint8 *r, Uint8 *g, Uint8 *b) {
     *b = (Uint8)(40 * (1.0f - ct) + 255 * ct);
 }
 
+#define QUANTIZE(c) ((c) < 5 ? 0 : ((c) & 0xE0)) 
+
+static uint8_t ApplyContrast(uint8_t c) {
+    float f = (float)c / 255.0f;
+    f = (f < 0.5f) ? powf(f, 0.7f) : 1.0f - powf(1.0f - f, 1.3f); // Even stronger shadow boost
+    return (uint8_t)fminf(255.0f, f * 255.0f);
+}
+
 static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
   int center = size / 2;
   float radius = (size / 2.0f) * 0.18f;
   float atmo_outer = (size / 2.0f) * 0.98f;
   float theme = DeterministicHash((int)(seed * 1000), 42);
   float rm, gm, bm;
-  if (theme > 0.75f) { rm = 0.9f; gm = 0.2f; bm = 0.2f; }
-  else if (theme > 0.50f) { rm = 0.2f; gm = 0.8f; bm = 0.3f; }
-  else if (theme > 0.25f) { rm = 0.6f; gm = 0.3f; bm = 0.9f; }
-  else { rm = 0.3f; gm = 0.5f; bm = 0.8f; }
+  if (theme > 0.75f) { rm = 1.0f; gm = 0.4f; bm = 0.4f; }
+  else if (theme > 0.50f) { rm = 0.4f; gm = 1.0f; bm = 0.5f; }
+  else if (theme > 0.25f) { rm = 0.8f; gm = 0.5f; bm = 1.0f; }
+  else { rm = 0.5f; gm = 0.7f; bm = 1.0f; }
   for (int y = 0; y < size; y++) {
     for (int x = 0; x < size; x++) {
       float dx = (float)(x - center), dy = (float)(y - center);
@@ -111,20 +119,22 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
       if (dist <= atmo_outer) {
         float nx = dx / radius, ny = dy / radius;
         float nz = (dist <= radius) ? sqrtf(fmaxf(0.0f, 1.0f - nx * nx - ny * ny)) : 0.0f;
-        float noise = 0.0f, amp = 0.7f, freq = 0.03f;
+        float noise = 0.0f, amp = 0.7f, freq = 0.04f; // Decreased frequency for 512x512 texture
         for (int o = 0; o < 3; o++) { noise += PerlinNoise2D((float)x * freq + seed, (float)y * freq + seed * 2.0f) * amp; amp *= 0.3f; freq *= 2.0f; }
-        float dot = fmaxf(0.05f, nx * -0.6f + ny * -0.6f + nz * 0.5f);
-        float shading = powf(dot, 0.8f);
-        Uint8 r = (Uint8)fminf(255.0f, (80 + noise * 175) * rm * shading);
-        Uint8 g = (Uint8)fminf(255.0f, (80 + noise * 175) * gm * shading);
-        Uint8 b = (Uint8)fminf(255.0f, (80 + noise * 175) * bm * shading);
+        float dot = fmaxf(0.15f, nx * -0.6f + ny * -0.6f + nz * 0.5f); // Increased min light
+        float shading = powf(dot, 0.7f);
+        Uint8 r = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * rm * shading)));
+        Uint8 g = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * gm * shading)));
+        Uint8 b = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * bm * shading)));
         Uint8 alpha = 255;
         if (dist > radius) {
           float atmo_t = (dist - radius) / (atmo_outer - radius);
           float an = PerlinNoise2D((float)x * 0.01f + seed, (float)y * 0.01f);
           float af = powf(1.0f - atmo_t, 1.5f) * (0.3f + an * 0.7f);
           alpha = (Uint8)(af * 120);
-          r = (Uint8)(r * 0.2f + 255 * rm * af); g = (Uint8)(g * 0.2f + 255 * gm * af); b = (Uint8)(b * 0.2f + 255 * bm * af);
+          r = QUANTIZE(ApplyContrast((Uint8)(r * 0.2f + 255 * rm * af))); 
+          g = QUANTIZE(ApplyContrast((Uint8)(g * 0.2f + 255 * gm * af))); 
+          b = QUANTIZE(ApplyContrast((Uint8)(b * 0.2f + 255 * bm * af)));
         }
         pixels[y * size + x] = (alpha << 24) | (b << 16) | (g << 8) | r;
       }
@@ -157,8 +167,8 @@ static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
       float norm_dist = dist / max_dist;
       float twisted_angle = angle - norm_dist * twist;
       float arm_sin = powf(fabsf(cosf(twisted_angle * (float)arms / 2.0f)), arm_thickness);
-      float n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f);
-      float cloud_n = PerlinNoise2D(x * 0.01f + seed + 200, y * 0.01f + 300);
+      float n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f); // Decreased freq for 1024x1024
+      float cloud_n = PerlinNoise2D(x * 0.01f + seed + 200, y * 0.01f + 300); // Decreased freq
       float cloud = powf(cloud_n, 1.1f) * cloud_scale;
       float intensity = (arm_sin * 0.5f + 0.1f) * n + cloud;
       float falloff = 1.0f - powf(norm_dist, 0.3f);
@@ -170,7 +180,10 @@ static void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
         float cr = tr * (1.0f - mix_val) + tr2 * mix_val, cg = tg * (1.0f - mix_val) + tg2 * mix_val, cb = tb * (1.0f - mix_val) + tb2 * mix_val;
         float saturation = fminf(1.0f, norm_dist * 8.0f);
         cr = cr * saturation + (1.0f - saturation); cg = cg * saturation + (1.0f - saturation); cb = cb * saturation + (1.0f - saturation);
-        Uint8 rv = (Uint8)fminf(255, final_val * (cr * 150 + core * 255)), gv = (Uint8)fminf(255, final_val * (cg * 150 + core * 255)), bv = (Uint8)fminf(255, final_val * (cb * 150 + core * 255)), av = (Uint8)fminf(255, final_val * 255 * fminf(1.0f, falloff * 5.0f));
+        Uint8 rv = QUANTIZE(ApplyContrast((Uint8)fminf(255, final_val * (cr * 150 + core * 255))));
+        Uint8 gv = QUANTIZE(ApplyContrast((Uint8)fminf(255, final_val * (cg * 150 + core * 255))));
+        Uint8 bv = QUANTIZE(ApplyContrast((Uint8)fminf(255, final_val * (cb * 150 + core * 255))));
+        Uint8 av = (Uint8)fminf(255, final_val * 255 * fminf(1.0f, falloff * 5.0f));
         pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
       }
     }
@@ -184,34 +197,53 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
     for (int x = 0; x < size; x++) {
       float dx = (float)(x - center), dy = (float)(y - center);
       float dist = sqrtf(dx * dx + dy * dy);
-      if (dist < 1.0f) continue;
       float angle = atan2f(dy, dx);
       float shape_n = 0.0f, s_freq = 1.2f, s_amp = 0.6f;
-      for (int o = 0; o < 3; o++) { shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; s_freq *= 2.0f; s_amp *= 0.5f; }
+      for (int o = 0; o < 5; o++) { // Increased octaves
+          shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; 
+          s_freq *= 2.5f; s_amp *= 0.45f; 
+      }
       float distorted_radius = base_radius * (1.0f + shape_n);
       if (dist <= distorted_radius) {
-        float warp = ValueNoise2D(x * 0.02f + seed, y * 0.02f + seed) * 0.5f;
-        float cracks1 = VoronoiCracks2D(x * 0.03f + seed + warp, y * 0.03f + seed + warp);
-        float cracks2 = VoronoiCracks2D(x * 0.1f + seed * 2.0f, y * 0.1f + seed * 3.0f);
-        float mix_val = fmaxf(0.0f, fminf(1.0f, (ValueNoise2D(x * 0.04f + seed * 4.0f, y * 0.04f + seed * 4.0f) - 0.3f) * 1.5f));
+        float warp = ValueNoise2D(x * 0.04f + seed, y * 0.04f + seed) * 0.5f;
+        float cracks1 = VoronoiCracks2D(x * 0.06f + seed + warp, y * 0.06f + seed + warp);
+        float cracks2 = VoronoiCracks2D(x * 0.2f + seed * 2.0f, y * 0.2f + seed * 3.0f);
+        float mix_val = fmaxf(0.0f, fminf(1.0f, (ValueNoise2D(x * 0.08f + seed * 4.0f, y * 0.08f + seed * 4.0f) - 0.3f) * 1.5f));
         float a_theme = DeterministicHash((int)(seed * 789.0f), 123), r1, g1, b1, r2, g2, b2;
         if (a_theme > 0.7f) { r1 = 0.5f; g1 = 0.45f; b1 = 0.42f; r2 = 0.75f; g2 = 0.4f; b2 = 0.35f; }
         else if (a_theme > 0.4f) { r1 = 0.55f; g1 = 0.55f; b1 = 0.6f; r2 = 0.45f; g2 = 0.5f; b2 = 0.75f; }
         else { r1 = 0.35f; g1 = 0.35f; b1 = 0.38f; r2 = 0.55f; g2 = 0.55f; b2 = 0.58f; }
         float tr = r1 * (1.0f - mix_val) + r2 * mix_val, tg = g1 * (1.0f - mix_val) + g2 * mix_val, tb = b1 * (1.0f - mix_val) + b2 * mix_val;
-        float base_val = 30.0f + ValueNoise2D(x * 0.05f + seed, y * 0.05f + seed) * 35.0f + shape_n * 15.0f;
-        float darken = (0.4f + 0.6f * powf(fmaxf(0.0f, fminf(1.0f, cracks1 / 0.4f)), 0.5f)) * (0.7f + 0.3f * powf(fmaxf(0.0f, fminf(1.0f, cracks2 / 0.2f)), 0.5f));
-        Uint8 r = (Uint8)fminf(255, base_val * tr * darken), g = (Uint8)fminf(255, base_val * tg * darken), b = (Uint8)fminf(255, base_val * tb * darken);
+        
+        // 3D Shading: Light from top-left (-0.7, -0.7)
+        float lx = -0.707f, ly = -0.707f;
+        float nx = dx / (dist + 0.1f), ny = dy / (dist + 0.1f);
+        float dot = fmaxf(0.2f, nx * lx + ny * ly); // directional light
+        float shade_3d = powf(dot, 0.5f);
+
+        float base_val = 180.0f + ValueNoise2D(x * 0.15f + seed, y * 0.15f + seed) * 120.0f + shape_n * 25.0f;
+        
+        // Darken edges for rounder look
+        float edge_shade = 1.0f - powf(dist / distorted_radius, 4.0f) * 0.6f;
+
+        // Darkened cracks: reduced base multipliers and sharpened power curve
+        float darken = edge_shade * shade_3d * (0.4f + 0.6f * powf(fmaxf(0.0f, fminf(1.0f, cracks1 / 0.4f)), 0.8f)) * (0.6f + 0.4f * powf(fmaxf(0.0f, fminf(1.0f, cracks2 / 0.2f)), 0.8f));
+        Uint8 r = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val * tr * darken)));
+        Uint8 g = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val * tg * darken)));
+        Uint8 b = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val * tb * darken)));
         pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
       } else {
         float dust_noise = PerlinNoise2D(cosf(angle) * 0.8f + seed + 100, sinf(angle) * 0.8f + seed + 100);
         float dust_outer = base_radius * (1.5f + dust_noise * 3.0f);
         if (dist <= dust_outer) {
           float dust_t = (dist - distorted_radius) / (dust_outer - distorted_radius);
-          float detail_n = PerlinNoise2D(x * 0.02f + seed + 500, y * 0.02f + seed);
+          float detail_n = PerlinNoise2D(x * 0.08f + seed + 500, y * 0.08f + seed);
           float edge_falloff = fminf(1.0f, fminf(fminf(x, (size - 1) - x), fminf(y, (size - 1) - y)) / 30.0f);
           float alpha_f = powf(1.0f - dust_t, 2.5f) * detail_n * edge_falloff;
-          if (alpha_f > 0.01f) { Uint8 val = (Uint8)(35 + detail_n * 25); pixels[y * size + x] = ((Uint8)(alpha_f * 100) << 24) | (val << 16) | (val << 8) | val; }
+          if (alpha_f > 0.01f) { 
+              Uint8 val = QUANTIZE(ApplyContrast((Uint8)(35 + detail_n * 25))); 
+              pixels[y * size + x] = ((Uint8)(alpha_f * 100) << 24) | (val << 16) | (val << 8) | val; 
+          }
         }
       }
     }
@@ -224,9 +256,9 @@ static void DrawExplosionPuffToBuffer(Uint32 *pixels, int size, float seed) {
     for (int x = 0; x < size; x++) {
       float dx = (float)(x - center), dy = (float)(y - center);
       float dist = sqrtf(dx * dx + dy * dy); if (dist > max_rad) continue;
-      float noise = (PerlinNoise2D(x * 0.05f + seed, y * 0.05f + seed) * 0.7f + PerlinNoise2D(x * 0.1f + seed * 2, y * 0.1f + seed * 2) * 0.3f);
+      float noise = (PerlinNoise2D(x * 0.2f + seed, y * 0.2f + seed) * 0.7f + PerlinNoise2D(x * 0.4f + seed * 2, y * 0.4f + seed * 2) * 0.3f);
       float alpha_f = powf(1.0f - (dist / max_rad), 1.5f) * noise;
-      if (alpha_f > 0.05f) { Uint8 val = (Uint8)(100 + noise * 100); pixels[y * size + x] = ((Uint8)(alpha_f * 255) << 24) | (val << 16) | (val << 8) | val; }
+      if (alpha_f > 0.05f) { Uint8 val = QUANTIZE(ApplyContrast((Uint8)(150 + noise * 100))); pixels[y * size + x] = ((Uint8)(alpha_f * 255) << 24) | (val << 16) | (val << 8) | val; }
     }
   }
 }
@@ -240,13 +272,13 @@ static void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
       float dist = sqrtf(dx * dx + dy * dy);
       if (dist < 1.0f) continue;
       float angle = atan2f(dy, dx);
-      float shape_n = 0.0f, s_freq = 2.0f, s_amp = 0.8f;
-      for (int o = 0; o < 4; o++) { shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; s_freq *= 2.0f; s_amp *= 0.5f; }
+      float shape_n = 0.0f, s_freq = 4.0f, s_amp = 0.8f;
+      for (int o = 0; o < 4; o++) { shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; s_freq *= 2.0f; s_amp *= 0.5f; };
       float distorted_radius = base_radius * (1.0f + shape_n);
       if (dist <= distorted_radius) {
-        float mix_val = ValueNoise2D(x * 0.1f + seed, y * 0.1f + seed);
-        float base_val = 40.0f + ValueNoise2D(x * 0.2f + seed, y * 0.2f + seed) * 40.0f;
-        Uint8 v = (Uint8)fminf(255, base_val);
+        float mix_val = ValueNoise2D(x * 0.4f + seed, y * 0.4f + seed);
+        float base_val = 100.0f + ValueNoise2D(x * 0.8f + seed, y * 0.8f + seed) * 100.0f;
+        Uint8 v = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val)));
         pixels[y * size + x] = (255 << 24) | (v << 16) | (v << 8) | v;
       }
     }
@@ -257,39 +289,45 @@ void Renderer_GenerateAssetStep(AppState *s) {
   int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT + 3;
   if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
   if (s->assets_generated < PLANET_COUNT) {
-    int sz = 1024; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    int sz = 512; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawPlanetToBuffer(p, sz, (float)s->assets_generated * 567.89f);
     s->planet_textures[s->assets_generated] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->planet_textures[s->assets_generated], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->planet_textures[s->assets_generated], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->planet_textures[s->assets_generated], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT) {
     int g_idx = s->assets_generated - PLANET_COUNT, sz = 1024; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawGalaxyToBuffer(p, sz, (float)g_idx * 123.45f + 99.0f);
     s->galaxy_textures[g_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->galaxy_textures[g_idx], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->galaxy_textures[g_idx], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->galaxy_textures[g_idx], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT) {
-    int a_idx = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT), sz = 512; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    int a_idx = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT), sz = 256; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawAsteroidToBuffer(p, sz, (float)a_idx * 432.1f + 11.0f);
     s->asteroid_textures[a_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->asteroid_textures[a_idx], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->asteroid_textures[a_idx], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->asteroid_textures[a_idx], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT) {
     int d_idx = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT), sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawDebrisToBuffer(p, sz, (float)d_idx * 987.6f + 55.0f);
     s->debris_textures[d_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->debris_textures[d_idx], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->debris_textures[d_idx], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->debris_textures[d_idx], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated == total_assets - 3) {
-    int sz = 256; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawExplosionPuffToBuffer(p, sz, 777.7f);
     s->explosion_puff_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->explosion_puff_texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->explosion_puff_texture, SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->explosion_puff_texture, NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated == total_assets - 1) {
     int sz = MOTHERSHIP_FX_TEXTURE_SIZE;
     s->mothership_hull_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, sz, sz);
     SDL_SetTextureBlendMode(s->mothership_hull_texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->mothership_hull_texture, SDL_SCALEMODE_NEAREST);
   }
   s->assets_generated++;
   if (s->assets_generated >= total_assets) s->is_loading = false;
@@ -439,7 +477,7 @@ static void GenerateMothershipOrganic(Uint32 *buf, int w, int h, float time) {
             float thresh = 1.0f + 0.2f * sinf(time * 0.3f);
             if (F >= thresh) {
                 Uint8 intensity = (Uint8)(SDL_clamp(F * 40.0f, 30.0f, 120.0f));
-                Uint8 r = 40, g = intensity, b = 60 + intensity/2, a = 255;
+                Uint8 r = QUANTIZE(40), g = QUANTIZE(intensity), b = QUANTIZE(60 + intensity/2), a = 255;
                 row[x] = (a << 24) | (b << 16) | (g << 8) | r;
             } else {
                 row[x] = 0;

@@ -221,6 +221,10 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     s->particles[m_idx].size = s->particles[p_idx].size * MUZZLE_FLASH_SIZE_MULT;
     s->particles[m_idx].color = (SDL_Color)COLOR_MUZZLE_FLASH;
     s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+
+    // Small Impact Explosion (Puff + Sparks + Debris)
+    float impact_scale = 0.5f + (damage / 2000.0f);
+    SpawnExplosion(s, impact_pos, 15, impact_scale); 
 }
 
 static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
