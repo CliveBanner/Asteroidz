@@ -163,7 +163,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_R) {
         s->patrol_mode = false;
         cmd_type = CMD_HOLD;
-        s->hold_flash_timer = 0.2f;
+        s->hold_flash_timer = 0.2f; // This was already 0.2f, just keeping it consistent.
     }
 
     if (cmd_type != -1) {

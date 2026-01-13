@@ -18,8 +18,29 @@ typedef enum {
 
 typedef enum {
     UNIT_MOTHERSHIP,
-    UNIT_SCOUT
+    UNIT_SCOUT,
+    UNIT_TYPE_COUNT
 } UnitType;
+
+typedef struct {
+    float max_health;
+    float max_energy;
+    float speed;
+    float friction;
+    float radius;
+    float radar_range;
+    
+    // Weapon stats
+    float main_cannon_damage;
+    float main_cannon_range;
+    float main_cannon_cooldown;
+    float main_cannon_energy_cost;
+    
+    float small_cannon_damage;
+    float small_cannon_range;
+    float small_cannon_cooldown;
+    float small_cannon_energy_cost;
+} UnitStats;
 
 typedef struct {
     Vec2 pos;
@@ -42,18 +63,14 @@ typedef struct {
     Vec2 velocity;
     float rotation;
     float health;
-    float max_health;
-    float radius;
+    float energy;
+    float main_cannon_energy;
+    
     UnitType type;
+    const UnitStats *stats;
     bool active;
 
-    // Energy
-    float energy;
-    float max_energy;
-    float main_cannon_energy;
-    float max_main_cannon_energy;
-
-    // Weapons
+    // Weapons state
     float large_cannon_cooldown;
     float small_cannon_cooldown[4];
     int large_target_idx;
@@ -146,6 +163,7 @@ typedef struct {
     int asteroid_count;
 
     Unit units[MAX_UNITS];
+    UnitStats unit_stats[UNIT_TYPE_COUNT];
     int unit_count;
 
     Particle particles[MAX_PARTICLES];
