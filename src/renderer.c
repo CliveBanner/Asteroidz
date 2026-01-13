@@ -104,8 +104,8 @@ static uint8_t ApplyContrast(uint8_t c) {
 
 static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
   int center = size / 2;
-  float radius = (size / 2.0f) * 0.18f;
-  float atmo_outer = (size / 2.0f) * 0.98f;
+  float radius = (size / 2.0f) * 0.70f; // Increased from 0.18
+  float atmo_outer = (size / 2.0f) * 0.95f; // Tighter atmosphere
   float theme = DeterministicHash((int)(seed * 1000), 42);
   float rm, gm, bm;
   if (theme > 0.75f) { rm = 1.0f; gm = 0.4f; bm = 0.4f; }
@@ -119,9 +119,9 @@ static void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
       if (dist <= atmo_outer) {
         float nx = dx / radius, ny = dy / radius;
         float nz = (dist <= radius) ? sqrtf(fmaxf(0.0f, 1.0f - nx * nx - ny * ny)) : 0.0f;
-        float noise = 0.0f, amp = 0.7f, freq = 0.04f; // Decreased frequency for 512x512 texture
-        for (int o = 0; o < 3; o++) { noise += PerlinNoise2D((float)x * freq + seed, (float)y * freq + seed * 2.0f) * amp; amp *= 0.3f; freq *= 2.0f; }
-        float dot = fmaxf(0.15f, nx * -0.6f + ny * -0.6f + nz * 0.5f); // Increased min light
+        float noise = 0.0f, amp = 0.7f, freq = 0.02f; // Further decreased frequency for more detail
+        for (int o = 0; o < 4; o++) { noise += PerlinNoise2D((float)x * freq + seed, (float)y * freq + seed * 2.0f) * amp; amp *= 0.35f; freq *= 2.0f; }
+        float dot = fmaxf(0.15f, nx * -0.6f + ny * -0.6f + nz * 0.5f); 
         float shading = powf(dot, 0.7f);
         Uint8 r = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * rm * shading)));
         Uint8 g = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * gm * shading)));
@@ -272,13 +272,29 @@ static void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
       float dist = sqrtf(dx * dx + dy * dy);
       if (dist < 1.0f) continue;
       float angle = atan2f(dy, dx);
-      float shape_n = 0.0f, s_freq = 4.0f, s_amp = 0.8f;
-      for (int o = 0; o < 4; o++) { shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; s_freq *= 2.0f; s_amp *= 0.5f; };
+      float shape_n = 0.0f, s_freq = 1.5f, s_amp = 0.8f;
+      for (int o = 0; o < 4; o++) { shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; s_freq *= 2.5f; s_amp *= 0.45f; };
       float distorted_radius = base_radius * (1.0f + shape_n);
       if (dist <= distorted_radius) {
-        float mix_val = ValueNoise2D(x * 0.4f + seed, y * 0.4f + seed);
-        float base_val = 100.0f + ValueNoise2D(x * 0.8f + seed, y * 0.8f + seed) * 100.0f;
-        Uint8 v = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val)));
+        // More pronounced 3D Shading
+        float lx = -0.707f, ly = -0.707f;
+        float nx = dx / (dist + 0.1f), ny = dy / (dist + 0.1f);
+        float dot = fmaxf(0.15f, nx * lx + ny * ly); 
+        float shade_3d = powf(dot, 0.45f); // Slightly harder shading
+
+        // Detail and edge darkening
+        float n1 = ValueNoise2D(x * 0.3f + seed, y * 0.3f + seed);
+        float n2 = ValueNoise2D(x * 1.0f + seed * 2.0f, y * 1.0f + seed * 2.0f);
+        float detail = n1 * 0.7f + n2 * 0.3f;
+        
+        float edge_factor = 1.0f - powf(dist / distorted_radius, 4.0f); // Sharper edge darkening
+        
+        // Intense crack darkening
+        float crack_val = VoronoiCracks2D(x * 0.3f + seed, y * 0.3f + seed);
+        float cracks = powf(fminf(1.0f, crack_val * 5.0f), 0.5f);
+        
+        float base_val = 20.0f + detail * 60.0f + shape_n * 20.0f;
+        Uint8 v = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val * shade_3d * edge_factor * (0.15f + 0.85f * cracks))));
         pixels[y * size + x] = (255 << 24) | (v << 16) | (v << 8) | v;
       }
     }
@@ -606,7 +622,7 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *c
   if (GetCelestialBodyInfo(cell->gx, cell->gy, &b_pos, &type_seed, &b_radius)) {
     Vec2 screen_pos = WorldToScreenParallax(b_pos, cell->parallax, s, cell->win_w, cell->win_h); float sx = screen_pos.x, sy = screen_pos.y, rad = b_radius * s->zoom;
     if (type_seed > 0.95f) { if (IsVisible(sx, sy, rad, cell->win_w, cell->win_h)) SDL_RenderTexture(r, s->galaxy_textures[(int)(DeterministicHash(cell->gx + 9, cell->gy + 2) * GALAXY_COUNT)], NULL, &(SDL_FRect){sx - rad, sy - rad, rad * 2, rad * 2}); }
-    else { if (IsVisible(sx, sy, rad, cell->win_w, cell->win_h)) { float tsz = rad * 4.5f; SDL_RenderTexture(r, s->planet_textures[(int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT)], NULL, &(SDL_FRect){sx - tsz / 2, sy - tsz / 2, tsz, tsz}); } }
+    else { if (IsVisible(sx, sy, rad, cell->win_w, cell->win_h)) { float tsz = rad * 2.2f; SDL_RenderTexture(r, s->planet_textures[(int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT)], NULL, &(SDL_FRect){sx - tsz / 2, sy - tsz / 2, tsz, tsz}); } }
   }
 }
 
@@ -646,11 +662,37 @@ static void DrawGradientCircle(SDL_Renderer *r, float cx, float cy, float radius
 }
 
 static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+  SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
   for (int i = 0; i < MAX_PARTICLES; i++) {
     if (!s->particles[i].active) continue;
     Vec2 sx_y = WorldToScreenParallax(s->particles[i].pos, 1.0f, s, win_w, win_h); float sz = s->particles[i].size * s->zoom;
     if (!IsVisible(sx_y.x, sx_y.y, sz, win_w, win_h)) continue;
-    if (s->particles[i].type == PARTICLE_PUFF) {
+    
+    // Debris first (solid with fade)
+    if (s->particles[i].type == PARTICLE_DEBRIS) {
+        SDL_SetTextureColorMod(s->debris_textures[s->particles[i].tex_idx], 255, 255, 255);
+        // Quadratic fade out
+        float alpha = s->particles[i].life * s->particles[i].life;
+        SDL_SetTextureAlphaMod(s->debris_textures[s->particles[i].tex_idx], (Uint8)(alpha * 255));
+        SDL_RenderTextureRotated(r, s->debris_textures[s->particles[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}, s->particles[i].rotation, NULL, SDL_FLIP_NONE);
+    }
+    // Shockwaves (fade out)
+    else if (s->particles[i].type == PARTICLE_SHOCKWAVE) {
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
+        float a_f = s->particles[i].life * s->particles[i].life;
+        SDL_FColor center = { 1.0f, 1.0f, 1.0f, 0.0f }; 
+        SDL_FColor edge = { 1.0f, 1.0f, 1.0f, a_f * 0.5f };
+        DrawGradientCircle(r, sx_y.x, sx_y.y, sz, center, edge);
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    }
+    // Puffs (Atmospheric middle-ground)
+    else if (s->particles[i].type == PARTICLE_PUFF) {
+        float a_f = (s->particles[i].life * s->particles[i].life) * 0.10f; 
+        SDL_FColor center = { s->particles[i].color.r/255.0f, s->particles[i].color.g/255.0f, s->particles[i].color.b/255.0f, a_f };
+        SDL_FColor edge = { center.r * 0.1f, center.g * 0.1f, center.b * 0.1f, 0.0f };
+        DrawGradientCircle(r, sx_y.x, sx_y.y, sz / 2, center, edge);
+    }
+    else if (s->particles[i].type == PARTICLE_GLOW) {
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
         float a_f = fminf(1.0f, s->particles[i].life * 2.0f);
         SDL_FColor center = { s->particles[i].color.r/255.0f, s->particles[i].color.g/255.0f, s->particles[i].color.b/255.0f, a_f };
@@ -700,18 +742,28 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
             int b_indices[12] = { 0, 1, 3, 1, 3, 4, 1, 2, 4, 2, 4, 5 };
             SDL_RenderGeometry(r, NULL, vb, 6, b_indices, 12);
 
-            if (th > 5.0f && a_f > 0.8f) { // Adjusted threshold for smaller beams
+            if (th > 5.0f && a_f > 0.8f) { 
                 SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
                 float flash_r = th * 2.5f;
                 SDL_FRect flash_rect = { tsx_y.x - flash_r/2, tsx_y.y - flash_r/2, flash_r, flash_r };
                 SDL_RenderFillRect(r, &flash_rect);
             }
         }
+    } else if (s->particles[i].type == PARTICLE_SHOCKWAVE) {
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
+        float a_f = fminf(1.0f, s->particles[i].life * 1.5f);
+        SDL_FColor center = { 1.0f, 1.0f, 1.0f, 0.0f }; 
+        SDL_FColor edge = { 1.0f, 1.0f, 1.0f, a_f * 0.6f };
+        DrawGradientCircle(r, sx_y.x, sx_y.y, sz, center, edge);
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     } else if (s->particles[i].type == PARTICLE_DEBRIS) {
         SDL_SetTextureColorMod(s->debris_textures[s->particles[i].tex_idx], 255, 255, 255);
         SDL_SetTextureAlphaMod(s->debris_textures[s->particles[i].tex_idx], (Uint8)(s->particles[i].life * 255));
         SDL_RenderTextureRotated(r, s->debris_textures[s->particles[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}, s->particles[i].rotation, NULL, SDL_FLIP_NONE);
-    } else { SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(s->particles[i].life * 255)); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}); }
+    } else { 
+        SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(s->particles[i].life * 255)); 
+        SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}); 
+    }
   }
 }
 

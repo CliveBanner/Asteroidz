@@ -98,9 +98,16 @@ typedef struct {
 typedef enum {
     PARTICLE_SPARK,
     PARTICLE_PUFF,
+    PARTICLE_GLOW,
     PARTICLE_TRACER,
-    PARTICLE_DEBRIS
+    PARTICLE_DEBRIS,
+    PARTICLE_SHOCKWAVE
 } ParticleType;
+
+typedef enum {
+    EXPLOSION_IMPACT,
+    EXPLOSION_COLLISION
+} ExplosionType;
 
 typedef struct {
     Vec2 pos;
@@ -109,6 +116,7 @@ typedef struct {
     float size;
     float rotation;
     int tex_idx;
+    int asteroid_tex_idx; // New: to match debris to asteroid color
     SDL_Color color;
     ParticleType type;
     bool active;
