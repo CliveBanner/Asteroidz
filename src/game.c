@@ -223,212 +223,168 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
 }
 
+static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
+    if (s->respawn_timer <= 0) return;
+    
+    s->respawn_timer -= dt;
+    s->camera_pos.x = s->respawn_pos.x - (win_w / 2.0f) / s->zoom;
+    s->camera_pos.y = s->respawn_pos.y - (win_h / 2.0f) / s->zoom;
+
+    if (s->respawn_timer <= 0) {
+        for (int i = 0; i < MAX_UNITS; i++) {
+            if (s->units[i].type == UNIT_MOTHERSHIP) {
+                Unit *u = &s->units[i];
+                u->active = true;
+                u->health = u->stats->max_health;
+                u->energy = u->stats->max_energy;
+                u->main_cannon_energy = MAIN_CANNON_MAX_ENERGY;
+                u->velocity = (Vec2){0, 0};
+                u->command_count = 0;
+                u->command_current_idx = 0;
+                u->has_target = false;
+
+                int attempts = 0;
+                while (attempts < 10) {
+                    float rx = (float)(rand() % 10000 - 5000), ry = (float)(rand() % 10000 - 5000);
+                    bool safe = true;
+                    for (int j = 0; j < MAX_ASTEROIDS; j++) {
+                        if (!s->asteroids[j].active) continue;
+                        if (Vector_DistanceSq((Vec2){rx, ry}, s->asteroids[j].pos) < powf(s->asteroids[j].radius + u->stats->radius + 500.0f, 2)) { safe = false; break; }
+                    }
+                    if (safe) { u->pos = (Vec2){rx, ry}; break; }
+                    attempts++;
+                }
+                s->camera_pos.x = u->pos.x - (win_w / 2.0f) / s->zoom;
+                s->camera_pos.y = u->pos.y - (win_h / 2.0f) / s->zoom;
+                break;
+            }
+        }
+    }
+}
+
+static void UpdateSpawning(AppState *s, Vec2 cam_center) {
+    float local_density = GetAsteroidDensity(cam_center);
+    int total_target_count = (int)(local_density * MAX_DYNAMIC_ASTEROIDS);
+    if (total_target_count > 200) total_target_count = 200; 
+
+    for (int i = 0; i < MAX_ASTEROIDS; i++) {
+        if (!s->asteroids[i].active) continue;
+        s->asteroids[i].targeted = false;
+        bool in_range = false;
+        for (int a = 0; a < s->sim_anchor_count; a++) {
+            if (Vector_DistanceSq(s->asteroids[i].pos, s->sim_anchors[a].pos) < DESPAWN_RANGE * DESPAWN_RANGE) { in_range = true; break; }
+        }
+        if (!in_range) { s->asteroids[i].active = false; s->asteroid_count--; }
+    }
+
+    int attempts = 0;
+    while (s->asteroid_count < total_target_count && attempts < 20) {
+        attempts++;
+        Vec2 target_center = s->sim_anchors[rand() % s->sim_anchor_count].pos;
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        float dist = 3000.0f + (float)(rand() % (int)(DESPAWN_RANGE * 0.8f - 3000.0f));
+        Vec2 spawn_pos = {target_center.x + cosf(angle) * dist, target_center.y + sinf(angle) * dist};
+        
+        if (((float)rand() / (float)RAND_MAX) < GetAsteroidDensity(spawn_pos)) {
+            float new_rad = ASTEROID_BASE_RADIUS_MIN + (rand() % (int)ASTEROID_BASE_RADIUS_VARIANCE);
+            bool overlap = false;
+            for (int j = 0; j < MAX_ASTEROIDS; j++) {
+                if (s->asteroids[j].active && Vector_DistanceSq(s->asteroids[j].pos, spawn_pos) < powf((s->asteroids[j].radius + new_rad) * ASTEROID_HITBOX_MULT + 1000.0f, 2)) { overlap = true; break; }
+            }
+            if (!overlap) {
+                float move_angle = (float)(rand() % 360) * 0.0174533f;
+                SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, new_rad);
+            }
+        }
+    }
+}
+
+static void UpdateAsteroidPhysics(AppState *s, float dt) {
+    for (int i = 0; i < MAX_ASTEROIDS; i++) {
+        if (!s->asteroids[i].active) continue;
+        int gx = (int)floorf(s->asteroids[i].pos.x / CELESTIAL_GRID_SIZE_F), gy = (int)floorf(s->asteroids[i].pos.y / CELESTIAL_GRID_SIZE_F);
+        for (int oy = -1; oy <= 1; oy++) for (int ox = -1; ox <= 1; ox++) {
+            Vec2 b_pos; float b_type, b_rad;
+            if (GetCelestialBodyInfo(gx + ox, gy + oy, &b_pos, &b_type, &b_rad)) {
+                float dsq = Vector_DistanceSq(b_pos, s->asteroids[i].pos);
+                if (dsq > 100.0f) {
+                    float force = (b_type > 0.95f ? 50000000.0f : 10000000.0f) / dsq;
+                    Vec2 dir = Vector_Normalize(Vector_Sub(b_pos, s->asteroids[i].pos));
+                    s->asteroids[i].velocity = Vector_Add(s->asteroids[i].velocity, Vector_Scale(dir, force * dt));
+                }
+            }
+        }
+        s->asteroids[i].pos = Vector_Add(s->asteroids[i].pos, Vector_Scale(s->asteroids[i].velocity, dt));
+        s->asteroids[i].rotation += s->asteroids[i].rot_speed * dt;
+    }
+}
+
 void Game_Update(AppState *s, float dt) {
   if (s->state == STATE_PAUSED) return;
-  int win_w, win_h;
-  SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
+  int win_w, win_h; SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
 
-  if (s->respawn_timer > 0) {
-      s->respawn_timer -= dt;
-      // Keep camera locked on death spot
-      s->camera_pos.x = s->respawn_pos.x - (win_w / 2.0f) / s->zoom;
-      s->camera_pos.y = s->respawn_pos.y - (win_h / 2.0f) / s->zoom;
-
-      if (s->respawn_timer <= 0) {
-          // Finalize respawn
-          for (int i = 0; i < MAX_UNITS; i++) {
-              if (s->units[i].type == UNIT_MOTHERSHIP) {
-                  Unit *u = &s->units[i];
-                  u->active = true;
-                  u->health = u->stats->max_health;
-                  u->energy = u->stats->max_energy;
-                  u->main_cannon_energy = MAIN_CANNON_MAX_ENERGY;
-                  u->velocity = (Vec2){0, 0};
-                  u->command_count = 0;
-                  u->command_current_idx = 0;
-                  u->has_target = false;
-
-                  // Find a safe spot
-                  int respawn_attempts = 0;
-                  while (respawn_attempts < 10) {
-                      float rx = (float)(rand() % 10000 - 5000);
-                      float ry = (float)(rand() % 10000 - 5000);
-                      bool spot_safe = true;
-                      for (int j = 0; j < MAX_ASTEROIDS; j++) {
-                          if (!s->asteroids[j].active) continue;
-                          float adx = s->asteroids[j].pos.x - rx, ady = s->asteroids[j].pos.y - ry;
-                          float adsq = adx * adx + ady * ady, amd = s->asteroids[j].radius + u->stats->radius + 500.0f;
-                          if (adsq < amd * amd) { spot_safe = false; break; }
-                      }
-                      if (spot_safe) { u->pos.x = rx; u->pos.y = ry; break; }
-                      respawn_attempts++;
-                  }
-                  if (respawn_attempts == 10) { u->pos.x = (float)(rand() % 5000 - 2500); u->pos.y = (float)(rand() % 5000 - 2500); }
-
-                  s->camera_pos.x = u->pos.x - (win_w / 2.0f) / s->zoom;
-                  s->camera_pos.y = u->pos.y - (win_h / 2.0f) / s->zoom;
-                  break;
-              }
-          }
-      }
-  }
-  
+  HandleRespawn(s, dt, win_w, win_h);
   if (s->hold_flash_timer > 0) s->hold_flash_timer -= dt;
 
+  // Camera & Energy
   Vec2 cam_center = {s->camera_pos.x + (win_w / 2.0f) / s->zoom, s->camera_pos.y + (win_h / 2.0f) / s->zoom};
   float move_speed = CAMERA_SPEED / s->zoom;
   if (s->mouse_pos.x < EDGE_SCROLL_THRESHOLD) s->camera_pos.x -= move_speed * dt;
   if (s->mouse_pos.x > (win_w - EDGE_SCROLL_THRESHOLD)) s->camera_pos.x += move_speed * dt;
   if (s->mouse_pos.y < EDGE_SCROLL_THRESHOLD) s->camera_pos.y -= move_speed * dt;
   if (s->mouse_pos.y > (win_h - EDGE_SCROLL_THRESHOLD)) s->camera_pos.y += move_speed * dt;
+  
   UpdateSimAnchors(s, cam_center);
-  s->energy += ENERGY_REGEN_RATE * dt;
-  if (s->energy > INITIAL_ENERGY) s->energy = INITIAL_ENERGY;
-  float local_density = GetAsteroidDensity(cam_center);
-  int total_target_count = (int)(local_density * MAX_DYNAMIC_ASTEROIDS);
-  if (total_target_count > 200) total_target_count = 200; 
-  for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->asteroids[i].active) continue;
-    s->asteroids[i].targeted = false;
-    bool in_range = false;
-    for (int a = 0; a < s->sim_anchor_count; a++) {
-      float dx = s->asteroids[i].pos.x - s->sim_anchors[a].pos.x, dy = s->asteroids[i].pos.y - s->sim_anchors[a].pos.y;
-      if (dx * dx + dy * dy < DESPAWN_RANGE * DESPAWN_RANGE) { in_range = true; break; }
-    }
-    if (!in_range) { s->asteroids[i].active = false; s->asteroid_count--; }
-  }
-  int attempts = 0;
-  while (s->asteroid_count < total_target_count && attempts < 20) {
-    attempts++;
-    int anchor_idx = rand() % s->sim_anchor_count;
-    Vec2 target_center = s->sim_anchors[anchor_idx].pos;
-    float angle = (float)(rand() % 360) * 0.0174533f;
-    float min_spawn_dist = 3000.0f;
-    float dist = min_spawn_dist + (float)(rand() % (int)(DESPAWN_RANGE * 0.8f - min_spawn_dist));
-    Vec2 spawn_pos = {target_center.x + cosf(angle) * dist, target_center.y + sinf(angle) * dist};
-    float p_density = GetAsteroidDensity(spawn_pos);
-    if (((float)rand() / (float)RAND_MAX) < p_density) {
-      float new_rad = ASTEROID_BASE_RADIUS_MIN + (rand() % (int)ASTEROID_BASE_RADIUS_VARIANCE);
-      bool overlap = false;
-      for (int j = 0; j < MAX_ASTEROIDS; j++) {
-        if (!s->asteroids[j].active) continue;
-        float dx = s->asteroids[j].pos.x - spawn_pos.x, dy = s->asteroids[j].pos.y - spawn_pos.y;
-        float dist_sq = dx * dx + dy * dy, min_dist = (s->asteroids[j].radius + new_rad) * ASTEROID_HITBOX_MULT + 1000.0f;
-        if (dist_sq < min_dist * min_dist) { overlap = true; break; }
-      }
-      if (!overlap) {
-        float move_angle = (float)(rand() % 360) * 0.0174533f;
-        SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, new_rad);
-      }
-    }
-  }
-  for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->asteroids[i].active) continue;
-    
-    // Apply Orbital Gravity from Celestial Bodies
-    int gx = (int)floorf(s->asteroids[i].pos.x / CELESTIAL_GRID_SIZE_F);
-    int gy = (int)floorf(s->asteroids[i].pos.y / CELESTIAL_GRID_SIZE_F);
-    for (int oy = -1; oy <= 1; oy++) {
-        for (int ox = -1; ox <= 1; ox++) {
-            Vec2 b_pos; float b_type, b_rad;
-            if (GetCelestialBodyInfo(gx + ox, gy + oy, &b_pos, &b_type, &b_rad)) {
-                float dx = b_pos.x - s->asteroids[i].pos.x, dy = b_pos.y - s->asteroids[i].pos.y;
-                float dsq = dx * dx + dy * dy;
-                if (dsq > 100.0f) {
-                    float dist = sqrtf(dsq);
-                    float force = (b_type > 0.95f ? 50000000.0f : 10000000.0f) / dsq;
-                    if (force > 2000.0f) force = 2000.0f; // Cap force
-                    s->asteroids[i].velocity.x += (dx / dist) * force * dt;
-                    s->asteroids[i].velocity.y += (dy / dist) * force * dt;
-                }
-            }
-        }
-    }
+  s->energy = fminf(INITIAL_ENERGY, s->energy + ENERGY_REGEN_RATE * dt);
 
-    s->asteroids[i].pos.x += s->asteroids[i].velocity.x * dt;
-    s->asteroids[i].pos.y += s->asteroids[i].velocity.y * dt;
-    s->asteroids[i].rotation += s->asteroids[i].rot_speed * dt;
-  }
+  UpdateSpawning(s, cam_center);
+  UpdateAsteroidPhysics(s, dt);
+
   for (int i = 0; i < MAX_UNITS; i++) {
       if (!s->units[i].active) continue;
       Unit *u = &s->units[i];
-      bool can_attack = s->attack_mode; 
       if (u->has_target) {
           Command *cur_cmd = &u->command_queue[u->command_current_idx];
-          if (cur_cmd->type == CMD_HOLD) {
-              u->has_target = false; u->command_count = 0; u->command_current_idx = 0;
-          }
-
+          if (cur_cmd->type == CMD_HOLD) { u->has_target = false; u->command_count = 0; u->command_current_idx = 0; }
           if (u->has_target) {
-              float dx = cur_cmd->pos.x - u->pos.x, dy = cur_cmd->pos.y - u->pos.y;
-              float dist = sqrtf(dx * dx + dy * dy);
-              
-              if (dist > 50.0f) { 
-                  // Steering Arrival Behavior
-                  float speed = u->stats->speed;
-                  float braking_dist = 800.0f;
-                  
-                  // Only slow down if this is the final waypoint and we aren't patrolling
-                  bool is_last_waypoint = (u->command_current_idx == u->command_count - 1);
-                  if (!s->patrol_mode && is_last_waypoint && dist < braking_dist) {
-                      speed *= (dist / braking_dist);
-                  }
-                  
-                  float target_vx = (dx / dist) * speed;
-                  float target_vy = (dy / dist) * speed;
-                  
-                  // Steering force
-                  u->velocity.x += (target_vx - u->velocity.x) * 4.0f * dt;
-                  u->velocity.y += (target_vy - u->velocity.y) * 4.0f * dt;
-              }
-              else {
+              float dsq = Vector_DistanceSq(cur_cmd->pos, u->pos);
+              if (dsq > UNIT_STOP_DIST * UNIT_STOP_DIST) { 
+                  float dist = sqrtf(dsq), speed = u->stats->speed;
+                  if (!s->patrol_mode && (u->command_current_idx == u->command_count - 1) && dist < UNIT_BRAKING_DIST) speed *= (dist / UNIT_BRAKING_DIST);
+                  Vec2 target_v = Vector_Scale(Vector_Normalize(Vector_Sub(cur_cmd->pos, u->pos)), speed);
+                  u->velocity.x += (target_v.x - u->velocity.x) * UNIT_STEERING_FORCE * dt;
+                  u->velocity.y += (target_v.y - u->velocity.y) * UNIT_STEERING_FORCE * dt;
+              } else {
                   if (cur_cmd->type == CMD_PATROL) u->command_current_idx = (u->command_current_idx + 1) % u->command_count;
-                  else {
-                      u->command_current_idx++;
-                      if (u->command_current_idx >= u->command_count) { u->has_target = false; u->command_count = 0; u->command_current_idx = 0; }
-                  }
+                  else { u->command_current_idx++; if (u->command_current_idx >= u->command_count) { u->has_target = false; u->command_count = 0; u->command_current_idx = 0; } }
               }
           }
       }
-      
-      // Apply Friction/Drag (always present to stabilize)
-      u->velocity.x -= u->velocity.x * u->stats->friction * dt;
-      u->velocity.y -= u->velocity.y * u->stats->friction * dt;
-
-      u->pos.x += u->velocity.x * dt; u->pos.y += u->velocity.y * dt; u->rotation += 0.1f * dt;
-      
-      // Recharge Main Cannon Energy
-      u->main_cannon_energy += MAIN_CANNON_REGEN_RATE * dt;
-      if (u->main_cannon_energy > MAIN_CANNON_MAX_ENERGY) u->main_cannon_energy = MAIN_CANNON_MAX_ENERGY;
+      u->velocity = Vector_Sub(u->velocity, Vector_Scale(u->velocity, u->stats->friction * dt));
+      u->pos = Vector_Add(u->pos, Vector_Scale(u->velocity, dt));
+      u->rotation += UNIT_ROTATION_SPEED * dt;
+      u->main_cannon_energy = fminf(MAIN_CANNON_MAX_ENERGY, u->main_cannon_energy + MAIN_CANNON_REGEN_RATE * dt);
 
       if (u->large_cannon_cooldown > 0) u->large_cannon_cooldown -= dt;
       for (int c = 0; c < 4; c++) if (u->small_cannon_cooldown[c] > 0) u->small_cannon_cooldown[c] -= dt;
       
-      // Targeting now handled in background thread!
-      if (can_attack) {
+      if (s->attack_mode) {
           SDL_LockMutex(s->unit_fx_mutex);
-          int l_target = u->large_target_idx;
-          int s_targets[4]; for(int c=0; c<4; c++) s_targets[c] = u->small_target_idx[c];
+          int l_target = u->large_target_idx, s_targets[4]; for(int c=0; c<4; c++) s_targets[c] = u->small_target_idx[c];
           SDL_UnlockMutex(s->unit_fx_mutex);
 
           if (l_target != -1 && s->asteroids[l_target].active) {
               s->asteroids[l_target].targeted = true;
-              float dx = s->asteroids[l_target].pos.x - u->pos.x, dy = s->asteroids[l_target].pos.y - u->pos.y;
-              float dist = sqrtf(dx * dx + dy * dy);
-              if (u->large_cannon_cooldown <= 0 && dist <= (u->stats->main_cannon_range * WEAPON_FIRING_RANGE_MULT)) {
+              if (u->large_cannon_cooldown <= 0 && Vector_DistanceSq(s->asteroids[l_target].pos, u->pos) <= powf(u->stats->main_cannon_range * WEAPON_FIRING_RANGE_MULT, 2)) {
                   FireWeapon(s, u, l_target, u->stats->main_cannon_damage, u->stats->main_cannon_energy_cost, true);
                   u->large_cannon_cooldown = u->stats->main_cannon_cooldown;
               }
           }
-          for (int c = 0; c < 4; c++) {
-              if (s_targets[c] != -1 && s->asteroids[s_targets[c]].active) {
-                  s->asteroids[s_targets[c]].targeted = true;
-                  float dx = s->asteroids[s_targets[c]].pos.x - u->pos.x, dy = s->asteroids[s_targets[c]].pos.y - u->pos.y;
-                  float dist = sqrtf(dx * dx + dy * dy);
-                  if (u->small_cannon_cooldown[c] <= 0 && dist <= (u->stats->small_cannon_range * WEAPON_FIRING_RANGE_MULT)) {
-                      FireWeapon(s, u, s_targets[c], u->stats->small_cannon_damage, u->stats->small_cannon_energy_cost, false);
-                      u->small_cannon_cooldown[c] = u->stats->small_cannon_cooldown;
-                  }
+          for (int c = 0; c < 4; c++) if (s_targets[c] != -1 && s->asteroids[s_targets[c]].active) {
+              s->asteroids[s_targets[c]].targeted = true;
+              if (u->small_cannon_cooldown[c] <= 0 && Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos) <= powf(u->stats->small_cannon_range * WEAPON_FIRING_RANGE_MULT, 2)) {
+                  FireWeapon(s, u, s_targets[c], u->stats->small_cannon_damage, u->stats->small_cannon_energy_cost, false);
+                  u->small_cannon_cooldown[c] = u->stats->small_cannon_cooldown;
               }
           }
       }
@@ -436,74 +392,50 @@ void Game_Update(AppState *s, float dt) {
   for (int i = 0; i < MAX_PARTICLES; i++) {
     if (!s->particles[i].active) continue;
     if (s->particles[i].type == PARTICLE_TRACER) s->particles[i].life -= dt * 2.0f;
-    else { s->particles[i].pos.x += s->particles[i].velocity.x * dt; s->particles[i].pos.y += s->particles[i].velocity.y * dt; s->particles[i].life -= dt * PARTICLE_LIFE_DECAY; }
+    else { s->particles[i].pos = Vector_Add(s->particles[i].pos, Vector_Scale(s->particles[i].velocity, dt)); s->particles[i].life -= dt * PARTICLE_LIFE_DECAY; }
     if (s->particles[i].life <= 0) s->particles[i].active = false;
   }
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active) continue;
     for (int j = i + 1; j < MAX_ASTEROIDS; j++) {
       if (!s->asteroids[j].active) continue;
-      float dx = s->asteroids[j].pos.x - s->asteroids[i].pos.x, dy = s->asteroids[j].pos.y - s->asteroids[i].pos.y;
-      float dist_sq = dx * dx + dy * dy;
+      float dsq = Vector_DistanceSq(s->asteroids[j].pos, s->asteroids[i].pos);
       float r1 = s->asteroids[i].radius * ASTEROID_HITBOX_MULT, r2 = s->asteroids[j].radius * ASTEROID_HITBOX_MULT;
-      float min_dist = r1 + r2;
-      if (dist_sq < min_dist * min_dist) {
+      if (dsq < (r1 + r2) * (r1 + r2)) {
         Asteroid a = s->asteroids[i], b = s->asteroids[j];
-        float collision_angle = atan2f(dy, dx);
-        SpawnExplosion(s, (Vec2){a.pos.x + dx * 0.5f, a.pos.y + dy * 0.5f}, 40, (a.radius + b.radius) / 100.0f);
-
-        int small_idx = -1, big_idx = -1;
-        if (a.radius < b.radius * 0.7f) { small_idx = i; big_idx = j; }
-        else if (b.radius < a.radius * 0.7f) { small_idx = j; big_idx = i; }
-
-        if (small_idx != -1) {
-            // Smaller one splits and is destroyed
-            Asteroid sm = s->asteroids[small_idx];
-            s->asteroids[small_idx].active = false; s->asteroid_count--;
-            
-            // Bigger one gets a bit smaller
-            s->asteroids[big_idx].radius *= 0.9f;
-            s->asteroids[big_idx].health *= 0.9f;
-            
-            // Spawn chip from smaller one (half size)
-            float chip_rad = sm.radius * 0.5f;
-            if (chip_rad >= ASTEROID_MIN_RADIUS) {
-                float sa = collision_angle + (small_idx == i ? 3.14159f : 0.0f) + 0.8f;
-                SpawnAsteroid(s, (Vec2){sm.pos.x + cosf(sa) * chip_rad, sm.pos.y + sinf(sa) * chip_rad}, (Vec2){cosf(sa), sinf(sa)}, chip_rad);
+        SpawnExplosion(s, Vector_Add(a.pos, Vector_Scale(Vector_Sub(b.pos, a.pos), 0.5f)), 40, (a.radius + b.radius) / 100.0f);
+        int sm_i = -1, bg_i = -1;
+        if (a.radius < b.radius * 0.7f) { sm_i = i; bg_i = j; } else if (b.radius < a.radius * 0.7f) { sm_i = j; bg_i = i; }
+        if (sm_i != -1) {
+            Asteroid sm = s->asteroids[sm_i]; s->asteroids[sm_i].active = false; s->asteroid_count--;
+            s->asteroids[bg_i].radius *= 0.9f; s->asteroids[bg_i].health *= 0.9f;
+            float cr = sm.radius * 0.5f;
+            if (cr >= ASTEROID_MIN_RADIUS) {
+                float sa = atan2f(b.pos.y - a.pos.y, b.pos.x - a.pos.x) + (sm_i == i ? 3.14159f : 0.0f) + 0.8f;
+                SpawnAsteroid(s, Vector_Add(sm.pos, (Vec2){cosf(sa)*cr, sinf(sa)*cr}), (Vec2){cosf(sa), sinf(sa)}, cr);
             }
-
-            // Normal split for smaller one if large enough
             if (sm.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
-                float child_rad = ASTEROID_SPLIT_MIN_RADIUS * powf(sm.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
-                if (child_rad >= ASTEROID_MIN_RADIUS) {
-                    for (int k = 0; k < 2; k++) {
-                        float ssa = collision_angle + (small_idx == i ? 3.14159f : 0.0f) + 1.5708f + (k == 0 ? 0.4f : -0.4f);
-                        SpawnAsteroid(s, (Vec2){sm.pos.x + cosf(ssa) * child_rad, sm.pos.y + sinf(ssa) * child_rad}, (Vec2){cosf(ssa), sinf(ssa)}, child_rad);
-                    }
+                float chr = ASTEROID_SPLIT_MIN_RADIUS * powf(sm.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
+                if (chr >= ASTEROID_MIN_RADIUS) for (int k = 0; k < 2; k++) {
+                    float ssa = atan2f(b.pos.y - a.pos.y, b.pos.x - a.pos.x) + (sm_i == i ? 3.14159f : 0.0f) + 1.5708f + (k == 0 ? 0.4f : -0.4f);
+                    SpawnAsteroid(s, Vector_Add(sm.pos, (Vec2){cosf(ssa)*chr, sinf(ssa)*chr}), (Vec2){cosf(ssa), sinf(ssa)}, chr);
                 }
             }
         } else {
-            // Both are similar size: both destroyed
             s->asteroids[i].active = false; s->asteroids[j].active = false; s->asteroid_count -= 2;
-            
-            // Split asteroid A
+            float ca = atan2f(b.pos.y - a.pos.y, b.pos.x - a.pos.x);
             if (a.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
-              float child_rad = ASTEROID_SPLIT_MIN_RADIUS * powf(a.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
-              if (child_rad >= ASTEROID_MIN_RADIUS) {
-                  for (int k = 0; k < 2; k++) {
-                    float sa = collision_angle + 1.5708f + (k == 0 ? 0.4f : -0.4f);
-                    SpawnAsteroid(s, (Vec2){a.pos.x + cosf(sa) * child_rad, a.pos.y + sinf(sa) * child_rad}, (Vec2){cosf(sa), sinf(sa)}, child_rad);
-                  }
+              float chr = ASTEROID_SPLIT_MIN_RADIUS * powf(a.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
+              if (chr >= ASTEROID_MIN_RADIUS) for (int k = 0; k < 2; k++) {
+                float sa = ca + 1.5708f + (k == 0 ? 0.4f : -0.4f);
+                SpawnAsteroid(s, Vector_Add(a.pos, (Vec2){cosf(sa)*chr, sinf(sa)*chr}), (Vec2){cosf(sa), sinf(sa)}, chr);
               }
             }
-            // Split asteroid B
             if (b.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
-              float child_rad = ASTEROID_SPLIT_MIN_RADIUS * powf(b.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
-              if (child_rad >= ASTEROID_MIN_RADIUS) {
-                  for (int k = 0; k < 2; k++) {
-                    float sa = collision_angle + 3.14159f + 1.5708f + (k == 0 ? 0.4f : -0.4f);
-                    SpawnAsteroid(s, (Vec2){b.pos.x + cosf(sa) * child_rad, b.pos.y + sinf(sa) * child_rad}, (Vec2){cosf(sa), sinf(sa)}, child_rad);
-                  }
+              float chr = ASTEROID_SPLIT_MIN_RADIUS * powf(b.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
+              if (chr >= ASTEROID_MIN_RADIUS) for (int k = 0; k < 2; k++) {
+                float sa = ca + 3.14159f + 1.5708f + (k == 0 ? 0.4f : -0.4f);
+                SpawnAsteroid(s, Vector_Add(b.pos, (Vec2){cosf(sa)*chr, sinf(sa)*chr}), (Vec2){cosf(sa), sinf(sa)}, chr);
               }
             }
         }
@@ -512,26 +444,14 @@ void Game_Update(AppState *s, float dt) {
     }
     for (int u = 0; u < MAX_UNITS; u++) {
         if (!s->units[u].active) continue;
-        float dx = s->units[u].pos.x - s->asteroids[i].pos.x, dy = s->units[u].pos.y - s->asteroids[i].pos.y;
-        float dsq = dx * dx + dy * dy, md = s->asteroids[i].radius * ASTEROID_HITBOX_MULT + s->units[u].stats->radius;
+        float dsq = Vector_DistanceSq(s->units[u].pos, s->asteroids[i].pos), md = s->asteroids[i].radius * ASTEROID_HITBOX_MULT + s->units[u].stats->radius;
         if (dsq < md * md) {
             s->units[u].health -= s->asteroids[i].radius * ASTEROID_HITBOX_MULT;
             SpawnExplosion(s, s->asteroids[i].pos, 20, s->asteroids[i].radius / 100.0f);
             s->asteroids[i].active = false; s->asteroid_count--;
             if (s->units[u].health <= 0) {
                 SpawnExplosion(s, s->units[u].pos, 100, 2.0f);
-                if (s->units[u].type == UNIT_MOTHERSHIP) {
-                    s->units[u].active = false;
-                    s->respawn_timer = 3.0f;
-                    s->respawn_pos = s->units[u].pos;
-                    
-                    // Focus camera on explosion
-                    int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
-                    s->camera_pos.x = s->respawn_pos.x - (ww / 2.0f) / s->zoom;
-                    s->camera_pos.y = s->respawn_pos.y - (wh / 2.0f) / s->zoom;
-                } else {
-                    s->units[u].active = false;
-                }
+                if (s->units[u].type == UNIT_MOTHERSHIP) { s->units[u].active = false; s->respawn_timer = RESPAWN_TIME; s->respawn_pos = s->units[u].pos; } else s->units[u].active = false;
             }
             break;
         }

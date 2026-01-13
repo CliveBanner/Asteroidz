@@ -2,8 +2,14 @@
 #include "game.h"
 #include <math.h>
 
+Vec2 Vector_Add(Vec2 a, Vec2 b) { return (Vec2){a.x + b.x, a.y + b.y}; }
 Vec2 Vector_Sub(Vec2 a, Vec2 b) { return (Vec2){a.x - b.x, a.y - b.y}; }
+Vec2 Vector_Scale(Vec2 v, float s) { return (Vec2){v.x * s, v.y * s}; }
 float Vector_Length(Vec2 v) { return sqrtf(v.x * v.x + v.y * v.y); }
+float Vector_DistanceSq(Vec2 a, Vec2 b) {
+    float dx = a.x - b.x, dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
 Vec2 Vector_Normalize(Vec2 v) {
   float len = Vector_Length(v);
   return (len == 0) ? (Vec2){0, 0} : (Vec2){v.x / len, v.y / len};
