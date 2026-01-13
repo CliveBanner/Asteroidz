@@ -515,30 +515,90 @@ static int SDLCALL UnitFXGenerationThread(void *data) {
         int best_s[4] = {-1, -1, -1, -1}; float best_s_score[4]; 
         for(int c=0; c<4; c++) best_s_score[c] = 1e15f;
 
+        // Multiple distance thresholds (refactored to use constants)
+        float far_range = SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT;
+        float mid_range = SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT;
+        float near_range = SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT;
+
+        int closest_giant_idx = -1; float max_giant_rad = 0;
+        int best_targets_indices[16]; int target_count = 0;
+
         for (int a = 0; a < MAX_ASTEROIDS; a++) {
             if (!s->asteroids[a].active) continue;
             float dx = s->asteroids[a].pos.x - u->pos.x, dy = s->asteroids[a].pos.y - u->pos.y;
             float dsq = dx * dx + dy * dy;
+            float dist = sqrtf(dsq);
             float rad = s->asteroids[a].radius;
-            // Targeting score: Distance squared divided by radius squared.
-            // This favors larger objects even if they are slightly further away.
             float score = dsq / (rad * rad);
 
+            // Large Cannon Targeting (unchanged logic for now)
             if (dsq <= LARGE_CANNON_RANGE * LARGE_CANNON_RANGE && score < best_l_score) {
                 best_l_score = score;
                 best_l = a;
             }
-            if (dsq <= SMALL_CANNON_RANGE * SMALL_CANNON_RANGE) {
-                for (int c = 0; c < 4; c++) {
-                    if (score < best_s_score[c]) {
-                        best_s_score[c] = score;
-                        best_s[c] = a;
-                        break;
-                    }
+
+            // Small Cannon Multi-Threshold logic
+            if (dist <= far_range) {
+                // Rule 1: At near range, find the absolute biggest asteroid
+                if (dist <= near_range && rad > max_giant_rad) {
+                    max_giant_rad = rad;
+                    closest_giant_idx = a;
                 }
+                
+                // Track potential targets for mid/far range
+                if (target_count < 16) best_targets_indices[target_count++] = a;
             }
         }
-        SDL_LockMutex(s->unit_fx_mutex); u->large_target_idx = best_l; for(int c=0; c<4; c++) u->small_target_idx[c] = best_s[c]; SDL_UnlockMutex(s->unit_fx_mutex);
+
+        // Apply rules to assign small cannon targets
+        if (closest_giant_idx != -1) {
+            // NEAR RANGE: All lasers fire on the biggest asteroid
+            for(int c=0; c<4; c++) best_s[c] = closest_giant_idx;
+        } else if (target_count > 0) {
+            // Sort targets by threat (score)
+            for(int j=0; j < target_count-1; j++) {
+                for(int k=j+1; k < target_count; k++) {
+                    int a1 = best_targets_indices[j], a2 = best_targets_indices[k];
+                    float s1 = Vector_DistanceSq(s->asteroids[a1].pos, u->pos) / (s->asteroids[a1].radius * s->asteroids[a1].radius);
+                    float s2 = Vector_DistanceSq(s->asteroids[a2].pos, u->pos) / (s->asteroids[a2].radius * s->asteroids[a2].radius);
+                    if (s2 < s1) { int tmp = best_targets_indices[j]; best_targets_indices[j] = best_targets_indices[k]; best_targets_indices[k] = tmp; }
+                }
+            }
+
+            float avg_dist = 0;
+            int eval_count = SDL_min(target_count, 4);
+            for(int j=0; j<eval_count; j++) avg_dist += sqrtf(Vector_DistanceSq(s->asteroids[best_targets_indices[j]].pos, u->pos));
+            avg_dist /= (float)eval_count;
+
+            if (avg_dist <= mid_range) {
+                // MID RANGE: Mass-Proportional Allocation
+                // Higher mass (radius) asteroids take more "cannon slots"
+                float total_mass = 0;
+                for(int j=0; j<eval_count; j++) total_mass += s->asteroids[best_targets_indices[j]].radius;
+                
+                int allocated = 0;
+                for(int j=0; j<eval_count && allocated < 4; j++) {
+                    float mass_pct = s->asteroids[best_targets_indices[j]].radius / total_mass;
+                    int slots = (int)roundf(mass_pct * 4.0f);
+                    if (slots < 1) slots = 1; // engage at least with one
+                    if (j == 0 && slots < 2 && eval_count > 1 && s->asteroids[best_targets_indices[0]].radius > 1500.0f) slots = 2; // ensure focus on huge
+
+                    for(int k=0; k<slots && allocated < 4; k++) {
+                        best_s[allocated++] = best_targets_indices[j];
+                    }
+                }
+                // Fill remaining
+                while(allocated < 4) best_s[allocated++] = best_targets_indices[0];
+            } else {
+                // LONG RANGE: Maximize distribution
+                for(int c=0; c<4; c++) best_s[c] = best_targets_indices[c % target_count];
+            }
+        }
+
+        SDL_LockMutex(s->unit_fx_mutex); 
+        u->large_target_idx = best_l; 
+        for(int c=0; c<4; c++) u->small_target_idx[c] = best_s[c]; 
+        SDL_UnlockMutex(s->unit_fx_mutex);
     }
 
     // 2. Organic Mothership FX
@@ -838,6 +898,37 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
       float sx = (x - s->camera_pos.x) * s->zoom, sy = (y - s->camera_pos.y) * s->zoom;
       if (sx >= -10 && sx < win_w && sy >= -10 && sy < win_h) { char l[32]; snprintf(l, 32, "(%.0fk,%.0fk)", x / 1000.0f, y / 1000.0f); SDL_RenderDebugText(renderer, sx + 5, sy + 5, l); }
   }
+
+  // --- Target Zone Visualization ---
+  // Centered on Mothership
+  Vec2 m_pos; bool found = false;
+  for (int i = 0; i < MAX_UNITS; i++) if (s->units[i].active && s->units[i].type == UNIT_MOTHERSHIP) { m_pos = s->units[i].pos; found = true; break; }
+  
+  if (found) {
+      Vec2 ms = WorldToScreenParallax(m_pos, 1.0f, s, win_w, win_h);
+      SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+      
+      struct { float r; SDL_Color c; const char* l; } zones[] = {
+          { SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT, {80, 80, 150, 100}, "FAR" },
+          { SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT, {150, 100, 80, 120}, "MID" },
+          { SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT, {200, 60, 60, 150}, "NEAR" }
+      };
+
+      for(int z=0; z<3; z++) {
+          float r_px = zones[z].r * s->zoom;
+          SDL_SetRenderDrawColor(renderer, zones[z].c.r, zones[z].c.g, zones[z].c.b, zones[z].c.a);
+          
+          // Draw thin ring outline
+          const int segs = 64;
+          for(int i=0; i<segs; i++) {
+              float a1 = i * (SDL_PI_F * 2.0f) / (float)segs, a2 = (i+1) * (SDL_PI_F * 2.0f) / (float)segs;
+              SDL_RenderLine(renderer, ms.x + cosf(a1)*r_px, ms.y + sinf(a1)*r_px, ms.x + cosf(a2)*r_px, ms.y + sinf(a2)*r_px);
+          }
+          
+          // Annotation
+          SDL_RenderDebugText(renderer, ms.x + r_px + 5, ms.y - 10, zones[z].l);
+      }
+  }
 }
 
 static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) {
@@ -886,14 +977,16 @@ static void DrawHUD(SDL_Renderer *r, AppState *s, int ww, int wh) {
             for (int j = 0; j < MAX_ASTEROIDS; j++) {
                 if (!s->asteroids[j].active) continue;
                 float dx = s->asteroids[j].pos.x - s->units[i].pos.x, dy = s->asteroids[j].pos.y - s->units[i].pos.y;
-                float d = sqrtf(dx * dx + dy * dy) - s->asteroids[j].radius - s->units[i].stats->radius;
+                // Changed to center-to-center distance to match targeting logic and visual rings
+                float d = sqrtf(dx * dx + dy * dy); 
                 if (d < min_dist) min_dist = d;
             }
             if (min_dist < 0) min_dist = 0;
 
             Uint8 rr = 100, rg = 255, rb = 100;
-            if (min_dist < 1000.0f) { rr = 255; rg = 50; rb = 50; }
-            else if (min_dist < 3000.0f) { rr = 255; rg = 255; rb = 50; }
+            if (min_dist < SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT) { rr = 200; rg = 60; rb = 60; }
+            else if (min_dist < SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT) { rr = 150; rg = 100; rb = 80; }
+            else if (min_dist < SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT) { rr = 80; rg = 80; rb = 150; }
 
             SDL_FRect ir = {cx, sy, isz, isz}; SDL_SetRenderDrawColor(r, 40, 40, 40, 200); SDL_RenderFillRect(r, &ir); 
             SDL_SetRenderDrawColor(r, rr, rg, rb, 255); SDL_RenderRect(r, &ir);
