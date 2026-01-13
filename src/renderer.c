@@ -1059,32 +1059,53 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
       SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){mm_x + (MINIMAP_SIZE - vw) / 2, mm_y + (MINIMAP_SIZE - vh) / 2, vw, vh});
   }
   
-  static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {  for (int i = 0; i < MAX_UNITS; i++) {
+  static void DrawTargetCrosshair(SDL_Renderer *r, float x, float y, float size, SDL_Color color) {
+    SDL_SetRenderDrawColor(r, color.r, color.g, color.b, color.a);
+    float h = size / 2.0f;
+    float gap = size * 0.3f;
+    
+    // Top
+    SDL_RenderLine(r, x, y - h, x, y - gap);
+    // Bottom
+    SDL_RenderLine(r, x, y + h, x, y + gap);
+    // Left
+    SDL_RenderLine(r, x - h, y, x - gap, y);
+    // Right
+    SDL_RenderLine(r, x + h, y, x + gap, y);
+}
+
+static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {  for (int i = 0; i < MAX_UNITS; i++) {
     if (!s->units[i].active) continue;
     Vec2 sx_y = WorldToScreenParallax(s->units[i].pos, 1.0f, s, win_w, win_h); float rad = s->units[i].stats->radius * s->zoom;
     if (s->units[i].type == UNIT_MOTHERSHIP) {
       if (!IsVisible(sx_y.x, sx_y.y, rad * 2.6f, win_w, win_h)) continue;
       
-      // Targeting lines
+      // Targeting lines & Crosshairs
       if (s->units[i].large_target_idx != -1) {
           int ti = s->units[i].large_target_idx;
           float dx = s->asteroids[ti].pos.x - s->units[i].pos.x, dy = s->asteroids[ti].pos.y - s->units[i].pos.y;
           float dist = sqrtf(dx * dx + dy * dy);
-          if (dist <= s->units[i].stats->main_cannon_range * WEAPON_FIRING_RANGE_MULT) SDL_SetRenderDrawColor(r, 255, 50, 50, 80);
-          else SDL_SetRenderDrawColor(r, 100, 100, 100, 40);
+          SDL_Color col = (dist <= s->units[i].stats->main_cannon_range * WEAPON_FIRING_RANGE_MULT) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
+          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a / 2);
           
           Vec2 tsx = WorldToScreenParallax(s->asteroids[ti].pos, 1.0f, s, win_w, win_h);
           SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y);
+          
+          float cross_sz = (s->asteroids[ti].radius * 0.8f) * s->zoom;
+          DrawTargetCrosshair(r, tsx.x, tsx.y, fmaxf(20.0f, cross_sz), col);
       }
       for (int c = 0; c < 4; c++) if (s->units[i].small_target_idx[c] != -1) {
           int ti = s->units[i].small_target_idx[c];
           float dx = s->asteroids[ti].pos.x - s->units[i].pos.x, dy = s->asteroids[ti].pos.y - s->units[i].pos.y;
           float dist = sqrtf(dx * dx + dy * dy);
-          if (dist <= s->units[i].stats->small_cannon_range * WEAPON_FIRING_RANGE_MULT) SDL_SetRenderDrawColor(r, 255, 100, 100, 60);
-          else SDL_SetRenderDrawColor(r, 100, 100, 100, 40);
+          SDL_Color col = (dist <= s->units[i].stats->small_cannon_range * WEAPON_FIRING_RANGE_MULT) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
+          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a / 3);
 
           Vec2 tsx = WorldToScreenParallax(s->asteroids[ti].pos, 1.0f, s, win_w, win_h);
           SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y);
+          
+          float cross_sz = (s->asteroids[ti].radius * 0.6f) * s->zoom;
+          DrawTargetCrosshair(r, tsx.x, tsx.y, fmaxf(15.0f, cross_sz), col);
       }
 
       // Organic Hull
@@ -1156,7 +1177,7 @@ void Renderer_Draw(AppState *s) {
   if (s->bg_texture) SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
   DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE, STAR_LAYER_PARALLAX, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
   if (s->show_grid) DrawGrid(s->renderer, s, ww, wh);
-  Renderer_DrawUnits(s->renderer, s, ww, wh); Renderer_DrawAsteroids(s->renderer, s, ww, wh); Renderer_DrawParticles(s->renderer, s, ww, wh);
+  Renderer_DrawAsteroids(s->renderer, s, ww, wh); Renderer_DrawUnits(s->renderer, s, ww, wh); Renderer_DrawParticles(s->renderer, s, ww, wh);
   if (s->box_active) { float x1 = fminf(s->box_start.x, s->box_current.x), y1 = fminf(s->box_start.y, s->box_current.y), w = fabsf(s->box_start.x - s->box_current.x), h = fabsf(s->box_start.y - s->box_current.y); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 50); SDL_RenderFillRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 200); SDL_RenderRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); }
   DrawDebugInfo(s->renderer, s, ww); DrawMinimap(s->renderer, s, ww, wh); DrawHUD(s->renderer, s, ww, wh);
   
