@@ -12,6 +12,7 @@ typedef struct {
 typedef enum {
     STATE_LAUNCHER,
     STATE_GAME,
+    STATE_PAUSED,
     STATE_GAMEOVER
 } GameState;
 
@@ -49,6 +50,8 @@ typedef struct {
     // Energy
     float energy;
     float max_energy;
+    float main_cannon_energy;
+    float max_main_cannon_energy;
 
     // Weapons
     float large_cannon_cooldown;
@@ -78,7 +81,8 @@ typedef struct {
 typedef enum {
     PARTICLE_SPARK,
     PARTICLE_PUFF,
-    PARTICLE_TRACER
+    PARTICLE_TRACER,
+    PARTICLE_DEBRIS
 } ParticleType;
 
 typedef struct {
@@ -86,6 +90,8 @@ typedef struct {
     Vec2 velocity;
     float life;       // 1.0 down to 0.0
     float size;
+    float rotation;
+    int tex_idx;
     SDL_Color color;
     ParticleType type;
     bool active;
@@ -132,7 +138,8 @@ typedef struct {
     Vec2 box_current;
 
     // Command Mode
-    CommandType active_cmd_type;
+    bool attack_mode;
+    bool patrol_mode;
 
     // Game Entities
     Asteroid asteroids[MAX_ASTEROIDS];
@@ -164,9 +171,14 @@ typedef struct {
     SDL_Texture *planet_textures[PLANET_COUNT];
     SDL_Texture *galaxy_textures[GALAXY_COUNT];
     SDL_Texture *asteroid_textures[ASTEROID_TYPE_COUNT];
+    SDL_Texture *debris_textures[DEBRIS_COUNT];
     
     bool is_loading;
     int assets_generated;
+
+    float respawn_timer;
+    Vec2 respawn_pos;
+    float hold_flash_timer;
 
     // Background Threading (Nebula)
     SDL_Thread *bg_thread;

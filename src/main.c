@@ -91,9 +91,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
       return SDL_APP_CONTINUE;
   }
 
-  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
-    // If in game, maybe go back to launcher? For now just quit.
-    return SDL_APP_SUCCESS;
+  if (s->is_loading && event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
+      return SDL_APP_SUCCESS;
   }
 
   Input_ProcessEvent(s, event);

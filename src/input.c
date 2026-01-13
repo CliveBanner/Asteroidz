@@ -69,11 +69,8 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
             
             Unit *u = &s->units[i];
             
-            // If active mode is Attack or Patrol, right click becomes an Attack order
-            CommandType click_type = CMD_MOVE;
-            if (s->active_cmd_type == CMD_ATTACK || s->active_cmd_type == CMD_PATROL) {
-                click_type = CMD_ATTACK;
-            }
+            // If active mode is Patrol, right click becomes a Patrol order
+            CommandType click_type = s->patrol_mode ? CMD_PATROL : CMD_MOVE;
 
             Command cmd = { (Vec2){wx, wy}, click_type };
             
@@ -87,9 +84,6 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 u->command_count = 1;
                 u->command_current_idx = 0;
                 u->has_target = true;
-                if (cmd.type == CMD_PATROL) {
-                    u->patrol_start = u->pos;
-                }
             }
         }
     }
@@ -127,18 +121,52 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
   }
 
   case SDL_EVENT_KEY_DOWN:
+    if (event->key.key == SDLK_ESCAPE) {
+        if (s->state == STATE_GAME) s->state = STATE_PAUSED;
+        else if (s->state == STATE_PAUSED) s->state = STATE_GAME;
+        break;
+    }
+    if (s->state == STATE_PAUSED && (event->key.key == SDLK_RETURN || event->key.key == SDLK_KP_ENTER)) {
+        SDL_Event quit_event; quit_event.type = SDL_EVENT_QUIT; SDL_PushEvent(&quit_event);
+        break;
+    }
+    if (s->state == STATE_PAUSED) break;
+
     if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) {
         s->shift_down = true;
     }
     
     CommandType cmd_type = -1;
-    if (event->key.key == SDLK_Q) cmd_type = CMD_PATROL;
-    if (event->key.key == SDLK_W) cmd_type = CMD_MOVE;
-    if (event->key.key == SDLK_E) cmd_type = CMD_ATTACK;
-    if (event->key.key == SDLK_R) cmd_type = CMD_HOLD;
+    if (event->key.key == SDLK_Q) {
+        s->patrol_mode = !s->patrol_mode;
+        if (s->patrol_mode) {
+            // Convert existing waypoints to patrol
+            for (int i = 0; i < MAX_UNITS; i++) {
+                if (!s->units[i].active || !s->unit_selected[i]) continue;
+                for (int q = 0; q < s->units[i].command_count; q++) s->units[i].command_queue[q].type = CMD_PATROL;
+            }
+        } else {
+            // Convert back to move
+            for (int i = 0; i < MAX_UNITS; i++) {
+                if (!s->units[i].active || !s->unit_selected[i]) continue;
+                for (int q = 0; q < s->units[i].command_count; q++) s->units[i].command_queue[q].type = CMD_MOVE;
+            }
+        }
+    }
+    if (event->key.key == SDLK_W) {
+        s->patrol_mode = false;
+        cmd_type = CMD_MOVE;
+    }
+    if (event->key.key == SDLK_E) {
+        s->attack_mode = !s->attack_mode;
+    }
+    if (event->key.key == SDLK_R) {
+        s->patrol_mode = false;
+        cmd_type = CMD_HOLD;
+        s->hold_flash_timer = 0.2f;
+    }
 
     if (cmd_type != -1) {
-        s->active_cmd_type = cmd_type;
         float wx = s->camera_pos.x + (s->mouse_pos.x) / s->zoom;
         float wy = s->camera_pos.y + (s->mouse_pos.y) / s->zoom;
         
@@ -157,7 +185,6 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 u->command_count = 1;
                 u->command_current_idx = 0;
                 u->has_target = true;
-                if (cmd.type == CMD_PATROL) u->patrol_start = u->pos;
             }
         }
     }

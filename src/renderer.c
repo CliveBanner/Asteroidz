@@ -274,8 +274,30 @@ static void DrawMothershipArmToBuffer(Uint32 *pixels, int size) {
   }
 }
 
+static void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
+  int center = size / 2;
+  float base_radius = size * 0.25f;
+  for (int y = 0; y < size; y++) {
+    for (int x = 0; x < size; x++) {
+      float dx = (float)(x - center), dy = (float)(y - center);
+      float dist = sqrtf(dx * dx + dy * dy);
+      if (dist < 1.0f) continue;
+      float angle = atan2f(dy, dx);
+      float shape_n = 0.0f, s_freq = 2.0f, s_amp = 0.8f;
+      for (int o = 0; o < 4; o++) { shape_n += (PerlinNoise2D(cosf(angle) * s_freq + seed, sinf(angle) * s_freq + seed) - 0.5f) * s_amp; s_freq *= 2.0f; s_amp *= 0.5f; }
+      float distorted_radius = base_radius * (1.0f + shape_n);
+      if (dist <= distorted_radius) {
+        float mix_val = ValueNoise2D(x * 0.1f + seed, y * 0.1f + seed);
+        float base_val = 40.0f + ValueNoise2D(x * 0.2f + seed, y * 0.2f + seed) * 40.0f;
+        Uint8 v = (Uint8)fminf(255, base_val);
+        pixels[y * size + x] = (255 << 24) | (v << 16) | (v << 8) | v;
+      }
+    }
+  }
+}
+
 void Renderer_GenerateAssetStep(AppState *s) {
-  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + 3;
+  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT + 3;
   if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
   if (s->assets_generated < PLANET_COUNT) {
     int sz = 1024; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
@@ -295,7 +317,13 @@ void Renderer_GenerateAssetStep(AppState *s) {
     s->asteroid_textures[a_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->asteroid_textures[a_idx], SDL_BLENDMODE_BLEND);
     SDL_UpdateTexture(s->asteroid_textures[a_idx], NULL, p, sz * 4); SDL_free(p);
-  } else if (s->assets_generated == PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT) {
+  } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT) {
+    int d_idx = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT), sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    DrawDebrisToBuffer(p, sz, (float)d_idx * 987.6f + 55.0f);
+    s->debris_textures[d_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
+    SDL_SetTextureBlendMode(s->debris_textures[d_idx], SDL_BLENDMODE_BLEND);
+    SDL_UpdateTexture(s->debris_textures[d_idx], NULL, p, sz * 4); SDL_free(p);
+  } else if (s->assets_generated == total_assets - 3) {
     int sz = 256; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawExplosionPuffToBuffer(p, sz, 777.7f);
     s->explosion_puff_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
@@ -322,7 +350,7 @@ void Renderer_DrawLoading(AppState *s) {
   int win_w, win_h; SDL_GetRenderLogicalPresentation(s->renderer, &win_w, &win_h, NULL);
   if (win_w == 0 || win_h == 0) SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
-  float progress = (float)s->assets_generated / (float)(PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + 2);
+  float progress = (float)s->assets_generated / (float)(PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT + 3);
   float bar_w = 400.0f, bar_h = 20.0f, x = (win_w - bar_w) / 2.0f, y = (win_h - bar_h) / 2.0f;
   SDL_SetRenderScale(s->renderer, 4.0f, 4.0f);
   SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255); SDL_RenderDebugText(s->renderer, (win_w / 8.0f) - 36, (y / 4.0f) - 30, "Asteroidz");
@@ -515,9 +543,10 @@ static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active) continue;
     Vec2 sx_y = WorldToScreenParallax(s->asteroids[i].pos, 1.0f, s, win_w, win_h); float rad = s->asteroids[i].radius * s->zoom;
-    if (!IsVisible(sx_y.x, sx_y.y, rad * 1.5f, win_w, win_h)) continue;
-    SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - rad * 1.5f, sx_y.y - rad * 1.5f, rad * 3.0f, rad * 3.0f}, s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
-    if (s->asteroids[i].targeted) { float hp_pct = s->asteroids[i].health / s->asteroids[i].max_health, bw = rad * 2.0f; SDL_FRect rct = {sx_y.x - rad, sx_y.y + rad * 1.6f, bw, 4.0f}; SDL_SetRenderDrawColor(r, 50, 0, 0, 200); SDL_RenderFillRect(r, &rct); rct.w *= hp_pct; SDL_SetRenderDrawColor(r, 255, 50, 50, 255); SDL_RenderFillRect(r, &rct); }
+    float v_rad = rad * 0.4f; // Texture only uses small portion of its size
+    if (!IsVisible(sx_y.x, sx_y.y, v_rad, win_w, win_h)) continue;
+    SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - rad, sx_y.y - rad, rad * 2.0f, rad * 2.0f}, s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
+    if (s->asteroids[i].targeted) { float hp_pct = s->asteroids[i].health / s->asteroids[i].max_health, bw = v_rad * 1.5f; SDL_FRect rct = {sx_y.x - bw/2, sx_y.y + v_rad + 2.0f, bw, 4.0f}; SDL_SetRenderDrawColor(r, 50, 0, 0, 200); SDL_RenderFillRect(r, &rct); rct.w *= hp_pct; SDL_SetRenderDrawColor(r, 255, 50, 50, 255); SDL_RenderFillRect(r, &rct); }
   }
 }
 
@@ -528,8 +557,45 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
     if (!IsVisible(sx_y.x, sx_y.y, sz, win_w, win_h)) continue;
     if (s->particles[i].type == PARTICLE_PUFF && s->explosion_puff_texture) { SDL_SetTextureColorMod(s->explosion_puff_texture, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b); SDL_SetTextureAlphaMod(s->explosion_puff_texture, (Uint8)(s->particles[i].life * 180)); SDL_RenderTexture(r, s->explosion_puff_texture, NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}); }
     else if (s->particles[i].type == PARTICLE_TRACER) {
-        Vec2 tsx_y = WorldToScreenParallax(s->particles[i].target_pos, 1.0f, s, win_w, win_h); SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(s->particles[i].life * 255 * 4.0f));
-        float th = s->particles[i].size * s->zoom; if (th <= 1.0f) SDL_RenderLine(r, sx_y.x, sx_y.y, tsx_y.x, tsx_y.y); else for (float o = -th/2.0f; o <= th/2.0f; o += 1.0f) SDL_RenderLine(r, sx_y.x + o, sx_y.y + o, tsx_y.x + o, tsx_y.y + o);
+        Vec2 tsx_y = WorldToScreenParallax(s->particles[i].target_pos, 1.0f, s, win_w, win_h); 
+        float a_f = fminf(1.0f, s->particles[i].life); // Linear fade out over entire life
+        float th = s->particles[i].size * s->zoom; 
+        
+        if (th <= 1.5f) {
+            SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(a_f * 255));
+            SDL_RenderLine(r, sx_y.x, sx_y.y, tsx_y.x, tsx_y.y);
+        } else {
+            // Animate thickness with a sine wave for a "live" effect
+            float pulse = 1.0f + 0.2f * sinf(s->current_time * 20.0f);
+            float cur_th = th * pulse;
+
+            float dx = tsx_y.x - sx_y.x, dy = tsx_y.y - sx_y.y;
+            float len = sqrtf(dx * dx + dy * dy);
+            if (len > 0.1f) {
+                float nx = -dy / len, ny = dx / len; // Normal vector
+                SDL_Vertex v[4];
+                SDL_FColor col = { s->particles[i].color.r / 255.0f, s->particles[i].color.g / 255.0f, s->particles[i].color.b / 255.0f, a_f };
+                
+                v[0].position = (SDL_FPoint){ sx_y.x + nx * cur_th/2, sx_y.y + ny * cur_th/2 }; v[0].color = col;
+                v[1].position = (SDL_FPoint){ sx_y.x - nx * cur_th/2, sx_y.y - ny * cur_th/2 }; v[1].color = col;
+                v[2].position = (SDL_FPoint){ tsx_y.x + nx * cur_th/2, tsx_y.y + ny * cur_th/2 }; v[2].color = col;
+                v[3].position = (SDL_FPoint){ tsx_y.x - nx * cur_th/2, tsx_y.y - ny * cur_th/2 }; v[3].color = col;
+                
+                int indices[6] = { 0, 1, 2, 1, 2, 3 };
+                SDL_RenderGeometry(r, NULL, v, 4, indices, 6);
+
+                // Add a bright impact flash for large beams
+                if (th > 10.0f && a_f > 0.8f) {
+                    SDL_SetRenderDrawColor(r, 255, 255, 200, 255);
+                    float flash_r = th * 2.0f;
+                    SDL_FRect flash_rect = { tsx_y.x - flash_r/2, tsx_y.y - flash_r/2, flash_r, flash_r };
+                    SDL_RenderFillRect(r, &flash_rect);
+                }
+            }
+        }
+    } else if (s->particles[i].type == PARTICLE_DEBRIS) {
+        SDL_SetTextureAlphaMod(s->debris_textures[s->particles[i].tex_idx], (Uint8)(s->particles[i].life * 255));
+        SDL_RenderTextureRotated(r, s->debris_textures[s->particles[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}, s->particles[i].rotation, NULL, SDL_FLIP_NONE);
     } else { SDL_SetRenderDrawColor(r, s->particles[i].color.r, s->particles[i].color.g, s->particles[i].color.b, (Uint8)(s->particles[i].life * 255)); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}); }
   }
 }
@@ -568,24 +634,75 @@ static void DrawHUD(SDL_Renderer *r, AppState *s, int ww, int wh) {
     const char *lb[12] = {"Q", "W", "E", "R", "", "", "", "", "", "", "", ""}, *ac[12] = {"PATROL", "MOVE", "ATTACK", "HOLD", "", "", "", "", "", "", "", ""};
     for (int row = 0; row < 3; row++) for (int col = 0; col < 4; col++) {
             int idx = row * 4 + col; SDL_FRect cell = {gx + col * (csz + pad), gy + row * (csz + pad), csz, csz};
-            SDL_SetRenderDrawColor(r, 40, 40, 40, 200); SDL_RenderFillRect(r, &cell); SDL_SetRenderDrawColor(r, 80, 80, 80, 255); SDL_RenderRect(r, &cell);
+            
+            bool cell_active = false;
+            if (idx == 0 && s->patrol_mode) cell_active = true;
+            if (idx == 2 && s->attack_mode) cell_active = true;
+
+            if (idx == 3 && s->hold_flash_timer > 0) SDL_SetRenderDrawColor(r, 200, 200, 40, 255); // Hold yellow flash
+            else if (cell_active && idx == 2) SDL_SetRenderDrawColor(r, 150, 40, 40, 200); // Attack red
+            else if (cell_active && idx == 0) SDL_SetRenderDrawColor(r, 40, 40, 150, 200); // Patrol blue
+            else SDL_SetRenderDrawColor(r, 40, 40, 40, 200);
+            
+            SDL_RenderFillRect(r, &cell); SDL_SetRenderDrawColor(r, 80, 80, 80, 255); SDL_RenderRect(r, &cell);
             if (lb[idx][0] != '\0') { SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderDebugText(r, cell.x + 5, cell.y + 5, lb[idx]); SDL_SetRenderDrawColor(r, 150, 150, 150, 255); SDL_RenderDebugText(r, cell.x + 5, cell.y + 35, ac[idx]); }
     }
-    float bw = 235.0f, bh = 15.0f, bx = 20.0f, by = gy - 40.0f;
-    SDL_SetRenderDrawColor(r, 20, 20, 40, 180); SDL_RenderFillRect(r, &(SDL_FRect){bx, by, bw, bh});
-    float ep = s->energy / INITIAL_ENERGY; SDL_SetRenderDrawColor(r, 100, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){bx, by, bw * (ep < 0 ? 0 : ep), bh});
-    SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderDebugText(r, bx, by - 12, "ENERGY RESERVES");
-    by -= 40.0f; SDL_SetRenderDrawColor(r, 20, 40, 20, 180); SDL_RenderFillRect(r, &(SDL_FRect){bx, by, bw, bh});
+    float bw = 400.0f, bh = 15.0f, bx = (ww - bw) / 2.0f, by = 30.0f;
+    SDL_SetRenderDrawColor(r, 20, 40, 20, 180); SDL_RenderFillRect(r, &(SDL_FRect){bx, by, bw, bh});
     float hpp = hp / max_hp; SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){bx, by, bw * (hpp < 0 ? 0 : hpp), bh});
-    SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderDebugText(r, bx, by - 12, "HULL INTEGRITY");
-    float sx = ww / 2.0f, sy = wh - 60.0f, isz = 40.0f; int sc = 0;
+    SDL_SetRenderDrawColor(r, 255, 255, 255, 255); 
+    const char *title = "HULL INTEGRITY";
+    SDL_RenderDebugText(r, (ww - (SDL_strlen(title) * 8)) / 2.0f, by - 15, title);
+
+    float sx = ww / 2.0f, sy = wh - 80.0f, isz = 60.0f; int sc = 0;
     for (int i = 0; i < MAX_UNITS; i++) if (s->unit_selected[i]) sc++;
     if (sc > 0) {
         float tw = sc * (isz + 5.0f), cx = sx - tw / 2.0f;
         for (int i = 0; i < MAX_UNITS; i++) {
             if (!s->unit_selected[i]) continue;
-            SDL_FRect ir = {cx, sy, isz, isz}; SDL_SetRenderDrawColor(r, 40, 40, 40, 200); SDL_RenderFillRect(r, &ir); SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderRect(r, &ir);
-            SDL_RenderDebugText(r, cx + 5, sy + 15, s->units[i].type == UNIT_MOTHERSHIP ? "M" : "U"); cx += isz + 5.0f;
+            
+            float min_dist = 1e10f;
+            for (int j = 0; j < MAX_ASTEROIDS; j++) {
+                if (!s->asteroids[j].active) continue;
+                float dx = s->asteroids[j].pos.x - s->units[i].pos.x, dy = s->asteroids[j].pos.y - s->units[i].pos.y;
+                float d = sqrtf(dx * dx + dy * dy) - s->asteroids[j].radius - s->units[i].radius;
+                if (d < min_dist) min_dist = d;
+            }
+            if (min_dist < 0) min_dist = 0;
+
+            Uint8 rr = 100, rg = 255, rb = 100;
+            if (min_dist < 1000.0f) { rr = 255; rg = 50; rb = 50; }
+            else if (min_dist < 3000.0f) { rr = 255; rg = 255; rb = 50; }
+
+            SDL_FRect ir = {cx, sy, isz, isz}; SDL_SetRenderDrawColor(r, 40, 40, 40, 200); SDL_RenderFillRect(r, &ir); 
+            SDL_SetRenderDrawColor(r, rr, rg, rb, 255); SDL_RenderRect(r, &ir);
+            
+            // Small status bars inside selection icon
+            float br_h = isz - 10.0f, br_w = 5.0f, br_x = cx + isz - 8.0f, br_y = sy + 5.0f;
+            // Main Energy (Blue)
+            SDL_SetRenderDrawColor(r, 0, 0, 100, 200); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y, br_w, br_h});
+            SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y + br_h * (1.0f - s->energy/INITIAL_ENERGY), br_w, br_h * (s->energy/INITIAL_ENERGY)});
+            br_x -= 7.0f;
+            // Main Cannon (Purple)
+            SDL_SetRenderDrawColor(r, 100, 0, 100, 200); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y, br_w, br_h});
+            SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y + br_h * (1.0f - s->units[i].main_cannon_energy/s->units[i].max_main_cannon_energy), br_w, br_h * (s->units[i].main_cannon_energy/s->units[i].max_main_cannon_energy)});
+            br_x -= 7.0f;
+            // Health (Green)
+            SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y, br_w, br_h});
+            SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y + br_h * (1.0f - s->units[i].health/s->units[i].max_health), br_w, br_h * (s->units[i].health/s->units[i].max_health)});
+
+            SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
+            SDL_SetRenderScale(r, 2.0f, 2.0f);
+            SDL_RenderDebugText(r, (cx + 10.0f) / 2.0f, (sy + 10.0f) / 2.0f, s->units[i].type == UNIT_MOTHERSHIP ? "M" : "U");
+            SDL_SetRenderScale(r, 1.0f, 1.0f);
+            
+            char d_str[16]; 
+            if (min_dist > 9999.0f) snprintf(d_str, 16, ">9k");
+            else snprintf(d_str, 16, "%.0f", min_dist);
+            SDL_SetRenderDrawColor(r, rr, rg, rb, 255);
+            SDL_RenderDebugText(r, cx + 5, sy + isz - 15, d_str);
+            
+            cx += isz + 5.0f;
         }
     }
 }
@@ -674,41 +791,84 @@ static void DrawWobblyTexture(SDL_Renderer *r, SDL_Texture *tex, SDL_FRect dst, 
     SDL_RenderGeometry(r, tex, v, (G+1)*(G+1), indices, G*G*6);
 }
 
+static void DrawGradientCircle(SDL_Renderer *r, float cx, float cy, float radius, SDL_FColor center_color, SDL_FColor edge_color) {
+    const int segments = 32;
+    SDL_Vertex vertices[segments + 2];
+    int indices[segments * 3];
+
+    vertices[0].position = (SDL_FPoint){cx, cy};
+    vertices[0].color = center_color;
+
+    for (int i = 0; i <= segments; i++) {
+        float ang = i * (SDL_PI_F * 2.0f) / segments;
+        vertices[i + 1].position = (SDL_FPoint){cx + cosf(ang) * radius, cy + sinf(ang) * radius};
+        vertices[i + 1].color = edge_color;
+    }
+
+    for (int i = 0; i < segments; i++) {
+        indices[i * 3] = 0;
+        indices[i * 3 + 1] = i + 1;
+        indices[i * 3 + 2] = i + 2;
+    }
+
+    SDL_RenderGeometry(r, NULL, vertices, segments + 2, indices, segments * 3);
+}
+
 static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
   for (int i = 0; i < MAX_UNITS; i++) {
     if (!s->units[i].active) continue;
     Vec2 sx_y = WorldToScreenParallax(s->units[i].pos, 1.0f, s, win_w, win_h); float rad = s->units[i].radius * s->zoom;
-        if (s->units[i].type == UNIT_MOTHERSHIP && s->mothership_hull_texture) {
-            float dr = rad * 2.6f; if (!IsVisible(sx_y.x, sx_y.y, dr, win_w, win_h)) continue;
-    
-            // Draw Hull with Wobble
-            DrawWobblyTexture(r, s->mothership_hull_texture, 
-                (SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
-                s->units[i].rotation, s->current_time, 1.0f);
-            
-            // Draw 5 Arms with Wobble
-            int ti[5]; ti[0] = s->units[i].large_target_idx; for(int c=0; c<4; c++) ti[c+1] = s->units[i].small_target_idx[c];
-    
-            for (int k = 0; k < 5; k++) if (ti[k] != -1) {
-                float dx = s->asteroids[ti[k]].pos.x - s->units[i].pos.x, dy = s->asteroids[ti[k]].pos.y - s->units[i].pos.y, ang = atan2f(dy, dx) * 180.0f / 3.14159f + 90.0f;
-                for(int p=0; p<k; p++) if (ti[p] == ti[k]) ang += 15.0f;
-    
-                DrawWobblyTexture(r, s->mothership_arm_texture, 
-                    (SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
-                    ang, s->current_time, 0.6f);
-            }
-            SDL_SetRenderDrawColor(r, 255, 255, 255, 50);
-            if (s->units[i].large_target_idx != -1) { Vec2 tp = s->asteroids[s->units[i].large_target_idx].pos, tsx = WorldToScreenParallax(tp, 1.0f, s, win_w, win_h); SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y); }
-            for (int c = 0; c < 4; c++) if (s->units[i].small_target_idx[c] != -1) { Vec2 tp = s->asteroids[s->units[i].small_target_idx[c]].pos, tsx = WorldToScreenParallax(tp, 1.0f, s, win_w, win_h); SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y); }
-        }    if (s->selected_unit_idx == i) {
+    if (s->units[i].type == UNIT_MOTHERSHIP) {
+      if (!IsVisible(sx_y.x, sx_y.y, rad * 2.6f, win_w, win_h)) continue;
+      
+      SDL_SetRenderDrawColor(r, 100, 100, 100, 40);
+      if (s->units[i].large_target_idx != -1) { Vec2 tp = s->asteroids[s->units[i].large_target_idx].pos, tsx = WorldToScreenParallax(tp, 1.0f, s, win_w, win_h); SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y); }
+      for (int c = 0; c < 4; c++) if (s->units[i].small_target_idx[c] != -1) { Vec2 tp = s->asteroids[s->units[i].small_target_idx[c]].pos, tsx = WorldToScreenParallax(tp, 1.0f, s, win_w, win_h); SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y); }
+
+      SDL_FColor center = {0.4f, 0.8f, 1.0f, 1.0f};
+      SDL_FColor edge = {0.1f, 0.2f, 0.5f, 1.0f};
+      DrawGradientCircle(r, sx_y.x, sx_y.y, rad, center, edge);
+
+      // Floating Bars in Viewport
+      float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad + 5.0f;
+      // Health (Green)
+      SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+      SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->units[i].health / s->units[i].max_health), bh});
+      by += bh + 2.0f;
+      // Global Energy
+      SDL_SetRenderDrawColor(r, 0, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+      SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->energy / INITIAL_ENERGY), bh});
+      by += bh + 2.0f;
+      // Main Cannon Energy
+      SDL_SetRenderDrawColor(r, 40, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+      SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->units[i].main_cannon_energy / s->units[i].max_main_cannon_energy), bh});
+    }
+    if (s->selected_unit_idx == i) {
         SDL_SetRenderDrawColor(r, 255, 255, 255, 150); SDL_RenderRect(r, &(SDL_FRect){sx_y.x - rad - 5, sx_y.y - rad - 5, rad * 2 + 10, rad * 2 + 10});
         if (s->units[i].has_target) {
-            Vec2 lp = sx_y; for (int q = s->units[i].command_current_idx; q < s->units[i].command_count; q++) {
-                Vec2 wt = s->units[i].command_queue[q].pos, tsx = WorldToScreenParallax(wt, 1.0f, s, win_w, win_h); CommandType ct = s->units[i].command_queue[q].type;
-                SDL_SetRenderDrawColor(r, ct == CMD_PATROL ? 100 : (ct == CMD_ATTACK ? 255 : 100), ct == CMD_PATROL ? 100 : (ct == CMD_ATTACK ? 100 : 255), ct == CMD_PATROL ? 255 : (ct == CMD_ATTACK ? 100 : 100), 150);
-                SDL_RenderLine(r, lp.x, lp.y, tsx.x, tsx.y); float dx = wt.x - s->units[i].pos.x, dy = wt.y - s->units[i].pos.y, d = sqrtf(dx * dx + dy * dy);
-                if (d > 0.1f) { Vec2 dir = {dx / d, dy / d}; float ranges[2] = {SMALL_CANNON_RANGE, LARGE_CANNON_RANGE}; for (int ri = 0; ri < 2; ri++) if (d > ranges[ri]) { Vec2 rw = {s->units[i].pos.x + dir.x * ranges[ri], s->units[i].pos.y + dir.y * ranges[ri]}, rs = WorldToScreenParallax(rw, 1.0f, s, win_w, win_h); SDL_RenderRect(r, &(SDL_FRect){rs.x - 4, rs.y - 4, 8, 8}); } }
-                lp = tsx; SDL_RenderRect(r, &(SDL_FRect){tsx.x - 3, tsx.y - 3, 6, 6});
+            if (s->patrol_mode) {
+                // 1. Draw the static patrol loop in low alpha blue
+                SDL_SetRenderDrawColor(r, 100, 100, 255, 60);
+                for (int q = 0; q < s->units[i].command_count; q++) {
+                    Vec2 w1 = s->units[i].command_queue[q].pos, t1 = WorldToScreenParallax(w1, 1.0f, s, win_w, win_h);
+                    Vec2 w2 = s->units[i].command_queue[(q + 1) % s->units[i].command_count].pos, t2 = WorldToScreenParallax(w2, 1.0f, s, win_w, win_h);
+                    SDL_RenderLine(r, t1.x, t1.y, t2.x, t2.y);
+                    SDL_RenderRect(r, &(SDL_FRect){t1.x - 3, t1.y - 3, 6, 6});
+                }
+                // 2. Draw active segment from ship to current waypoint in high alpha blue
+                int cur = s->units[i].command_current_idx;
+                Vec2 tw = WorldToScreenParallax(s->units[i].command_queue[cur].pos, 1.0f, s, win_w, win_h);
+                SDL_SetRenderDrawColor(r, 100, 100, 255, 180);
+                SDL_RenderLine(r, sx_y.x, sx_y.y, tw.x, tw.y);
+            } else {
+                // Normal waypoint progression in green
+                Vec2 lp = sx_y; 
+                for (int q = s->units[i].command_current_idx; q < s->units[i].command_count; q++) {
+                    Vec2 wt = s->units[i].command_queue[q].pos, tsx = WorldToScreenParallax(wt, 1.0f, s, win_w, win_h);
+                    SDL_SetRenderDrawColor(r, 100, 255, 100, 150);
+                    SDL_RenderLine(r, lp.x, lp.y, tsx.x, tsx.y);
+                    lp = tsx; SDL_RenderRect(r, &(SDL_FRect){tsx.x - 3, tsx.y - 3, 6, 6});
+                }
             }
         }
     }
@@ -721,11 +881,25 @@ void Renderer_Draw(AppState *s) {
       SDL_SetRenderDrawColor(s->renderer, 50, 0, 0, 255); SDL_RenderClear(s->renderer); SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255); SDL_SetRenderScale(s->renderer, 4.0f, 4.0f); SDL_RenderDebugText(s->renderer, (ww / 8.0f) - 40, (wh / 8.0f) - 10, "GAME OVER");
       SDL_SetRenderScale(s->renderer, 1.0f, 1.0f); SDL_RenderDebugText(s->renderer, (ww / 2.0f) - 80, (wh / 2.0f) + 40, "The Mothership has been destroyed."); SDL_RenderDebugText(s->renderer, (ww / 2.0f) - 60, (wh / 2.0f) + 60, "Press ESC to quit."); SDL_RenderPresent(s->renderer); return;
   }
-  SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer); UpdateBackground(s); UpdateDensityMap(s); UpdateRadar(s); UpdateUnitFX(s);
+  SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
+  SDL_SetRenderDrawBlendMode(s->renderer, SDL_BLENDMODE_BLEND);
+  UpdateBackground(s); UpdateDensityMap(s); UpdateRadar(s); UpdateUnitFX(s);
   if (s->bg_texture) SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
   DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE, STAR_LAYER_PARALLAX, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
   if (s->show_grid) DrawGrid(s->renderer, s, ww, wh);
   Renderer_DrawUnits(s->renderer, s, ww, wh); Renderer_DrawAsteroids(s->renderer, s, ww, wh); Renderer_DrawParticles(s->renderer, s, ww, wh);
   if (s->box_active) { float x1 = fminf(s->box_start.x, s->box_current.x), y1 = fminf(s->box_start.y, s->box_current.y), w = fabsf(s->box_start.x - s->box_current.x), h = fabsf(s->box_start.y - s->box_current.y); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 50); SDL_RenderFillRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 200); SDL_RenderRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); }
-  DrawDebugInfo(s->renderer, s, ww); DrawMinimap(s->renderer, s, ww, wh); DrawHUD(s->renderer, s, ww, wh); SDL_RenderPresent(s->renderer);
+  DrawDebugInfo(s->renderer, s, ww); DrawMinimap(s->renderer, s, ww, wh); DrawHUD(s->renderer, s, ww, wh);
+  
+  if (s->state == STATE_PAUSED) {
+      SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 150); SDL_RenderFillRect(s->renderer, &(SDL_FRect){0, 0, (float)ww, (float)wh});
+      SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+      SDL_SetRenderScale(s->renderer, 3.0f, 3.0f);
+      SDL_RenderDebugText(s->renderer, (ww / 6.0f) - 30, (wh / 6.0f) - 20, "EXIT?");
+      SDL_SetRenderScale(s->renderer, 1.0f, 1.0f);
+      SDL_RenderDebugText(s->renderer, (ww / 2.0f) - 100, (wh / 2.0f) + 20, "Press ENTER to Exit");
+      SDL_RenderDebugText(s->renderer, (ww / 2.0f) - 100, (wh / 2.0f) + 40, "Press ESC to Continue");
+  }
+
+  SDL_RenderPresent(s->renderer);
 }
