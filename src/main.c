@@ -1,6 +1,7 @@
 #define SDL_MAIN_USE_CALLBACKS 1
 #include "constants.h"
 #include "game.h"
+#include "ai.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
@@ -85,6 +86,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
               
               // Start Game
               Renderer_StartBackgroundThreads(s);
+              AI_StartThreads(s);
               s->state = STATE_GAME;
           }
       }

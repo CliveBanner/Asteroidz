@@ -188,6 +188,7 @@ typedef struct {
 
     // Input State
     Vec2 mouse_pos;       // Screen coordinates
+    int hover_asteroid_idx;
     bool show_grid;
     bool show_density;
     bool shift_down;

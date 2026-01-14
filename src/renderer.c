@@ -252,44 +252,39 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
 
 static void DrawMothershipToBuffer(Uint32 *pixels, int size, float seed) {
     float world_scale = (float)size / MOTHERSHIP_WORLD_SCALE_DIVISOR;
-    typedef struct { float x, y, radius; } Core;
-    Core cores[MOTHERSHIP_CORE_COUNT] = {
-        {0.0f, 0.0f, 1.3f},
-        {-0.9f, 0.4f, 0.95f},
-        {0.9f, 0.4f, 0.95f},
-        {0.0f, -0.7f, 0.8f},
-        {0.4f, 0.9f, 0.7f}
-    };
-
     for (int y = 0; y < size; y++) {
         float wy = (float)y / world_scale - 4.0f;
         for (int x = 0; x < size; x++) {
             float wx = (float)x / world_scale - 4.0f;
-            
-            // Subtle pixel-aligned warping
-            float warp_x = 0.1f * sinf(wx * 2.0f + seed);
-            float warp_y = 0.1f * sinf(wy * 2.0f + seed);
-            
-            float F = 0.0f;
-            for (int i = 0; i < MOTHERSHIP_CORE_COUNT; i++) {
-                float dx = wx + warp_x - cores[i].x;
-                float dy = wy + warp_y - cores[i].y;
-                F += (cores[i].radius * cores[i].radius) / (dx*dx + dy*dy + 0.001f);
-            }
-
-            if (F >= 1.0f) {
-                // Chunky Pixel Art Shading
-                Uint8 intensity = (Uint8)(SDL_clamp(F * 35.0f, 40.0f, 130.0f));
-                // Quantize heavily for pixel art look
-                intensity = (intensity / 16) * 16;
-                
-                Uint8 r = QUANTIZE(45), g = QUANTIZE(intensity), b = QUANTIZE(70 + intensity/2), a = 255;
-                
-                // Add "Panel Lines" / Detail
-                float panel = ValueNoise2D(wx * 4.0f, wy * 4.0f);
-                if (panel > 0.75f) { r -= 10; g -= 20; b -= 15; }
-                
+            float ax = fabsf(wx); bool in_hull = false; float hull_depth = 0.0f; 
+            float hull_w = 0.7f - (wy * 0.15f);
+            if (wy > -3.0f && wy < 2.0f && ax < hull_w) { in_hull = true; hull_depth = 1.0f - (ax / hull_w); }
+            if (wy > -0.5f && wy < 0.8f && ax < 2.2f) { float wing_depth = 1.0f - (ax / 2.2f); if (wing_depth > 0) { in_hull = true; hull_depth = fmaxf(hull_depth, wing_depth); } }
+            if (wy > 1.2f && wy < 2.5f && ax > 0.5f && ax < 1.8f) { float fin_w = 1.8f - (wy - 1.2f) * 0.5f; if (ax < fin_w) { in_hull = true; hull_depth = fmaxf(hull_depth, fin_w - ax); } }
+            if (in_hull) {
+                Uint8 intensity = (Uint8)(SDL_clamp(hull_depth * 150.0f, 40.0f, 200.0f));
+                intensity = (Uint8)SDL_clamp(intensity - (wy * 10.0f), 30.0f, 240.0f);
+                intensity = (intensity / 16) * 16; 
+                Uint8 r = QUANTIZE(60), g = QUANTIZE(intensity), b = QUANTIZE(100 + intensity/4), a = 255;
+                float bx = floorf(ax * 6.0f), by = floorf(wy * 6.0f);
+                if (DeterministicHash((int)bx, (int)by) > 0.8f) { r -= 15; g -= 15; b -= 15; }
+                if (fmodf(wy + 4.0f, 0.8f) < 0.1f) { r = (Uint8)(r * 1.2f); g = (Uint8)(g * 1.2f); b = (Uint8)(b * 1.2f); }
+                if (wy < -1.5f && wy > -2.0f && ax < 0.3f) { r = 100; g = 200; b = 255; }
+                if (wy > 0.0f && wy < 0.2f && ax > 2.0f && ax < 2.15f) { if (wx > 0) { r = 255; g = 50; b = 50; } else { r = 50; g = 255; b = 50; } }
                 pixels[y * size + x] = (a << 24) | (b << 16) | (g << 8) | r;
+            }
+            if (wy > 2.3f && wy < 3.2f) {
+                float engine_x[2] = {0.4f, 1.3f};
+                for(int e=0; e<2; e++) {
+                    float edist = sqrtf(powf(ax - engine_x[e], 2.0f) + powf(wy - 2.4f, 2.0f));
+                    if (edist < 0.35f) {
+                        float alpha = powf(1.0f - (edist / 0.35f), 2.0f);
+                        Uint8 er = 100, eg = 180, eb = 255, ea = (Uint8)(alpha * 255);
+                        Uint32 curr = pixels[y * size + x];
+                        if (curr == 0) pixels[y * size + x] = (ea << 24) | (eb << 16) | (eg << 8) | er;
+                        else pixels[y * size + x] = (255 << 24) | (220 << 16) | (240 << 8) | 255;
+                    }
+                }
             }
         }
     }
@@ -475,138 +470,13 @@ static void UpdateDensityMap(AppState *s) {
     SDL_SetAtomicInt(&s->density_data_ready, 0);
   }
   if (SDL_GetAtomicInt(&s->density_request_update) == 0) {
+    int ww, wh; SDL_GetRenderOutputSize(s->renderer, &ww, &wh);
+    float cx = s->camera_pos.x + (ww / 2.0f) / s->zoom;
+    float cy = s->camera_pos.y + (wh / 2.0f) / s->zoom;
     float cell_sz = (float)DENSITY_CELL_SIZE / (float)GRID_DENSITY_SUB_RES;
-    SDL_LockMutex(s->density_mutex); s->density_target_cam_pos.x = floorf(s->camera_pos.x / cell_sz) * cell_sz; s->density_target_cam_pos.y = floorf(s->camera_pos.y / cell_sz) * cell_sz; SDL_UnlockMutex(s->density_mutex);
+    SDL_LockMutex(s->density_mutex); s->density_target_cam_pos.x = floorf(cx / cell_sz) * cell_sz; s->density_target_cam_pos.y = floorf(cy / cell_sz) * cell_sz; SDL_UnlockMutex(s->density_mutex);
     SDL_SetAtomicInt(&s->density_request_update, 1);
   }
-}
-
-static int SDLCALL RadarGenerationThread(void *data) {
-  AppState *s = (AppState *)data;
-  while (SDL_GetAtomicInt(&s->radar_should_quit) == 0) {
-    if (SDL_GetAtomicInt(&s->radar_request_update) == 1) {
-      SDL_LockMutex(s->radar_mutex); Vec2 m_pos = s->radar_mothership_pos; SDL_UnlockMutex(s->radar_mutex);
-      int count = 0; float rsq = MOTHERSHIP_RADAR_RANGE * MOTHERSHIP_RADAR_RANGE;
-      for (int i = 0; i < MAX_ASTEROIDS; i++) {
-          if (!s->asteroids[i].active) continue; if (count >= MAX_RADAR_BLIPS) break;
-          float dx = s->asteroids[i].pos.x - m_pos.x, dy = s->asteroids[i].pos.y - m_pos.y;
-          if (dx * dx + dy * dy < rsq) { s->radar_blips[count++].pos = s->asteroids[i].pos; }
-      }
-      SDL_LockMutex(s->radar_mutex); s->radar_blip_count = count; SDL_UnlockMutex(s->radar_mutex);
-      SDL_SetAtomicInt(&s->radar_request_update, 0); SDL_SetAtomicInt(&s->radar_data_ready, 1);
-    } else SDL_Delay(50);
-  }
-  return 0;
-}
-
-static void UpdateRadar(AppState *s) {
-    Vec2 m_pos = {0, 0}; bool found = false;
-    for (int i = 0; i < MAX_UNITS; i++) if (s->units[i].active && s->units[i].type == UNIT_MOTHERSHIP) { m_pos = s->units[i].pos; found = true; break; }
-    if (found && SDL_GetAtomicInt(&s->radar_request_update) == 0) {
-        SDL_LockMutex(s->radar_mutex); s->radar_mothership_pos = m_pos; SDL_UnlockMutex(s->radar_mutex);
-        SDL_SetAtomicInt(&s->radar_request_update, 1);
-    }
-}
-
-static void GenerateMothershipOrganic(Uint32 *buf, int w, int h, float time) {
-    float world_scale = (float)w / 8.0f;
-
-    typedef struct { float x, y, radius; } Core;
-    Core cores[5] = {
-        {0.0f, 0.0f + 0.1f*sinf(time*1.2f), 1.2f + 0.05f*sinf(time*0.8f)},
-        {-0.8f + 0.1f*sinf(time*0.7f), 0.3f, 0.9f},
-        {0.8f - 0.1f*sinf(time*0.7f), 0.3f, 0.9f},
-        {0.0f, -0.6f + 0.08f*cosf(time*1.1f), 0.7f},
-        {0.3f*cosf(time*0.5f), 0.8f + 0.1f*sinf(time), 0.6f}
-    };
-
-    for (int y = 0; y < h; ++y) {
-        float wy = (float)y / world_scale - 4.0f;
-        uint32_t *row = buf + (y * w);
-        for (int x = 0; x < w; ++x) {
-            float wx = (float)x / world_scale - 4.0f;
-            float warp_x = 0.3f * sinf(wx * 0.3f + time * 0.5f);
-            float warp_y = 0.3f * sinf(wy * 0.3f + time * 0.7f + 1.57f);
-            float wx_warped = wx + warp_x;
-            float wy_warped = wy + warp_y;
-
-            float F = 0.0f;
-            for (int i = 0; i < 5; ++i) {
-                float dx = wx_warped - cores[i].x;
-                float dy = wy_warped - cores[i].y;
-                F += (cores[i].radius * cores[i].radius) / (dx*dx + dy*dy + 0.001f);
-            }
-
-            float thresh = 1.0f + 0.2f * sinf(time * 0.3f);
-            if (F >= thresh) {
-                Uint8 intensity = (Uint8)(SDL_clamp(F * 40.0f, 30.0f, 120.0f));
-                Uint8 r = QUANTIZE(40), g = QUANTIZE(intensity), b = QUANTIZE(60 + intensity/2), a = 255;
-                row[x] = (a << 24) | (b << 16) | (g << 8) | r;
-            } else {
-                row[x] = 0;
-            }
-        }
-    }
-}
-
-static int SDLCALL UnitFXGenerationThread(void *data) {
-  AppState *s = (AppState *)data;
-  while (SDL_GetAtomicInt(&s->unit_fx_should_quit) == 0) {
-    for (int i = 0; i < MAX_UNITS; i++) {
-        if (!s->units[i].active) continue;
-        Unit *u = &s->units[i];
-        
-        int best_s[4] = {-1, -1, -1, -1};
-
-        if (s->auto_attack_enabled) {
-            float max_search_range = WARNING_RANGE_FAR;
-            int best_target_idx = -1;
-            float best_score = 1e15f;
-
-            // Fetch current targets for stickiness boost
-            SDL_LockMutex(s->unit_fx_mutex);
-            int prev_targets[4]; for(int c=0; c<4; c++) prev_targets[c] = u->small_target_idx[c];
-            SDL_UnlockMutex(s->unit_fx_mutex);
-
-            for (int a = 0; a < MAX_ASTEROIDS; a++) {
-                if (!s->asteroids[a].active) continue;
-                float dx = s->asteroids[a].pos.x - u->pos.x, dy = s->asteroids[a].pos.y - u->pos.y;
-                float dsq = dx * dx + dy * dy;
-                float dist = sqrtf(dsq);
-                float rad = s->asteroids[a].radius;
-                float surface_dist = fmaxf(0.0f, dist - rad);
-
-                if (surface_dist <= max_search_range) {
-                    // Score logic: 
-                    // 1. Proximity is the primary factor
-                    // 2. Mass (radius) is a secondary tie-breaker/weight (dist - rad * 0.1)
-                    float score = surface_dist - (rad * 0.15f);
-
-                    // 3. Stickiness boost (20% reduction in score if already targeting)
-                    for(int c=0; c<4; c++) {
-                        if (a == prev_targets[c]) { score *= 0.8f; break; }
-                    }
-
-                    if (score < best_score) {
-                        best_score = score;
-                        best_target_idx = a;
-                    }
-                }
-            }
-
-            if (best_target_idx != -1) {
-                // Focus all small cannons on the single most dangerous threat
-                for(int c=0; c<4; c++) best_s[c] = best_target_idx;
-            }
-        }
-
-        SDL_LockMutex(s->unit_fx_mutex); 
-        for(int c=0; c<4; c++) u->small_target_idx[c] = best_s[c]; 
-        SDL_UnlockMutex(s->unit_fx_mutex);
-    }
-    SDL_Delay(16); 
-  }
-  return 0;
 }
 
 void Renderer_Init(AppState *s) {
@@ -628,8 +498,6 @@ void Renderer_StartBackgroundThreads(AppState *s) {
   SDL_SetAtomicInt(&s->bg_request_update, 1);
   s->bg_thread = SDL_CreateThread(BackgroundGenerationThread, "BG_Gen", s);
   s->density_thread = SDL_CreateThread(DensityGenerationThread, "Density_Gen", s);
-  s->radar_thread = SDL_CreateThread(RadarGenerationThread, "Radar_Gen", s);
-  s->unit_fx_thread = SDL_CreateThread(UnitFXGenerationThread, "UnitFX_Gen", s);
 }
 
 static void UpdateBackground(AppState *s) {
@@ -650,8 +518,8 @@ static void UpdateBackground(AppState *s) {
 
 static void StarLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *cell) {
   if (cell->seed > 0.85f) {
-    float jx = DeterministicHash(cell->gx + 7, cell->gy + 3) * (float)cell->cell_size;
-    float jy = DeterministicHash(cell->gx + 1, cell->gy + 9) * (float)cell->cell_size;
+    float jx = DeterministicHash(cell->gx + 7, cell->gy + 3) * (cell->cell_size / 2.0f);
+    float jy = DeterministicHash(cell->gx + 1, cell->gy + 9) * (cell->cell_size / 2.0f);
     
     // Parallax position (no drift for cleaner pixel look)
     float sx = cell->screen_x + jx * cell->parallax * s->zoom;
@@ -717,20 +585,18 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *c
   Vec2 b_pos; float type_seed, b_radius;
   if (GetCelestialBodyInfo(cell->gx, cell->gy, &b_pos, &type_seed, &b_radius)) {
     Vec2 screen_pos = WorldToScreenParallax(b_pos, cell->parallax, s, cell->win_w, cell->win_h); float sx = screen_pos.x, sy = screen_pos.y, rad = b_radius * s->zoom;
-    if (type_seed > 0.95f) { if (IsVisible(sx, sy, rad, cell->win_w, cell->win_h)) SDL_RenderTexture(r, s->galaxy_textures[(int)(DeterministicHash(cell->gx + 9, cell->gy + 2) * GALAXY_COUNT)], NULL, &(SDL_FRect){sx - rad, sy - rad, rad * 2, rad * 2}); }
-    else { if (IsVisible(sx, sy, rad, cell->win_w, cell->win_h)) { float tsz = rad * 2.2f; SDL_RenderTexture(r, s->planet_textures[(int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT)], NULL, &(SDL_FRect){sx - tsz / 2, sy - tsz / 2, tsz, tsz}); } }
+    if (type_seed > 0.95f) { if (IsVisible(sx, sy, rad * GALAXY_VISUAL_SCALE, cell->win_w, cell->win_h)) { float tsz = rad * 2.0f * GALAXY_VISUAL_SCALE; SDL_RenderTexture(r, s->galaxy_textures[(int)(DeterministicHash(cell->gx + 9, cell->gy + 2) * GALAXY_COUNT)], NULL, &(SDL_FRect){sx - tsz / 2, sy - tsz / 2, tsz, tsz}); } }
+    else { if (IsVisible(sx, sy, rad * PLANET_VISUAL_SCALE, cell->win_w, cell->win_h)) { float tsz = rad * 2.2f * PLANET_VISUAL_SCALE; SDL_RenderTexture(r, s->planet_textures[(int)(DeterministicHash(cell->gx + 1, cell->gy + 1) * PLANET_COUNT)], NULL, &(SDL_FRect){sx - tsz / 2, sy - tsz / 2, tsz, tsz}); } }
   }
 }
 
 static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
     if (!s->asteroids[i].active) continue;
-    Vec2 sx_y = WorldToScreenParallax(s->asteroids[i].pos, 1.0f, s, win_w, win_h); float rad = s->asteroids[i].radius * s->zoom;
-    float v_rad = rad * 0.4f; // Texture only uses small portion of its size
+    Vec2 sx_y = WorldToScreenParallax(s->asteroids[i].pos, 1.0f, s, win_w, win_h); float rad = s->asteroids[i].radius * s->zoom, v_rad = rad * ASTEROID_VISUAL_SCALE, c_rad = rad * ASTEROID_CORE_SCALE;
     if (!IsVisible(sx_y.x, sx_y.y, v_rad, win_w, win_h)) continue;
-    SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - rad, sx_y.y - rad, rad * 2.0f, rad * 2.0f}, s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
-    
-    if (s->asteroids[i].targeted) { float hp_pct = s->asteroids[i].health / s->asteroids[i].max_health, bw = v_rad * 1.5f; SDL_FRect rct = {sx_y.x - bw/2, sx_y.y + v_rad + 2.0f, bw, 4.0f}; SDL_SetRenderDrawColor(r, 50, 0, 0, 200); SDL_RenderFillRect(r, &rct); rct.w *= hp_pct; SDL_SetRenderDrawColor(r, 255, 50, 50, 255); SDL_RenderFillRect(r, &rct); }
+    SDL_RenderTextureRotated(r, s->asteroid_textures[s->asteroids[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - v_rad, sx_y.y - v_rad, v_rad * 2.0f, v_rad * 2.0f}, s->asteroids[i].rotation, NULL, SDL_FLIP_NONE);
+    if (s->asteroids[i].targeted) { float hp_pct = s->asteroids[i].health / s->asteroids[i].max_health, bw = c_rad * 1.5f; SDL_FRect rct = {sx_y.x - bw/2, sx_y.y + c_rad + 2.0f, bw, 4.0f}; SDL_SetRenderDrawColor(r, 50, 0, 0, 200); SDL_RenderFillRect(r, &rct); rct.w *= hp_pct; SDL_SetRenderDrawColor(r, 255, 50, 50, 255); SDL_RenderFillRect(r, &rct); }
   }
 }
 
@@ -755,6 +621,16 @@ static void DrawGradientCircle(SDL_Renderer *r, float cx, float cy, float radius
     }
 
     SDL_RenderGeometry(r, NULL, vertices, segments + 2, indices, segments * 3);
+}
+
+static void DrawTargetCrosshair(SDL_Renderer *r, float x, float y, float size, SDL_Color color) {
+    SDL_SetRenderDrawColor(r, color.r, color.g, color.b, color.a);
+    float h = size / 2.0f;
+    float gap = size * 0.3f;
+    SDL_RenderLine(r, x, y - h, x, y - gap);
+    SDL_RenderLine(r, x, y + h, x, y + gap);
+    SDL_RenderLine(r, x - h, y, x - gap, y);
+    SDL_RenderLine(r, x + h, y, x + gap, y);
 }
 
 static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
@@ -1135,7 +1011,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
     if (!s->units[i].active) continue;
     Vec2 sx_y = WorldToScreenParallax(s->units[i].pos, 1.0f, s, win_w, win_h); float rad = s->units[i].stats->radius * s->zoom;
     if (s->units[i].type == UNIT_MOTHERSHIP) {
-      if (!IsVisible(sx_y.x, sx_y.y, rad * 2.6f, win_w, win_h)) continue;
+      if (!IsVisible(sx_y.x, sx_y.y, rad * MOTHERSHIP_VISUAL_SCALE, win_w, win_h)) continue;
       
       // Targeting lines & Rings
       if (s->units[i].large_target_idx != -1) {
@@ -1185,7 +1061,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
 
       // Organic Hull
       if (s->mothership_hull_texture) {
-          float dr = rad * 2.6f;
+          float dr = rad * MOTHERSHIP_VISUAL_SCALE;
           SDL_RenderTextureRotated(r, s->mothership_hull_texture, NULL, 
               &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
               s->units[i].rotation, NULL, SDL_FLIP_NONE);
@@ -1193,7 +1069,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
 
       // Floating Bars in Viewport (Selection Only)
       if (s->selected_unit_idx == i) {
-          float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad + 5.0f;
+          float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad * MOTHERSHIP_VISUAL_SCALE + 5.0f;
           // Health (Green)
           SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
           SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->units[i].health / s->units[i].stats->max_health), bh});
@@ -1213,7 +1089,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
     if (s->selected_unit_idx == i) {
         if (s->units[i].has_target) {
             Vec2 lp = sx_y;
-            float ship_rad_px = s->units[i].stats->radius * s->zoom;
+            float visual_rad_px = s->units[i].stats->radius * MOTHERSHIP_VISUAL_SCALE * s->zoom;
 
             for (int q = s->units[i].command_current_idx; q < s->units[i].command_count; q++) {
                 Vec2 wt = s->units[i].command_queue[q].pos;
@@ -1232,9 +1108,9 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                 if (q == s->units[i].command_current_idx) {
                     float dx = tsx.x - lp.x, dy = tsx.y - lp.y;
                     float dist = sqrtf(dx*dx + dy*dy);
-                    if (dist > ship_rad_px) {
-                        float start_x = lp.x + (dx/dist) * ship_rad_px;
-                        float start_y = lp.y + (dy/dist) * ship_rad_px;
+                    if (dist > visual_rad_px) {
+                        float start_x = lp.x + (dx/dist) * visual_rad_px;
+                        float start_y = lp.y + (dy/dist) * visual_rad_px;
                         SDL_RenderLine(r, start_x, start_y, tsx.x, tsx.y);
                     }
                 } else {
@@ -1271,9 +1147,9 @@ void Renderer_Draw(AppState *s) {
   }
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
   SDL_SetRenderDrawBlendMode(s->renderer, SDL_BLENDMODE_BLEND);
-  UpdateBackground(s); UpdateDensityMap(s); UpdateRadar(s);
+  UpdateBackground(s); UpdateDensityMap(s); 
   if (s->bg_texture) SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
-    DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE, STAR_LAYER_PARALLAX, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
+    DrawParallaxLayer(s->renderer, s, ww, wh, 512, 0.1f, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
     if (s->show_grid) DrawGrid(s->renderer, s, ww, wh);
     
     // Potential Target Visualization
@@ -1293,6 +1169,12 @@ void Renderer_Draw(AppState *s) {
                 break;
             }
         }
+    }
+
+    if (s->hover_asteroid_idx != -1 && s->pending_input_type == INPUT_NONE) {
+        Vec2 as = WorldToScreenParallax(s->asteroids[s->hover_asteroid_idx].pos, 1.0f, s, ww, wh);
+        float cross_sz = (s->asteroids[s->hover_asteroid_idx].radius * ASTEROID_VISUAL_SCALE * 1.2f) * s->zoom;
+        DrawTargetCrosshair(s->renderer, as.x, as.y, cross_sz, (SDL_Color){255, 255, 255, 100});
     }
   
     Renderer_DrawAsteroids(s->renderer, s, ww, wh);

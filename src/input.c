@@ -1,5 +1,6 @@
 #include "constants.h"
 #include "game.h"
+#include "persistence.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -37,6 +38,20 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     s->mouse_pos.y = event->motion.y;
     if (s->box_active) {
         s->box_current = s->mouse_pos;
+    }
+
+    // Update hover target
+    float wx_h = s->camera_pos.x + s->mouse_pos.x / s->zoom;
+    float wy_h = s->camera_pos.y + s->mouse_pos.y / s->zoom;
+    s->hover_asteroid_idx = -1;
+    for (int a = 0; a < MAX_ASTEROIDS; a++) {
+        if (!s->asteroids[a].active) continue;
+        float dx = s->asteroids[a].pos.x - wx_h, dy = s->asteroids[a].pos.y - wy_h;
+        float r = s->asteroids[a].radius * ASTEROID_HITBOX_MULT;
+        if (dx*dx + dy*dy < r * r) {
+            s->hover_asteroid_idx = a;
+            break;
+        }
     }
     break;
 
@@ -78,7 +93,8 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         for (int a = 0; a < MAX_ASTEROIDS; a++) {
             if (!s->asteroids[a].active) continue;
             float dx = s->asteroids[a].pos.x - wx, dy = s->asteroids[a].pos.y - wy;
-            if (dx*dx + dy*dy < s->asteroids[a].radius * s->asteroids[a].radius) { target_a = a; break; }
+            float r = s->asteroids[a].radius * ASTEROID_HITBOX_MULT;
+            if (dx*dx + dy*dy < r * r) { target_a = a; break; }
         }
 
         CommandType type;
@@ -182,6 +198,22 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
 
           s->show_density = !s->show_density;
 
+        }
+
+        if (event->key.key == SDLK_S) {
+            if (Persistence_SaveGame(s, "savegame.dat")) {
+                snprintf(s->ui_error_msg, 128, "GAME SAVED"); s->ui_error_timer = 1.5f;
+            } else {
+                snprintf(s->ui_error_msg, 128, "SAVE FAILED"); s->ui_error_timer = 1.5f;
+            }
+        }
+
+        if (event->key.key == SDLK_L) {
+            if (Persistence_LoadGame(s, "savegame.dat")) {
+                snprintf(s->ui_error_msg, 128, "GAME LOADED"); s->ui_error_timer = 1.5f;
+            } else {
+                snprintf(s->ui_error_msg, 128, "LOAD FAILED"); s->ui_error_timer = 1.5f;
+            }
         }
 
         break;

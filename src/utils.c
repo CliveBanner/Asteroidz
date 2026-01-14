@@ -154,27 +154,40 @@ float GetAsteroidDensity(Vec2 p) {
   int gx_center = (int)floorf(p.x / body_grid);
   int gy_center = (int)floorf(p.y / body_grid);
 
-  // Expanded search range to account for large galaxy belts
-  for (int oy = -3; oy <= 3; oy++) {
-    for (int ox = -3; ox <= 3; ox++) {
+  // Significantly expanded search range for the new massive galaxies
+  for (int oy = -10; oy <= 10; oy++) {
+    for (int ox = -10; ox <= 10; ox++) {
       Vec2 b_pos;
       float b_type;
       float b_radius;
       if (GetCelestialBodyInfo(gx_center + ox, gy_center + oy, &b_pos, &b_type,
                                &b_radius)) {
         float dx = p.x - b_pos.x, dy = p.y - b_pos.y;
-        float dist_sq = dx * dx + dy * dy;
+        float dist = sqrtf(dx * dx + dy * dy);
 
         if (b_type > 0.95f) { // Galaxy
-          float min_r = b_radius * GALAXY_BELT_INNER_MULT;
-          float max_r = b_radius * GALAXY_BELT_OUTER_MULT;
-          if (dist_sq > min_r * min_r && dist_sq < max_r * max_r)
-            val += DENSITY_GALAXY_WEIGHT;
+          float inner_r = b_radius * GALAXY_BELT_INNER_MULT;
+          float outer_r = b_radius * GALAXY_BELT_OUTER_MULT;
+          float mid_r = (inner_r + outer_r) * 0.5f;
+          float half_width = (outer_r - inner_r) * 0.5f;
+          
+          float delta = fabsf(dist - mid_r);
+          if (delta < half_width) {
+              // Smooth cosine falloff
+              float falloff = 0.5f + 0.5f * cosf((delta / half_width) * 3.14159f);
+              val += DENSITY_GALAXY_WEIGHT * falloff;
+          }
         } else { // Planet
-          float min_r = b_radius * PLANET_BELT_INNER_MULT;
-          float max_r = b_radius * PLANET_BELT_OUTER_MULT;
-          if (dist_sq > min_r * min_r && dist_sq < max_r * max_r)
-            val += DENSITY_PLANET_WEIGHT;
+          float inner_r = b_radius * PLANET_BELT_INNER_MULT;
+          float outer_r = b_radius * PLANET_BELT_OUTER_MULT;
+          float mid_r = (inner_r + outer_r) * 0.5f;
+          float half_width = (outer_r - inner_r) * 0.5f;
+
+          float delta = fabsf(dist - mid_r);
+          if (delta < half_width) {
+              float falloff = 0.5f + 0.5f * cosf((delta / half_width) * 3.14159f);
+              val += DENSITY_PLANET_WEIGHT * falloff;
+          }
         }
       }
     }

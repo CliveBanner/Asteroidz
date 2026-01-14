@@ -131,8 +131,8 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     Vec2 impact_pos = a->pos;
 
     if (dist > 0.1f) {
-        float unit_r = u->stats->radius * LASER_START_OFFSET_MULT;
-        float ast_r = a->radius * ASTEROID_VISUAL_SCALE;
+        float unit_r = u->stats->radius * MOTHERSHIP_VISUAL_SCALE * 0.6f; // Moved further out from center
+        float ast_r = a->radius * ASTEROID_CORE_SCALE * 0.5f; // Less deep penetration
         start_pos.x += (dx / dist) * unit_r;
         start_pos.y += (dy / dist) * unit_r;
         impact_pos.x -= (dx / dist) * ast_r;
@@ -235,6 +235,15 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
     }
 }
 
+static void UpdateRadar(AppState *s) {
+    Vec2 m_pos = {0, 0}; bool found = false;
+    for (int i = 0; i < MAX_UNITS; i++) if (s->units[i].active && s->units[i].type == UNIT_MOTHERSHIP) { m_pos = s->units[i].pos; found = true; break; }
+    if (found && SDL_GetAtomicInt(&s->radar_request_update) == 0) {
+        SDL_LockMutex(s->radar_mutex); s->radar_mothership_pos = m_pos; SDL_UnlockMutex(s->radar_mutex);
+        SDL_SetAtomicInt(&s->radar_request_update, 1);
+    }
+}
+
 void Game_Update(AppState *s, float dt) {
   if (s->state == STATE_PAUSED) return;
   int win_w, win_h; SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
@@ -253,6 +262,20 @@ void Game_Update(AppState *s, float dt) {
   
   UpdateSimAnchors(s, cam_center);
   s->energy = fminf(INITIAL_ENERGY, s->energy + ENERGY_REGEN_RATE * dt);
+  UpdateRadar(s);
+
+  // Update Mouse Over Asteroid
+  float wx = s->camera_pos.x + s->mouse_pos.x / s->zoom;
+  float wy = s->camera_pos.y + s->mouse_pos.y / s->zoom;
+  s->hover_asteroid_idx = -1;
+  for (int a = 0; a < MAX_ASTEROIDS; a++) {
+      if (!s->asteroids[a].active) continue;
+      float dx = s->asteroids[a].pos.x - wx, dy = s->asteroids[a].pos.y - wy;
+      if (dx*dx + dy*dy < s->asteroids[a].radius * s->asteroids[a].radius) {
+          s->hover_asteroid_idx = a;
+          break;
+      }
+  }
 
   UpdateSpawning(s, cam_center);
   
@@ -264,7 +287,17 @@ void Game_Update(AppState *s, float dt) {
       Unit *u = &s->units[i];
       if (u->has_target) {
           Command *cur_cmd = &u->command_queue[u->command_current_idx];
-          if (cur_cmd->type == CMD_HOLD) { u->has_target = false; u->command_count = 0; u->command_current_idx = 0; }
+          
+          // Auto-advance if target-based command target is dead
+          if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1 && !s->asteroids[cur_cmd->target_idx].active) {
+              u->command_current_idx++;
+              if (u->command_current_idx >= u->command_count) {
+                  u->has_target = false; u->command_count = 0; u->command_current_idx = 0;
+              }
+              // Skip movement update this frame to re-evaluate next cmd in next frame
+              continue; 
+          }
+
           if (u->has_target) {
               float dsq = Vector_DistanceSq(cur_cmd->pos, u->pos);
               if (dsq > UNIT_STOP_DIST * UNIT_STOP_DIST) { 
@@ -299,7 +332,18 @@ void Game_Update(AppState *s, float dt) {
       }
       u->velocity = Vector_Sub(u->velocity, Vector_Scale(u->velocity, u->stats->friction * dt));
       u->pos = Vector_Add(u->pos, Vector_Scale(u->velocity, dt));
-      u->rotation += UNIT_ROTATION_SPEED * dt;
+      
+      // Rotate to face movement direction
+      float speed_sq = u->velocity.x * u->velocity.x + u->velocity.y * u->velocity.y;
+      if (speed_sq > 100.0f) {
+          float target_rot = atan2f(u->velocity.y, u->velocity.x) * (180.0f / SDL_PI_F) + 90.0f; // +90 because sprite is front-up
+          
+          // Smooth rotation (LerpAngle equivalent)
+          float diff = target_rot - u->rotation;
+          while (diff < -180.0f) diff += 360.0f;
+          while (diff > 180.0f) diff -= 360.0f;
+          u->rotation += diff * UNIT_STEERING_FORCE * dt;
+      }
 
       if (u->large_cannon_cooldown > 0) u->large_cannon_cooldown -= dt;
       for (int c = 0; c < 4; c++) if (u->small_cannon_cooldown[c] > 0) u->small_cannon_cooldown[c] -= dt;
@@ -309,44 +353,55 @@ void Game_Update(AppState *s, float dt) {
       int l_target = u->large_target_idx;
       SDL_UnlockMutex(s->unit_fx_mutex);
 
-                if (l_target != -1 && s->asteroids[l_target].active) {
+                          if (l_target != -1 && s->asteroids[l_target].active) {
 
-                    s->asteroids[l_target].targeted = true;
+                              s->asteroids[l_target].targeted = true;
 
-                    float dsq = Vector_DistanceSq(s->asteroids[l_target].pos, u->pos);
+                              float dsq = Vector_DistanceSq(s->asteroids[l_target].pos, u->pos);
 
-                    float max_d = u->stats->main_cannon_range + s->asteroids[l_target].radius;
+                              float max_d = u->stats->main_cannon_range + s->asteroids[l_target].radius * ASTEROID_HITBOX_MULT;
 
-                    if (dsq <= max_d * max_d) {
+                              if (dsq <= max_d * max_d) {
 
-                        if (u->large_cannon_cooldown <= 0) {
+                                  if (u->large_cannon_cooldown <= 0) {
 
-                            FireWeapon(s, u, l_target, u->stats->main_cannon_damage, 0.0f, true);
+                                      FireWeapon(s, u, l_target, u->stats->main_cannon_damage, 0.0f, true);
 
-                            u->large_cannon_cooldown = u->stats->main_cannon_cooldown;
+                                      u->large_cannon_cooldown = u->stats->main_cannon_cooldown;
 
-                            u->large_target_idx = -1; 
+                                      u->large_target_idx = -1; 
 
-                        }
+                                  }
 
-                    } else {
+                              } else {
 
-      
-              u->large_target_idx = -1;
-          }
-      }
+                                  u->large_target_idx = -1;
 
-      // 2. Automatic Small Cannons (Passive Toggleable)
-      if (s->auto_attack_enabled) {
-          SDL_LockMutex(s->unit_fx_mutex);
-          int s_targets[4]; for(int c=0; c<4; c++) s_targets[c] = u->small_target_idx[c];
-          SDL_UnlockMutex(s->unit_fx_mutex);
+                              }
 
-          for (int c = 0; c < 4; c++) if (s_targets[c] != -1 && s->asteroids[s_targets[c]].active) {
-              s->asteroids[s_targets[c]].targeted = true;
-              float dsq = Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos);
-              float max_d = u->stats->small_cannon_range + s->asteroids[s_targets[c]].radius;
-              if (u->small_cannon_cooldown[c] <= 0 && dsq <= max_d * max_d) {
+                          }
+
+                
+
+                          if (s->auto_attack_enabled) {
+
+                              SDL_LockMutex(s->unit_fx_mutex);
+
+                              int s_targets[4]; for(int c=0; c<4; c++) s_targets[c] = u->small_target_idx[c];
+
+                              SDL_UnlockMutex(s->unit_fx_mutex);
+
+                
+
+                              for (int c = 0; c < 4; c++) if (s_targets[c] != -1 && s->asteroids[s_targets[c]].active) {
+
+                                  s->asteroids[s_targets[c]].targeted = true;
+
+                                  float dsq = Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos);
+
+                                  float max_d = u->stats->small_cannon_range + s->asteroids[s_targets[c]].radius * ASTEROID_HITBOX_MULT;
+
+                                  if (u->small_cannon_cooldown[c] <= 0 && dsq <= max_d * max_d) {
                   FireWeapon(s, u, s_targets[c], u->stats->small_cannon_damage, u->stats->small_cannon_energy_cost, false);
                   u->small_cannon_cooldown[c] = u->stats->small_cannon_cooldown;
               }

@@ -25,6 +25,8 @@ add_executable(asteriodz
     src/utils.c
     src/physics.c
     src/particles.c
+    src/ai.c
+    src/persistence.c
 )
 
 # Target properties
