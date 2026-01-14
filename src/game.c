@@ -61,7 +61,6 @@ void Game_Init(AppState *s) {
         .main_cannon_damage = LARGE_CANNON_DAMAGE,
         .main_cannon_range = LARGE_CANNON_RANGE,
         .main_cannon_cooldown = LARGE_CANNON_COOLDOWN,
-        .main_cannon_energy_cost = LARGE_CANNON_ENERGY_COST,
         .small_cannon_damage = SMALL_CANNON_DAMAGE,
         .small_cannon_range = SMALL_CANNON_RANGE,
         .small_cannon_cooldown = SMALL_CANNON_COOLDOWN,
@@ -99,7 +98,6 @@ void Game_Init(AppState *s) {
     u->rotation = 0;
     u->health = u->stats->max_health;
     u->energy = u->stats->max_energy;
-    u->main_cannon_energy = MAIN_CANNON_MAX_ENERGY;
     u->command_count = 0;
     u->has_target = false;
     u->large_target_idx = -1;
@@ -112,8 +110,7 @@ void Game_Init(AppState *s) {
 
 static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, float energy_cost, bool is_main_cannon) {
     if (is_main_cannon) {
-        if (u->main_cannon_energy < energy_cost) return;
-        u->main_cannon_energy -= energy_cost;
+        // Main cannon is free (uses cooldown)
     } else {
         if (s->energy < energy_cost) return;
         s->energy -= energy_cost;
@@ -152,28 +149,15 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     s->particles[p_idx].color = (SDL_Color)COLOR_LASER_RED; 
     s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
 
-    int m_idx = s->particle_next_idx;
-    s->particles[m_idx].active = true;
-    s->particles[m_idx].type = PARTICLE_GLOW; 
-    s->particles[m_idx].pos = start_pos;
-    s->particles[m_idx].velocity = (Vec2){0, 0};
-    s->particles[m_idx].life = MUZZLE_FLASH_LIFE;
-    s->particles[m_idx].size = s->particles[p_idx].size * MUZZLE_FLASH_SIZE_MULT;
-    s->particles[m_idx].color = (SDL_Color)COLOR_MUZZLE_FLASH;
-    s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+    // Muzzle flash
+    Particles_SpawnLaserFlash(s, start_pos, s->particles[p_idx].size, false);
 
+    // Impact Effect
     float impact_scale = 0.5f + (damage / 2000.0f);
     Particles_SpawnExplosion(s, impact_pos, 15, impact_scale, EXPLOSION_IMPACT, a->tex_idx); 
-
-    int i_g_idx = s->particle_next_idx;
-    s->particles[i_g_idx].active = true;
-    s->particles[i_g_idx].type = PARTICLE_GLOW;
-    s->particles[i_g_idx].pos = impact_pos;
-    s->particles[i_g_idx].velocity = (Vec2){0, 0};
-    s->particles[i_g_idx].life = 0.25f;
-    s->particles[i_g_idx].size = s->particles[p_idx].size * 8.0f;
-    s->particles[i_g_idx].color = (SDL_Color){255, 220, 200, 255};
-    s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+    
+    // Impact flash
+    Particles_SpawnLaserFlash(s, impact_pos, s->particles[p_idx].size, true);
 }
 
 static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
@@ -190,7 +174,6 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
                 u->active = true;
                 u->health = u->stats->max_health;
                 u->energy = u->stats->max_energy;
-                u->main_cannon_energy = MAIN_CANNON_MAX_ENERGY;
                 u->velocity = (Vec2){0, 0};
                 u->command_count = 0;
                 u->command_current_idx = 0;
@@ -258,6 +241,8 @@ void Game_Update(AppState *s, float dt) {
 
   HandleRespawn(s, dt, win_w, win_h);
   if (s->hold_flash_timer > 0) s->hold_flash_timer -= dt;
+  if (s->auto_attack_flash_timer > 0) s->auto_attack_flash_timer -= dt;
+  if (s->ui_error_timer > 0) s->ui_error_timer -= dt;
 
   Vec2 cam_center = {s->camera_pos.x + (win_w / 2.0f) / s->zoom, s->camera_pos.y + (win_h / 2.0f) / s->zoom};
   float move_speed = CAMERA_SPEED / s->zoom;
@@ -289,34 +274,79 @@ void Game_Update(AppState *s, float dt) {
                   u->velocity.x += (target_v.x - u->velocity.x) * UNIT_STEERING_FORCE * dt;
                   u->velocity.y += (target_v.y - u->velocity.y) * UNIT_STEERING_FORCE * dt;
               } else {
-                  if (cur_cmd->type == CMD_PATROL) u->command_current_idx = (u->command_current_idx + 1) % u->command_count;
-                  else { u->command_current_idx++; if (u->command_current_idx >= u->command_count) { u->has_target = false; u->command_count = 0; u->command_current_idx = 0; } }
+                  // Reached waypoint
+                  if (cur_cmd->type == CMD_PATROL) {
+                      // If we are at the last point, loop back to the FIRST consecutive patrol point
+                      if (u->command_current_idx == u->command_count - 1) {
+                          int first_patrol = u->command_current_idx;
+                          while (first_patrol > 0 && u->command_queue[first_patrol - 1].type == CMD_PATROL) {
+                              first_patrol--;
+                          }
+                          u->command_current_idx = first_patrol;
+                      } else {
+                          u->command_current_idx++;
+                      }
+                  } else {
+                      u->command_current_idx++;
+                      if (u->command_current_idx >= u->command_count) {
+                          u->has_target = false;
+                          u->command_count = 0;
+                          u->command_current_idx = 0;
+                      }
+                  }
               }
           }
       }
       u->velocity = Vector_Sub(u->velocity, Vector_Scale(u->velocity, u->stats->friction * dt));
       u->pos = Vector_Add(u->pos, Vector_Scale(u->velocity, dt));
       u->rotation += UNIT_ROTATION_SPEED * dt;
-      u->main_cannon_energy = fminf(MAIN_CANNON_MAX_ENERGY, u->main_cannon_energy + MAIN_CANNON_REGEN_RATE * dt);
 
       if (u->large_cannon_cooldown > 0) u->large_cannon_cooldown -= dt;
       for (int c = 0; c < 4; c++) if (u->small_cannon_cooldown[c] > 0) u->small_cannon_cooldown[c] -= dt;
       
-      if (s->attack_mode) {
+      // 1. Manual Main Cannon (Active Ability)
+      SDL_LockMutex(s->unit_fx_mutex);
+      int l_target = u->large_target_idx;
+      SDL_UnlockMutex(s->unit_fx_mutex);
+
+                if (l_target != -1 && s->asteroids[l_target].active) {
+
+                    s->asteroids[l_target].targeted = true;
+
+                    float dsq = Vector_DistanceSq(s->asteroids[l_target].pos, u->pos);
+
+                    float max_d = u->stats->main_cannon_range + s->asteroids[l_target].radius;
+
+                    if (dsq <= max_d * max_d) {
+
+                        if (u->large_cannon_cooldown <= 0) {
+
+                            FireWeapon(s, u, l_target, u->stats->main_cannon_damage, 0.0f, true);
+
+                            u->large_cannon_cooldown = u->stats->main_cannon_cooldown;
+
+                            u->large_target_idx = -1; 
+
+                        }
+
+                    } else {
+
+      
+              u->large_target_idx = -1;
+          }
+      }
+
+      // 2. Automatic Small Cannons (Passive Toggleable)
+      if (s->auto_attack_enabled) {
           SDL_LockMutex(s->unit_fx_mutex);
-          int l_target = u->large_target_idx, s_targets[4]; for(int c=0; c<4; c++) s_targets[c] = u->small_target_idx[c];
+          int s_targets[4]; for(int c=0; c<4; c++) s_targets[c] = u->small_target_idx[c];
           SDL_UnlockMutex(s->unit_fx_mutex);
 
-          if (l_target != -1 && s->asteroids[l_target].active) {
-              s->asteroids[l_target].targeted = true;
-              if (u->large_cannon_cooldown <= 0 && Vector_DistanceSq(s->asteroids[l_target].pos, u->pos) <= powf(u->stats->main_cannon_range, 2)) {
-                  FireWeapon(s, u, l_target, u->stats->main_cannon_damage, u->stats->main_cannon_energy_cost, true);
-                  u->large_cannon_cooldown = u->stats->main_cannon_cooldown;
-              }
-          }
           for (int c = 0; c < 4; c++) if (s_targets[c] != -1 && s->asteroids[s_targets[c]].active) {
               s->asteroids[s_targets[c]].targeted = true;
-              if (u->small_cannon_cooldown[c] <= 0 && Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos) <= powf(u->stats->small_cannon_range, 2)) {
+              float dsq = Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos);
+              float max_d = u->stats->small_cannon_range + s->asteroids[s_targets[c]].radius;
+              if (u->small_cannon_cooldown[c] <= 0 && dsq <= max_d * max_d) {
                   FireWeapon(s, u, s_targets[c], u->stats->small_cannon_damage, u->stats->small_cannon_energy_cost, false);
                   u->small_cannon_cooldown[c] = u->stats->small_cannon_cooldown;
               }

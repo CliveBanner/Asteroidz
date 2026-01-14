@@ -157,6 +157,32 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
   }
 }
 
+void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact) {
+    // 1. Primary Energy Flash
+    int m_idx = s->particle_next_idx;
+    s->particles[m_idx].active = true;
+    s->particles[m_idx].type = PARTICLE_GLOW; 
+    s->particles[m_idx].pos = pos;
+    s->particles[m_idx].velocity = (Vec2){0, 0};
+    s->particles[m_idx].life = MUZZLE_FLASH_LIFE;
+    s->particles[m_idx].size = size * MUZZLE_FLASH_SIZE_MULT;
+    s->particles[m_idx].color = (SDL_Color)COLOR_MUZZLE_FLASH;
+    s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+
+    if (is_impact) {
+        // 2. Extra Bright Intense Core for Impacts
+        int i_g_idx = s->particle_next_idx;
+        s->particles[i_g_idx].active = true;
+        s->particles[i_g_idx].type = PARTICLE_GLOW;
+        s->particles[i_g_idx].pos = pos;
+        s->particles[i_g_idx].velocity = (Vec2){0, 0};
+        s->particles[i_g_idx].life = 0.25f;
+        s->particles[i_g_idx].size = size * 12.0f; // Boosted core
+        s->particles[i_g_idx].color = (SDL_Color){255, 255, 255, 255}; // White hot
+        s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
+    }
+}
+
 void Particles_Update(AppState *s, float dt) {
   for (int i = 0; i < MAX_PARTICLES; i++) {
     if (!s->particles[i].active) continue;

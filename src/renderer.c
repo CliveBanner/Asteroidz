@@ -551,103 +551,59 @@ static void GenerateMothershipOrganic(Uint32 *buf, int w, int h, float time) {
 
 static int SDLCALL UnitFXGenerationThread(void *data) {
   AppState *s = (AppState *)data;
-  float fx_timer = 0;
   while (SDL_GetAtomicInt(&s->unit_fx_should_quit) == 0) {
-    // 1. Targeting
     for (int i = 0; i < MAX_UNITS; i++) {
         if (!s->units[i].active) continue;
         Unit *u = &s->units[i];
         
-        int best_l = -1; float best_l_score = 1e15f;
-        int best_s[4] = {-1, -1, -1, -1}; float best_s_score[4]; 
-        for(int c=0; c<4; c++) best_s_score[c] = 1e15f;
+        int best_s[4] = {-1, -1, -1, -1};
 
-        // Multiple distance thresholds (refactored to use constants)
-        float far_range = SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT;
-        float mid_range = SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT;
-        float near_range = SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT;
+        if (s->auto_attack_enabled) {
+            float max_search_range = WARNING_RANGE_FAR;
+            int best_target_idx = -1;
+            float best_score = 1e15f;
 
-        int closest_giant_idx = -1; float max_giant_rad = 0;
-        int best_targets_indices[16]; int target_count = 0;
+            // Fetch current targets for stickiness boost
+            SDL_LockMutex(s->unit_fx_mutex);
+            int prev_targets[4]; for(int c=0; c<4; c++) prev_targets[c] = u->small_target_idx[c];
+            SDL_UnlockMutex(s->unit_fx_mutex);
 
-        for (int a = 0; a < MAX_ASTEROIDS; a++) {
-            if (!s->asteroids[a].active) continue;
-            float dx = s->asteroids[a].pos.x - u->pos.x, dy = s->asteroids[a].pos.y - u->pos.y;
-            float dsq = dx * dx + dy * dy;
-            float dist = sqrtf(dsq);
-            float rad = s->asteroids[a].radius;
-            float score = dsq / (rad * rad);
+            for (int a = 0; a < MAX_ASTEROIDS; a++) {
+                if (!s->asteroids[a].active) continue;
+                float dx = s->asteroids[a].pos.x - u->pos.x, dy = s->asteroids[a].pos.y - u->pos.y;
+                float dsq = dx * dx + dy * dy;
+                float dist = sqrtf(dsq);
+                float rad = s->asteroids[a].radius;
+                float surface_dist = fmaxf(0.0f, dist - rad);
 
-            // Large Cannon Targeting (unchanged logic for now)
-            if (dsq <= LARGE_CANNON_RANGE * LARGE_CANNON_RANGE && score < best_l_score) {
-                best_l_score = score;
-                best_l = a;
-            }
+                if (surface_dist <= max_search_range) {
+                    // Score logic: 
+                    // 1. Proximity is the primary factor
+                    // 2. Mass (radius) is a secondary tie-breaker/weight (dist - rad * 0.1)
+                    float score = surface_dist - (rad * 0.15f);
 
-            // Small Cannon Multi-Threshold logic
-            if (dist <= far_range) {
-                // Rule 1: At near range, find the absolute biggest asteroid
-                if (dist <= near_range && rad > max_giant_rad) {
-                    max_giant_rad = rad;
-                    closest_giant_idx = a;
-                }
-                
-                // Track potential targets for mid/far range
-                if (target_count < 16) best_targets_indices[target_count++] = a;
-            }
-        }
+                    // 3. Stickiness boost (20% reduction in score if already targeting)
+                    for(int c=0; c<4; c++) {
+                        if (a == prev_targets[c]) { score *= 0.8f; break; }
+                    }
 
-        // Apply rules to assign small cannon targets
-        if (closest_giant_idx != -1) {
-            // NEAR RANGE: All lasers fire on the biggest asteroid
-            for(int c=0; c<4; c++) best_s[c] = closest_giant_idx;
-        } else if (target_count > 0) {
-            // Sort targets by threat (score)
-            for(int j=0; j < target_count-1; j++) {
-                for(int k=j+1; k < target_count; k++) {
-                    int a1 = best_targets_indices[j], a2 = best_targets_indices[k];
-                    float s1 = Vector_DistanceSq(s->asteroids[a1].pos, u->pos) / (s->asteroids[a1].radius * s->asteroids[a1].radius);
-                    float s2 = Vector_DistanceSq(s->asteroids[a2].pos, u->pos) / (s->asteroids[a2].radius * s->asteroids[a2].radius);
-                    if (s2 < s1) { int tmp = best_targets_indices[j]; best_targets_indices[j] = best_targets_indices[k]; best_targets_indices[k] = tmp; }
-                }
-            }
-
-            float avg_dist = 0;
-            int eval_count = SDL_min(target_count, 4);
-            for(int j=0; j<eval_count; j++) avg_dist += sqrtf(Vector_DistanceSq(s->asteroids[best_targets_indices[j]].pos, u->pos));
-            avg_dist /= (float)eval_count;
-
-            if (avg_dist <= mid_range) {
-                // MID RANGE: Mass-Proportional Allocation
-                // Higher mass (radius) asteroids take more "cannon slots"
-                float total_mass = 0;
-                for(int j=0; j<eval_count; j++) total_mass += s->asteroids[best_targets_indices[j]].radius;
-                
-                int allocated = 0;
-                for(int j=0; j<eval_count && allocated < 4; j++) {
-                    float mass_pct = s->asteroids[best_targets_indices[j]].radius / total_mass;
-                    int slots = (int)roundf(mass_pct * 4.0f);
-                    if (slots < 1) slots = 1; // engage at least with one
-                    if (j == 0 && slots < 2 && eval_count > 1 && s->asteroids[best_targets_indices[0]].radius > 1500.0f) slots = 2; // ensure focus on huge
-
-                    for(int k=0; k<slots && allocated < 4; k++) {
-                        best_s[allocated++] = best_targets_indices[j];
+                    if (score < best_score) {
+                        best_score = score;
+                        best_target_idx = a;
                     }
                 }
-                // Fill remaining
-                while(allocated < 4) best_s[allocated++] = best_targets_indices[0];
-            } else {
-                // LONG RANGE: Maximize distribution
-                for(int c=0; c<4; c++) best_s[c] = best_targets_indices[c % target_count];
+            }
+
+            if (best_target_idx != -1) {
+                // Focus all small cannons on the single most dangerous threat
+                for(int c=0; c<4; c++) best_s[c] = best_target_idx;
             }
         }
 
         SDL_LockMutex(s->unit_fx_mutex); 
-        u->large_target_idx = best_l; 
         for(int c=0; c<4; c++) u->small_target_idx[c] = best_s[c]; 
         SDL_UnlockMutex(s->unit_fx_mutex);
     }
-
     SDL_Delay(16); 
   }
   return 0;
@@ -937,10 +893,10 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
       
       struct { float r; SDL_Color c; const char* l; bool dashed; float y_off; } zones[] = {
           { LARGE_CANNON_RANGE, {180, 50, 255, 120}, "MAIN CANNON LIMIT", true, -25.0f },
-          { SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT, {80, 80, 150, 100}, "FAR WARNING", false, -10.0f },
+          { WARNING_RANGE_FAR, {80, 80, 150, 100}, "FAR WARNING", false, -10.0f },
           { SMALL_CANNON_RANGE, {255, 255, 255, 100}, "LASER LIMIT", true, 5.0f },
-          { SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT, {150, 100, 80, 120}, "MID WARNING", false, 20.0f },
-          { SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT, {200, 60, 60, 150}, "NEAR WARNING", false, 35.0f }
+          { WARNING_RANGE_MID, {150, 100, 80, 120}, "MID WARNING", false, 20.0f },
+          { WARNING_RANGE_NEAR, {200, 60, 60, 150}, "NEAR WARNING", false, 35.0f }
       };
 
       for(int z=0; z<5; z++) {
@@ -968,24 +924,94 @@ static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) 
 
 static void DrawHUD(SDL_Renderer *r, AppState *s, int ww, int wh) {
     float hp = 0, max_hp = 1; bool found = false;
-    for (int i = 0; i < MAX_UNITS; i++) if (s->units[i].active && s->units[i].type == UNIT_MOTHERSHIP) { hp = s->units[i].health; max_hp = s->units[i].stats->max_health; found = true; break; }
-    if (!found) return;
-    float gx = 20.0f, csz = 55.0f, pad = 5.0f, gh = (3.0f * csz) + (2.0f * pad), gy = wh - gh - 20.0f;
-    const char *lb[12] = {"Q", "W", "E", "R", "", "", "", "", "", "", "", ""}, *ac[12] = {"PATROL", "MOVE", "ATTACK", "HOLD", "", "", "", "", "", "", "", ""};
-    for (int row = 0; row < 3; row++) for (int col = 0; col < 4; col++) {
-            int idx = row * 4 + col; SDL_FRect cell = {gx + col * (csz + pad), gy + row * (csz + pad), csz, csz};
-            
-            bool cell_active = false;
-            if (idx == 0 && s->patrol_mode) cell_active = true;
-            if (idx == 2 && s->attack_mode) cell_active = true;
+    bool has_mothership = false;
+    bool any_selected = false;
 
-            if (idx == 3 && s->hold_flash_timer > 0) SDL_SetRenderDrawColor(r, 200, 200, 40, 255); // Hold yellow flash
-            else if (cell_active && idx == 2) SDL_SetRenderDrawColor(r, 150, 40, 40, 200); // Attack red
-            else if (cell_active && idx == 0) SDL_SetRenderDrawColor(r, 40, 40, 150, 200); // Patrol blue
+    for (int i = 0; i < MAX_UNITS; i++) {
+        if (s->units[i].active && s->unit_selected[i]) {
+            any_selected = true;
+            if (s->units[i].type == UNIT_MOTHERSHIP) {
+                hp = s->units[i].health; max_hp = s->units[i].stats->max_health;
+                found = true;
+                has_mothership = true;
+            }
+        }
+    }
+    if (!any_selected) return;
+
+    float gx = 20.0f, csz = 55.0f, pad = 5.0f, gh = (3.0f * csz) + (2.0f * pad), gy = wh - gh - 20.0f;
+    const char *lb[12] = {"Q", "W", "E", "R", "H", "", "", "", "", "", "", ""};
+    const char *ac[12] = {"PATROL", "MOVE", "AUTO ATK", "", "HOLD", "", "", "", "", "", "", ""};
+    if (has_mothership) ac[3] = "MAIN CAN"; 
+    
+    // Command type to grid index mapping
+    int cmd_to_idx[6];
+    cmd_to_idx[CMD_PATROL] = 0;
+    cmd_to_idx[CMD_MOVE] = 1;
+    cmd_to_idx[CMD_ATTACK_MOVE] = 2; 
+    cmd_to_idx[CMD_MAIN_CANNON] = 3;
+    cmd_to_idx[CMD_HOLD] = 4;
+
+    for (int row = 0; row < 3; row++) for (int col = 0; col < 4; col++) {
+            int idx = row * 4 + col; 
+            if (idx < 5 && ac[idx][0] == '\0') continue; // Only relevant for mothership cannon slot for now
+
+            SDL_FRect cell = {gx + col * (csz + pad), gy + row * (csz + pad), csz, csz};
+            
+            // Highlight based on currently held modifiers
+            bool key_down = false;
+            if (idx == 0 && s->key_q_down) key_down = true;
+            if (idx == 1 && s->key_w_down) key_down = true;
+            if (idx == 2 && s->key_e_down) key_down = true;
+            if (idx == 3 && s->key_r_down) key_down = true;
+            if (idx == 4 && s->key_h_down) key_down = true;
+
+            bool auto_atk_on = (idx == 2 && s->auto_attack_enabled);
+
+            // 2. Determine Color
+            if (idx == 4 && (s->hold_flash_timer > 0 || s->key_h_down)) SDL_SetRenderDrawColor(r, 200, 200, 40, 255); 
+            else if (idx == 2 && s->auto_attack_flash_timer > 0) SDL_SetRenderDrawColor(r, 200, 200, 40, 255);
+            else if (key_down && idx == 3) SDL_SetRenderDrawColor(r, 200, 50, 255, 200); // Main Cannon purple
+            else if (auto_atk_on) SDL_SetRenderDrawColor(r, 150, 40, 40, 200); // Auto-Attack red
+            else if (key_down) SDL_SetRenderDrawColor(r, 200, 200, 200, 150); // Armed Move/Patrol/etc
             else SDL_SetRenderDrawColor(r, 40, 40, 40, 200);
+
             
             SDL_RenderFillRect(r, &cell); SDL_SetRenderDrawColor(r, 80, 80, 80, 255); SDL_RenderRect(r, &cell);
-            if (lb[idx][0] != '\0') { SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderDebugText(r, cell.x + 5, cell.y + 5, lb[idx]); SDL_SetRenderDrawColor(r, 150, 150, 150, 255); SDL_RenderDebugText(r, cell.x + 5, cell.y + 35, ac[idx]); }
+
+            // Cooldown Overlay for Main Cannon
+            if (idx == 3) {
+                float cd_pct = 0;
+                for (int i = 0; i < MAX_UNITS; i++) {
+                    if (s->units[i].active && s->units[i].type == UNIT_MOTHERSHIP) {
+                        cd_pct = s->units[i].large_cannon_cooldown / s->units[i].stats->main_cannon_cooldown;
+                        break;
+                    }
+                }
+                if (cd_pct > 0) {
+                    SDL_FRect cd_rect = {cell.x, cell.y + cell.h * (1.0f - cd_pct), cell.w, cell.h * cd_pct};
+                    SDL_SetRenderDrawColor(r, 0, 0, 0, 180);
+                    SDL_RenderFillRect(r, &cd_rect);
+                    
+                    char cd_str[8];
+                    for (int i = 0; i < MAX_UNITS; i++) {
+                        if (s->units[i].active && s->units[i].type == UNIT_MOTHERSHIP) {
+                            snprintf(cd_str, 8, "%.1fs", s->units[i].large_cannon_cooldown);
+                            break;
+                        }
+                    }
+                    SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
+                    SDL_RenderDebugText(r, cell.x + (cell.w - (SDL_strlen(cd_str) * 8)) / 2.0f, cell.y + (cell.h - 8) / 2.0f, cd_str);
+                }
+            }
+
+            if (lb[idx][0] != '\0') { 
+                SDL_SetRenderDrawColor(r, 255, 255, 255, 255); 
+                SDL_RenderDebugText(r, cell.x + 5, cell.y + 5, lb[idx]); 
+                SDL_SetRenderDrawColor(r, 150, 150, 150, 255); 
+                // Shortened labels to fit (e.g. "MAIN CAN" instead of "MAIN CANNON")
+                SDL_RenderDebugText(r, cell.x + 5, cell.y + 35, ac[idx]); 
+            }
     }
     float bw = 400.0f, bh = 15.0f, bx = (ww - bw) / 2.0f, by = 30.0f;
     SDL_SetRenderDrawColor(r, 20, 40, 20, 180); SDL_RenderFillRect(r, &(SDL_FRect){bx, by, bw, bh});
@@ -994,6 +1020,12 @@ static void DrawHUD(SDL_Renderer *r, AppState *s, int ww, int wh) {
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255); 
     const char *title = "HULL INTEGRITY";
     SDL_RenderDebugText(r, (ww - (SDL_strlen(title) * 8)) / 2.0f, by - 15, title);
+
+    // Error Message Overlay
+    if (s->ui_error_timer > 0) {
+        SDL_SetRenderDrawColor(r, 255, 50, 50, 255);
+        SDL_RenderDebugText(r, (ww - (SDL_strlen(s->ui_error_msg) * 8)) / 2.0f, wh / 2.0f - 100.0f, s->ui_error_msg);
+    }
 
     float sx = ww / 2.0f, sy = wh - 80.0f, isz = 60.0f; int sc = 0;
     for (int i = 0; i < MAX_UNITS; i++) if (s->unit_selected[i]) sc++;
@@ -1013,9 +1045,9 @@ static void DrawHUD(SDL_Renderer *r, AppState *s, int ww, int wh) {
             if (min_dist < 0) min_dist = 0;
 
             Uint8 rr = 100, rg = 255, rb = 100;
-            if (min_dist < SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT) { rr = 200; rg = 60; rb = 60; }
-            else if (min_dist < SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT) { rr = 150; rg = 100; rb = 80; }
-            else if (min_dist < SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT) { rr = 80; rg = 80; rb = 150; }
+            if (min_dist < WARNING_RANGE_NEAR) { rr = 200; rg = 60; rb = 60; }
+            else if (min_dist < WARNING_RANGE_MID) { rr = 150; rg = 100; rb = 80; }
+            else if (min_dist < WARNING_RANGE_FAR) { rr = 80; rg = 80; rb = 150; }
 
             SDL_FRect ir = {cx, sy, isz, isz}; SDL_SetRenderDrawColor(r, 40, 40, 40, 200); SDL_RenderFillRect(r, &ir); 
             SDL_SetRenderDrawColor(r, rr, rg, rb, 255); SDL_RenderRect(r, &ir);
@@ -1026,10 +1058,11 @@ static void DrawHUD(SDL_Renderer *r, AppState *s, int ww, int wh) {
             SDL_SetRenderDrawColor(r, 0, 0, 100, 200); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y, br_w, br_h});
             SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y + br_h * (1.0f - s->energy/INITIAL_ENERGY), br_w, br_h * (s->energy/INITIAL_ENERGY)});
             br_x -= 7.0f;
-            // Main Cannon (Purple)
+            // Main Cannon Cooldown (Purple)
             if (s->units[i].stats->main_cannon_damage > 0) {
                 SDL_SetRenderDrawColor(r, 100, 0, 100, 200); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y, br_w, br_h});
-                SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y + br_h * (1.0f - s->units[i].main_cannon_energy/MAIN_CANNON_MAX_ENERGY), br_w, br_h * (s->units[i].main_cannon_energy/MAIN_CANNON_MAX_ENERGY)});
+                float cd_pct = s->units[i].large_cannon_cooldown / s->units[i].stats->main_cannon_cooldown;
+                SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){br_x, br_y + br_h * (1.0f - (1.0f - cd_pct)), br_w, br_h * (1.0f - cd_pct)});
                 br_x -= 7.0f;
             }
             // Health (Green)
@@ -1088,19 +1121,14 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
       SDL_SetRenderDrawColor(r, 255, 255, 255, 255); SDL_RenderRect(r, &(SDL_FRect){mm_x + (MINIMAP_SIZE - vw) / 2, mm_y + (MINIMAP_SIZE - vh) / 2, vw, vh});
   }
   
-  static void DrawTargetCrosshair(SDL_Renderer *r, float x, float y, float size, SDL_Color color) {
+  static void DrawTargetRing(SDL_Renderer *r, float x, float y, float radius, SDL_Color color) {
     SDL_SetRenderDrawColor(r, color.r, color.g, color.b, color.a);
-    float h = size / 2.0f;
-    float gap = size * 0.3f;
-    
-    // Top
-    SDL_RenderLine(r, x, y - h, x, y - gap);
-    // Bottom
-    SDL_RenderLine(r, x, y + h, x, y + gap);
-    // Left
-    SDL_RenderLine(r, x - h, y, x - gap, y);
-    // Right
-    SDL_RenderLine(r, x + h, y, x + gap, y);
+    const int segs = 32;
+    for(int i=0; i<segs; i++) {
+        if (i % 4 >= 2) continue; // Dashed look
+        float a1 = i * (SDL_PI_F * 2.0f) / (float)segs, a2 = (i+1) * (SDL_PI_F * 2.0f) / (float)segs;
+        SDL_RenderLine(r, x + cosf(a1)*radius, y + sinf(a1)*radius, x + cosf(a2)*radius, y + sinf(a2)*radius);
+    }
 }
 
 static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {  for (int i = 0; i < MAX_UNITS; i++) {
@@ -1109,32 +1137,50 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
     if (s->units[i].type == UNIT_MOTHERSHIP) {
       if (!IsVisible(sx_y.x, sx_y.y, rad * 2.6f, win_w, win_h)) continue;
       
-      // Targeting lines & Crosshairs
+      // Targeting lines & Rings
       if (s->units[i].large_target_idx != -1) {
           int ti = s->units[i].large_target_idx;
           float dx = s->asteroids[ti].pos.x - s->units[i].pos.x, dy = s->asteroids[ti].pos.y - s->units[i].pos.y;
           float dist = sqrtf(dx * dx + dy * dy);
-          SDL_Color col = (dist <= s->units[i].stats->main_cannon_range) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
+          SDL_Color col = (dist <= s->units[i].stats->main_cannon_range + s->asteroids[ti].radius) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
           SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a / 2);
           
           Vec2 tsx = WorldToScreenParallax(s->asteroids[ti].pos, 1.0f, s, win_w, win_h);
-          SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y);
           
-          float cross_sz = (s->asteroids[ti].radius * 0.8f) * s->zoom;
-          DrawTargetCrosshair(r, tsx.x, tsx.y, fmaxf(20.0f, cross_sz), col);
+          // End line at surface
+          float ast_rad_px = (s->asteroids[ti].radius * ASTEROID_VISUAL_SCALE) * s->zoom;
+          float lx = tsx.x - sx_y.x, ly = tsx.y - sx_y.y;
+          float llen = sqrtf(lx*lx + ly*ly);
+          if (llen > ast_rad_px) {
+              float fx = sx_y.x + (lx/llen) * (llen - ast_rad_px);
+              float fy = sx_y.y + (ly/llen) * (llen - ast_rad_px);
+              SDL_RenderLine(r, sx_y.x, sx_y.y, fx, fy);
+          }
+          
+          float ring_sz = (s->asteroids[ti].radius * 0.45f) * s->zoom;
+          DrawTargetRing(r, tsx.x, tsx.y, fmaxf(15.0f, ring_sz), col);
       }
       for (int c = 0; c < 4; c++) if (s->units[i].small_target_idx[c] != -1) {
           int ti = s->units[i].small_target_idx[c];
           float dx = s->asteroids[ti].pos.x - s->units[i].pos.x, dy = s->asteroids[ti].pos.y - s->units[i].pos.y;
           float dist = sqrtf(dx * dx + dy * dy);
-          SDL_Color col = (dist <= s->units[i].stats->small_cannon_range) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
+          SDL_Color col = (dist <= s->units[i].stats->small_cannon_range + s->asteroids[ti].radius) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
           SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a / 3);
 
           Vec2 tsx = WorldToScreenParallax(s->asteroids[ti].pos, 1.0f, s, win_w, win_h);
-          SDL_RenderLine(r, sx_y.x, sx_y.y, tsx.x, tsx.y);
           
-          float cross_sz = (s->asteroids[ti].radius * 0.6f) * s->zoom;
-          DrawTargetCrosshair(r, tsx.x, tsx.y, fmaxf(15.0f, cross_sz), col);
+          // End line at surface
+          float ast_rad_px = (s->asteroids[ti].radius * ASTEROID_VISUAL_SCALE) * s->zoom;
+          float lx = tsx.x - sx_y.x, ly = tsx.y - sx_y.y;
+          float llen = sqrtf(lx*lx + ly*ly);
+          if (llen > ast_rad_px) {
+              float fx = sx_y.x + (lx/llen) * (llen - ast_rad_px);
+              float fy = sx_y.y + (ly/llen) * (llen - ast_rad_px);
+              SDL_RenderLine(r, sx_y.x, sx_y.y, fx, fy);
+          }
+          
+          float ring_sz = (s->asteroids[ti].radius * 0.4f) * s->zoom;
+          DrawTargetRing(r, tsx.x, tsx.y, fmaxf(10.0f, ring_sz), col);
       }
 
       // Organic Hull
@@ -1156,37 +1202,60 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
           SDL_SetRenderDrawColor(r, 0, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
           SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->energy / INITIAL_ENERGY), bh});
           by += bh + 2.0f;
-          // Main Cannon Energy
+          // Main Cannon Cooldown
           if (s->units[i].stats->main_cannon_damage > 0) {
               SDL_SetRenderDrawColor(r, 40, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-              SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->units[i].main_cannon_energy / MAIN_CANNON_MAX_ENERGY), bh});
+              float cd_pct = s->units[i].large_cannon_cooldown / s->units[i].stats->main_cannon_cooldown;
+              SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (1.0f - cd_pct), bh});
           }
       }
     }
     if (s->selected_unit_idx == i) {
         if (s->units[i].has_target) {
-            if (s->patrol_mode) {
-                // 1. Draw the static patrol loop in low alpha blue
-                SDL_SetRenderDrawColor(r, 100, 100, 255, 60);
-                for (int q = 0; q < s->units[i].command_count; q++) {
-                    Vec2 w1 = s->units[i].command_queue[q].pos, t1 = WorldToScreenParallax(w1, 1.0f, s, win_w, win_h);
-                    Vec2 w2 = s->units[i].command_queue[(q + 1) % s->units[i].command_count].pos, t2 = WorldToScreenParallax(w2, 1.0f, s, win_w, win_h);
-                    SDL_RenderLine(r, t1.x, t1.y, t2.x, t2.y);
-                    SDL_RenderRect(r, &(SDL_FRect){t1.x - 3, t1.y - 3, 6, 6});
+            Vec2 lp = sx_y;
+            float ship_rad_px = s->units[i].stats->radius * s->zoom;
+
+            for (int q = s->units[i].command_current_idx; q < s->units[i].command_count; q++) {
+                Vec2 wt = s->units[i].command_queue[q].pos;
+                Vec2 tsx = WorldToScreenParallax(wt, 1.0f, s, win_w, win_h);
+                
+                // Set color based on command type
+                if (s->units[i].command_queue[q].type == CMD_PATROL) {
+                    SDL_SetRenderDrawColor(r, 100, 100, 255, 180); // Blue for Patrol
+                } else if (s->units[i].command_queue[q].type == CMD_ATTACK_MOVE) {
+                    SDL_SetRenderDrawColor(r, 255, 100, 100, 180); // Red for Attack Move
+                } else {
+                    SDL_SetRenderDrawColor(r, 100, 255, 100, 180); // Green for Move
                 }
-                // 2. Draw active segment from ship to current waypoint in high alpha blue
-                int cur = s->units[i].command_current_idx;
-                Vec2 tw = WorldToScreenParallax(s->units[i].command_queue[cur].pos, 1.0f, s, win_w, win_h);
-                SDL_SetRenderDrawColor(r, 100, 100, 255, 180);
-                SDL_RenderLine(r, sx_y.x, sx_y.y, tw.x, tw.y);
-            } else {
-                // Normal waypoint progression in green
-                Vec2 lp = sx_y; 
-                for (int q = s->units[i].command_current_idx; q < s->units[i].command_count; q++) {
-                    Vec2 wt = s->units[i].command_queue[q].pos, tsx = WorldToScreenParallax(wt, 1.0f, s, win_w, win_h);
-                    SDL_SetRenderDrawColor(r, 100, 255, 100, 150);
+
+                // First segment: Start at ship radius, not center
+                if (q == s->units[i].command_current_idx) {
+                    float dx = tsx.x - lp.x, dy = tsx.y - lp.y;
+                    float dist = sqrtf(dx*dx + dy*dy);
+                    if (dist > ship_rad_px) {
+                        float start_x = lp.x + (dx/dist) * ship_rad_px;
+                        float start_y = lp.y + (dy/dist) * ship_rad_px;
+                        SDL_RenderLine(r, start_x, start_y, tsx.x, tsx.y);
+                    }
+                } else {
                     SDL_RenderLine(r, lp.x, lp.y, tsx.x, tsx.y);
-                    lp = tsx; SDL_RenderRect(r, &(SDL_FRect){tsx.x - 3, tsx.y - 3, 6, 6});
+                }
+
+                lp = tsx;
+                SDL_RenderRect(r, &(SDL_FRect){tsx.x - 3, tsx.y - 3, 6, 6});
+            }
+
+            // If we are in a patrol loop, draw the return line
+            if (s->units[i].command_count > 0 && s->units[i].command_queue[s->units[i].command_count - 1].type == CMD_PATROL) {
+                int first_patrol = s->units[i].command_count - 1;
+                while (first_patrol > 0 && s->units[i].command_queue[first_patrol - 1].type == CMD_PATROL) {
+                    first_patrol--;
+                }
+                if (first_patrol < s->units[i].command_count - 1) {
+                    Vec2 p1 = WorldToScreenParallax(s->units[i].command_queue[s->units[i].command_count - 1].pos, 1.0f, s, win_w, win_h);
+                    Vec2 p2 = WorldToScreenParallax(s->units[i].command_queue[first_patrol].pos, 1.0f, s, win_w, win_h);
+                    SDL_SetRenderDrawColor(r, 100, 100, 255, 80); // Faint blue return line
+                    SDL_RenderLine(r, p1.x, p1.y, p2.x, p2.y);
                 }
             }
         }
@@ -1204,9 +1273,30 @@ void Renderer_Draw(AppState *s) {
   SDL_SetRenderDrawBlendMode(s->renderer, SDL_BLENDMODE_BLEND);
   UpdateBackground(s); UpdateDensityMap(s); UpdateRadar(s);
   if (s->bg_texture) SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
-  DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE, STAR_LAYER_PARALLAX, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
-  if (s->show_grid) DrawGrid(s->renderer, s, ww, wh);
-  Renderer_DrawAsteroids(s->renderer, s, ww, wh); Renderer_DrawUnits(s->renderer, s, ww, wh); Renderer_DrawParticles(s->renderer, s, ww, wh);
+    DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE, STAR_LAYER_PARALLAX, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
+    if (s->show_grid) DrawGrid(s->renderer, s, ww, wh);
+    
+    // Potential Target Visualization
+    if (s->pending_input_type == INPUT_TARGET) {
+        float wx = s->camera_pos.x + s->mouse_pos.x / s->zoom;
+        float wy = s->camera_pos.y + s->mouse_pos.y / s->zoom;
+        for (int a = 0; a < MAX_ASTEROIDS; a++) {
+            if (!s->asteroids[a].active) continue;
+            float dx = s->asteroids[a].pos.x - wx, dy = s->asteroids[a].pos.y - wy;
+            if (dx*dx + dy*dy < s->asteroids[a].radius * s->asteroids[a].radius) {
+                Vec2 as = WorldToScreenParallax(s->asteroids[a].pos, 1.0f, s, ww, wh);
+                float ring_r = (s->asteroids[a].radius * ASTEROID_VISUAL_SCALE * 1.5f) * s->zoom;
+                // Pulsing bright white ring
+                float pulse = 0.7f + 0.3f * sinf(s->current_time * 15.0f);
+                SDL_Color col = {255, 255, 255, (Uint8)(200 * pulse)};
+                DrawTargetRing(s->renderer, as.x, as.y, ring_r, col);
+                break;
+            }
+        }
+    }
+  
+    Renderer_DrawAsteroids(s->renderer, s, ww, wh);
+   Renderer_DrawUnits(s->renderer, s, ww, wh); Renderer_DrawParticles(s->renderer, s, ww, wh);
   if (s->box_active) { float x1 = fminf(s->box_start.x, s->box_current.x), y1 = fminf(s->box_start.y, s->box_current.y), w = fabsf(s->box_start.x - s->box_current.x), h = fabsf(s->box_start.y - s->box_current.y); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 50); SDL_RenderFillRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 200); SDL_RenderRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); }
   DrawDebugInfo(s->renderer, s, ww); DrawMinimap(s->renderer, s, ww, wh); DrawHUD(s->renderer, s, ww, wh);
   

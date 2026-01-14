@@ -6,6 +6,9 @@
 // Spawns a visual explosion effect at the given position
 void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult, ExplosionType type, int asteroid_tex_idx);
 
+// Spawns a bright laser flash (muzzle or impact)
+void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact);
+
 // Updates all active particles
 void Particles_Update(AppState *s, float dt);
 

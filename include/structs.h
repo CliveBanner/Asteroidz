@@ -34,7 +34,6 @@ typedef struct {
     float main_cannon_damage;
     float main_cannon_range;
     float main_cannon_cooldown;
-    float main_cannon_energy_cost;
     
     float small_cannon_damage;
     float small_cannon_range;
@@ -47,14 +46,23 @@ typedef struct {
 } RadarBlip;
 
 typedef enum {
+    INPUT_NONE,
+    INPUT_POSITION,
+    INPUT_TARGET
+} AbilityInputType;
+
+typedef enum {
     CMD_MOVE,
-    CMD_ATTACK,
+    CMD_ATTACK_MOVE,
     CMD_PATROL,
-    CMD_HOLD
+    CMD_HOLD,
+    CMD_MAIN_CANNON,
+    CMD_TOGGLE_ATTACK // Passive toggle
 } CommandType;
 
 typedef struct {
     Vec2 pos;
+    int target_idx;
     CommandType type;
 } Command;
 
@@ -64,7 +72,6 @@ typedef struct {
     float rotation;
     float health;
     float energy;
-    float main_cannon_energy;
     
     UnitType type;
     const UnitStats *stats;
@@ -163,8 +170,10 @@ typedef struct {
     Vec2 box_current;
 
     // Command Mode
-    bool attack_mode;
+    bool auto_attack_enabled;
     bool patrol_mode;
+    CommandType pending_cmd_type;
+    AbilityInputType pending_input_type;
 
     // Game Entities
     Asteroid asteroids[MAX_ASTEROIDS];
@@ -182,6 +191,7 @@ typedef struct {
     bool show_grid;
     bool show_density;
     bool shift_down;
+    bool key_q_down, key_w_down, key_e_down, key_r_down, key_h_down;
     
     // Resources
     float energy; // Global energy pool
@@ -202,9 +212,13 @@ typedef struct {
     bool is_loading;
     int assets_generated;
 
+    // UI
     float respawn_timer;
     Vec2 respawn_pos;
     float hold_flash_timer;
+    float auto_attack_flash_timer;
+    char ui_error_msg[128];
+    float ui_error_timer;
 
     // Background Threading (Nebula)
     SDL_Thread *bg_thread;
