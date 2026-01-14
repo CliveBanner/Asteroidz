@@ -250,6 +250,51 @@ static void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
   }
 }
 
+static void DrawMothershipToBuffer(Uint32 *pixels, int size, float seed) {
+    float world_scale = (float)size / MOTHERSHIP_WORLD_SCALE_DIVISOR;
+    typedef struct { float x, y, radius; } Core;
+    Core cores[MOTHERSHIP_CORE_COUNT] = {
+        {0.0f, 0.0f, 1.3f},
+        {-0.9f, 0.4f, 0.95f},
+        {0.9f, 0.4f, 0.95f},
+        {0.0f, -0.7f, 0.8f},
+        {0.4f, 0.9f, 0.7f}
+    };
+
+    for (int y = 0; y < size; y++) {
+        float wy = (float)y / world_scale - 4.0f;
+        for (int x = 0; x < size; x++) {
+            float wx = (float)x / world_scale - 4.0f;
+            
+            // Subtle pixel-aligned warping
+            float warp_x = 0.1f * sinf(wx * 2.0f + seed);
+            float warp_y = 0.1f * sinf(wy * 2.0f + seed);
+            
+            float F = 0.0f;
+            for (int i = 0; i < MOTHERSHIP_CORE_COUNT; i++) {
+                float dx = wx + warp_x - cores[i].x;
+                float dy = wy + warp_y - cores[i].y;
+                F += (cores[i].radius * cores[i].radius) / (dx*dx + dy*dy + 0.001f);
+            }
+
+            if (F >= 1.0f) {
+                // Chunky Pixel Art Shading
+                Uint8 intensity = (Uint8)(SDL_clamp(F * 35.0f, 40.0f, 130.0f));
+                // Quantize heavily for pixel art look
+                intensity = (intensity / 16) * 16;
+                
+                Uint8 r = QUANTIZE(45), g = QUANTIZE(intensity), b = QUANTIZE(70 + intensity/2), a = 255;
+                
+                // Add "Panel Lines" / Detail
+                float panel = ValueNoise2D(wx * 4.0f, wy * 4.0f);
+                if (panel > 0.75f) { r -= 10; g -= 20; b -= 15; }
+                
+                pixels[y * size + x] = (a << 24) | (b << 16) | (g << 8) | r;
+            }
+        }
+    }
+}
+
 static void DrawExplosionPuffToBuffer(Uint32 *pixels, int size, float seed) {
   int center = size / 2; float max_rad = size * 0.45f;
   for (int y = 0; y < size; y++) {
@@ -302,7 +347,7 @@ static void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
 }
 
 void Renderer_GenerateAssetStep(AppState *s) {
-  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT + 3;
+  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + DEBRIS_COUNT + 2;
   if (s->assets_generated >= total_assets) { s->is_loading = false; return; }
   if (s->assets_generated < PLANET_COUNT) {
     int sz = 512; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
@@ -332,7 +377,7 @@ void Renderer_GenerateAssetStep(AppState *s) {
     SDL_SetTextureBlendMode(s->debris_textures[d_idx], SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(s->debris_textures[d_idx], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->debris_textures[d_idx], NULL, p, sz * 4); SDL_free(p);
-  } else if (s->assets_generated == total_assets - 3) {
+  } else if (s->assets_generated == total_assets - 2) {
     int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawExplosionPuffToBuffer(p, sz, 777.7f);
     s->explosion_puff_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
@@ -340,10 +385,12 @@ void Renderer_GenerateAssetStep(AppState *s) {
     SDL_SetTextureScaleMode(s->explosion_puff_texture, SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->explosion_puff_texture, NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated == total_assets - 1) {
-    int sz = MOTHERSHIP_FX_TEXTURE_SIZE;
-    s->mothership_hull_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, sz, sz);
+    int sz = 256; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    DrawMothershipToBuffer(p, sz, 123.4f);
+    s->mothership_hull_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->mothership_hull_texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(s->mothership_hull_texture, SDL_SCALEMODE_NEAREST);
+    SDL_UpdateTexture(s->mothership_hull_texture, NULL, p, sz * 4); SDL_free(p);
   }
   s->assets_generated++;
   if (s->assets_generated >= total_assets) s->is_loading = false;
@@ -601,29 +648,9 @@ static int SDLCALL UnitFXGenerationThread(void *data) {
         SDL_UnlockMutex(s->unit_fx_mutex);
     }
 
-    // 2. Organic Mothership FX
-    if (s->mothership_hull_buffer) {
-        GenerateMothershipOrganic(s->mothership_hull_buffer, s->mothership_fx_size, s->mothership_fx_size, fx_timer);
-        SDL_SetAtomicInt(&s->mothership_data_ready, 1);
-        fx_timer += 0.02f;
-    }
-
     SDL_Delay(16); 
   }
   return 0;
-}
-
-static void UpdateUnitFX(AppState *s) { 
-    if (s->mothership_hull_texture && SDL_GetAtomicInt(&s->mothership_data_ready) == 1) {
-        void *pixels; int pitch;
-        if (SDL_LockTexture(s->mothership_hull_texture, NULL, &pixels, &pitch)) {
-            for (int i = 0; i < s->mothership_fx_size; i++) {
-                SDL_memcpy((Uint8 *)pixels + i * pitch, (Uint8 *)s->mothership_hull_buffer + i * s->mothership_fx_size * 4, s->mothership_fx_size * 4);
-            }
-            SDL_UnlockTexture(s->mothership_hull_texture);
-        }
-        SDL_SetAtomicInt(&s->mothership_data_ready, 0);
-    }
 }
 
 void Renderer_Init(AppState *s) {
@@ -908,25 +935,27 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
       Vec2 ms = WorldToScreenParallax(m_pos, 1.0f, s, win_w, win_h);
       SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
       
-      struct { float r; SDL_Color c; const char* l; } zones[] = {
-          { SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT, {80, 80, 150, 100}, "FAR" },
-          { SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT, {150, 100, 80, 120}, "MID" },
-          { SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT, {200, 60, 60, 150}, "NEAR" }
+      struct { float r; SDL_Color c; const char* l; bool dashed; float y_off; } zones[] = {
+          { LARGE_CANNON_RANGE, {180, 50, 255, 120}, "MAIN CANNON LIMIT", true, -25.0f },
+          { SMALL_CANNON_RANGE * TARGET_RANGE_FAR_MULT, {80, 80, 150, 100}, "FAR WARNING", false, -10.0f },
+          { SMALL_CANNON_RANGE, {255, 255, 255, 100}, "LASER LIMIT", true, 5.0f },
+          { SMALL_CANNON_RANGE * TARGET_RANGE_MID_MULT, {150, 100, 80, 120}, "MID WARNING", false, 20.0f },
+          { SMALL_CANNON_RANGE * TARGET_RANGE_NEAR_MULT, {200, 60, 60, 150}, "NEAR WARNING", false, 35.0f }
       };
 
-      for(int z=0; z<3; z++) {
+      for(int z=0; z<5; z++) {
           float r_px = zones[z].r * s->zoom;
           SDL_SetRenderDrawColor(renderer, zones[z].c.r, zones[z].c.g, zones[z].c.b, zones[z].c.a);
           
-          // Draw thin ring outline
-          const int segs = 64;
+          const int segs = 128;
           for(int i=0; i<segs; i++) {
+              if (zones[z].dashed && (i % 4 >= 2)) continue; 
+              
               float a1 = i * (SDL_PI_F * 2.0f) / (float)segs, a2 = (i+1) * (SDL_PI_F * 2.0f) / (float)segs;
               SDL_RenderLine(renderer, ms.x + cosf(a1)*r_px, ms.y + sinf(a1)*r_px, ms.x + cosf(a2)*r_px, ms.y + sinf(a2)*r_px);
           }
           
-          // Annotation
-          SDL_RenderDebugText(renderer, ms.x + r_px + 5, ms.y - 10, zones[z].l);
+          SDL_RenderDebugText(renderer, ms.x + r_px + 5, ms.y + zones[z].y_off, zones[z].l);
       }
   }
 }
@@ -1085,7 +1114,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
           int ti = s->units[i].large_target_idx;
           float dx = s->asteroids[ti].pos.x - s->units[i].pos.x, dy = s->asteroids[ti].pos.y - s->units[i].pos.y;
           float dist = sqrtf(dx * dx + dy * dy);
-          SDL_Color col = (dist <= s->units[i].stats->main_cannon_range * WEAPON_FIRING_RANGE_MULT) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
+          SDL_Color col = (dist <= s->units[i].stats->main_cannon_range) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
           SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a / 2);
           
           Vec2 tsx = WorldToScreenParallax(s->asteroids[ti].pos, 1.0f, s, win_w, win_h);
@@ -1098,7 +1127,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
           int ti = s->units[i].small_target_idx[c];
           float dx = s->asteroids[ti].pos.x - s->units[i].pos.x, dy = s->asteroids[ti].pos.y - s->units[i].pos.y;
           float dist = sqrtf(dx * dx + dy * dy);
-          SDL_Color col = (dist <= s->units[i].stats->small_cannon_range * WEAPON_FIRING_RANGE_MULT) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
+          SDL_Color col = (dist <= s->units[i].stats->small_cannon_range) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
           SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a / 3);
 
           Vec2 tsx = WorldToScreenParallax(s->asteroids[ti].pos, 1.0f, s, win_w, win_h);
@@ -1173,7 +1202,7 @@ void Renderer_Draw(AppState *s) {
   }
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
   SDL_SetRenderDrawBlendMode(s->renderer, SDL_BLENDMODE_BLEND);
-  UpdateBackground(s); UpdateDensityMap(s); UpdateRadar(s); UpdateUnitFX(s);
+  UpdateBackground(s); UpdateDensityMap(s); UpdateRadar(s);
   if (s->bg_texture) SDL_RenderTexture(s->renderer, s->bg_texture, NULL, NULL);
   DrawParallaxLayer(s->renderer, s, ww, wh, STAR_LAYER_CELL_SIZE, STAR_LAYER_PARALLAX, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
   if (s->show_grid) DrawGrid(s->renderer, s, ww, wh);

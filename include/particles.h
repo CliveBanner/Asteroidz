@@ -1,0 +1,12 @@
+#ifndef PARTICLES_H
+#define PARTICLES_H
+
+#include "structs.h"
+
+// Spawns a visual explosion effect at the given position
+void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult, ExplosionType type, int asteroid_tex_idx);
+
+// Updates all active particles
+void Particles_Update(AppState *s, float dt);
+
+#endif

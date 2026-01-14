@@ -1,9 +1,13 @@
 #include "game.h"
 #include "constants.h"
+#include "physics.h"
+#include "particles.h"
+#include "utils.h"
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
+void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
   if (s->asteroid_count >= MAX_ASTEROIDS)
     return;
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
@@ -24,158 +28,6 @@ static void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
       s->asteroid_count++;
       break;
     }
-  }
-}
-
-static void SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult, ExplosionType type, int asteroid_tex_idx) {
-  // Balanced scaling
-  float capped_mult = powf(size_mult, 0.6f); 
-  float count_mult = powf(size_mult, 0.35f);   // Fewer pieces for large asteroids
-  float chunky_mult = powf(size_mult, 0.75f);  // Reduced from 0.95f
-  
-  // Theme color lookup - Even darker for a solid rocky look
-  float a_theme = DeterministicHash(asteroid_tex_idx * 789, 123);
-  SDL_Color base_col;
-  if (a_theme > 0.7f) base_col = (SDL_Color){30, 18, 12, 255};      // Deep Red
-  else if (a_theme > 0.4f) base_col = (SDL_Color){15, 20, 35, 255}; // Deep Blue
-  else base_col = (SDL_Color){18, 18, 22, 255};                      // Deep Grey
-
-  if (type == EXPLOSION_IMPACT) {
-      // Fast, sharp sparks
-      int spark_count = (int)(count * 2.5f * count_mult); 
-      for (int i = 0; i < spark_count; i++) {
-        int idx = s->particle_next_idx;
-        s->particles[idx].active = true;
-        s->particles[idx].type = PARTICLE_SPARK;
-        s->particles[idx].pos = pos;
-        float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 800 + 400) * capped_mult; 
-        s->particles[idx].velocity.x = cosf(angle) * speed;
-        s->particles[idx].velocity.y = sinf(angle) * speed;
-        s->particles[idx].life = PARTICLE_LIFE_BASE * 0.5f;
-        s->particles[idx].size = (float)(rand() % 12 + 6) * capped_mult; // Increased from 8+4
-        s->particles[idx].color = (SDL_Color){(Uint8)((base_col.r + 255)/2), (Uint8)((base_col.g + 220)/2), (Uint8)((base_col.b + 150)/2), 255};
-        s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-      }
-      // Small puffs
-      int puff_count = (int)(count * 1.2f * count_mult); 
-      for (int i = 0; i < puff_count; i++) {
-        int idx = s->particle_next_idx;
-        s->particles[idx].active = true;
-        s->particles[idx].type = PARTICLE_PUFF;
-        s->particles[idx].pos = pos;
-        float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 200 + 80) * capped_mult; 
-        s->particles[idx].velocity.x = cosf(angle) * speed;
-        s->particles[idx].velocity.y = sinf(angle) * speed;
-        s->particles[idx].life = PARTICLE_LIFE_BASE * 0.5f; 
-        s->particles[idx].size = (float)(rand() % 120 + 60) * capped_mult; // Increased from 80+40
-        Uint8 v = (Uint8)(rand() % 40 + 80); 
-        s->particles[idx].color = (SDL_Color){v, (Uint8)(v * 0.8f), (Uint8)(v * 0.6f), 255};
-        s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-      }
-      
-      // Fine Debris
-      int fine_debris_count = (int)(10 * count_mult); 
-      for (int i = 0; i < fine_debris_count; i++) {
-          int idx = s->particle_next_idx;
-          s->particles[idx].active = true;
-          s->particles[idx].type = PARTICLE_DEBRIS;
-          s->particles[idx].asteroid_tex_idx = asteroid_tex_idx;
-          s->particles[idx].pos = pos;
-          s->particles[idx].tex_idx = rand() % DEBRIS_COUNT;
-          float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 300 + 100) * capped_mult; 
-          s->particles[idx].velocity.x = cosf(angle) * speed;
-          s->particles[idx].velocity.y = sinf(angle) * speed;
-          s->particles[idx].life = PARTICLE_LIFE_BASE * 0.35f; 
-          s->particles[idx].size = (float)(rand() % 18 + 12) * chunky_mult; // Increased from 12+8
-          s->particles[idx].rotation = (float)(rand() % 360);
-          s->particles[idx].color = base_col;
-          s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-      }
-
-      // Main Debris
-      int debris_count = (int)(3 * count_mult); 
-      for (int i = 0; i < debris_count; i++) {
-          int idx = s->particle_next_idx;
-          s->particles[idx].active = true;
-          s->particles[idx].type = PARTICLE_DEBRIS;
-          s->particles[idx].asteroid_tex_idx = asteroid_tex_idx;
-          s->particles[idx].pos = pos;
-          s->particles[idx].tex_idx = rand() % DEBRIS_COUNT;
-          float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 150 + 60) * capped_mult; 
-          s->particles[idx].velocity.x = cosf(angle) * speed;
-          s->particles[idx].velocity.y = sinf(angle) * speed;
-          s->particles[idx].life = PARTICLE_LIFE_BASE * 0.45f; 
-          s->particles[idx].size = (float)(rand() % 45 + 35) * chunky_mult; // Increased from 30+20
-          s->particles[idx].rotation = (float)(rand() % 360);
-          s->particles[idx].color = base_col;
-          s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-      }
-
-      // Energetic shockwave for impact
-      int sw_idx = s->particle_next_idx;
-      s->particles[sw_idx].active = true;
-      s->particles[sw_idx].type = PARTICLE_SHOCKWAVE;
-      s->particles[sw_idx].pos = pos;
-      s->particles[sw_idx].velocity = (Vec2){0,0};
-      s->particles[sw_idx].life = 0.3f; 
-      s->particles[sw_idx].size = 55.0f * capped_mult; // Increased from 40
-      s->particles[sw_idx].color = (SDL_Color){255, 255, 255, 200}; 
-      s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-
-
-  } else {
-      // EXPLOSION_COLLISION
-      int puff_count = (int)(count * 0.5f * count_mult); 
-      for (int i = 0; i < puff_count; i++) {
-        int idx = s->particle_next_idx;
-        s->particles[idx].active = true;
-        s->particles[idx].type = PARTICLE_PUFF;
-        s->particles[idx].pos = pos;
-        float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 150 + 20) * capped_mult; 
-        s->particles[idx].velocity.x = cosf(angle) * speed;
-        s->particles[idx].velocity.y = sinf(angle) * speed;
-        s->particles[idx].life = PARTICLE_LIFE_BASE * (0.8f + 0.4f * (float)rand()/(float)RAND_MAX); // Middle ground
-        s->particles[idx].size = (float)(rand() % 120 + 60) * capped_mult; // Slightly smaller
-        Uint8 v = (Uint8)(rand() % 30 + 40); // Dark smoke
-        s->particles[idx].color = (SDL_Color){v, (Uint8)(v * 0.95f), (Uint8)(v * 0.9f), 255};
-        s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-      }
-
-      int debris_count = (int)(5 * count_mult); // Reduced from 10
-      for (int i = 0; i < debris_count; i++) {
-          int idx = s->particle_next_idx;
-          s->particles[idx].active = true;
-          s->particles[idx].type = PARTICLE_DEBRIS;
-          s->particles[idx].asteroid_tex_idx = asteroid_tex_idx;
-          s->particles[idx].pos = pos;
-          s->particles[idx].tex_idx = rand() % DEBRIS_COUNT;
-          float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 100 + 40) * capped_mult; 
-          s->particles[idx].velocity.x = cosf(angle) * speed;
-          s->particles[idx].velocity.y = sinf(angle) * speed;
-          s->particles[idx].life = PARTICLE_LIFE_BASE * 0.7f; 
-          s->particles[idx].size = (float)(rand() % 40 + 20) * chunky_mult; // Toned down
-          s->particles[idx].rotation = (float)(rand() % 360);
-          s->particles[idx].color = base_col;
-          s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
-      }
-      
-      // Shockwave (Toned down size)
-      int sw_idx = s->particle_next_idx;
-      s->particles[sw_idx].active = true;
-      s->particles[sw_idx].type = PARTICLE_SHOCKWAVE;
-      s->particles[sw_idx].pos = pos;
-      s->particles[sw_idx].velocity = (Vec2){0,0};
-      s->particles[sw_idx].life = 0.5f;
-      // Reduced initial size from 60.0f
-      s->particles[sw_idx].size = (float)(40.0f * capped_mult); 
-      s->particles[sw_idx].color = (SDL_Color){255, 255, 255, 100};
-      s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
   }
 }
 
@@ -272,9 +124,9 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     if (a->health <= 0 || a->radius < ASTEROID_MIN_RADIUS) {
         a->active = false;
         s->asteroid_count--;
-        SpawnExplosion(s, a->pos, 40, a->max_health / 1000.0f, EXPLOSION_COLLISION, a->tex_idx);
+        Particles_SpawnExplosion(s, a->pos, 40, a->max_health / 1000.0f, EXPLOSION_COLLISION, a->tex_idx);
     }
-    // Start position offset to Mothership radius in target direction
+    
     float dx = a->pos.x - u->pos.x;
     float dy = a->pos.y - u->pos.y;
     float dist = sqrtf(dx * dx + dy * dy);
@@ -282,8 +134,8 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     Vec2 impact_pos = a->pos;
 
     if (dist > 0.1f) {
-        float unit_r = u->stats->radius * LASER_START_OFFSET_MULT; // Offset to the edge of the organic hull
-        float ast_r = a->radius * 0.32f; // Hit visual surface (matches ASTEROID_HITBOX_MULT)
+        float unit_r = u->stats->radius * LASER_START_OFFSET_MULT;
+        float ast_r = a->radius * ASTEROID_VISUAL_SCALE;
         start_pos.x += (dx / dist) * unit_r;
         start_pos.y += (dy / dist) * unit_r;
         impact_pos.x -= (dx / dist) * ast_r;
@@ -300,7 +152,6 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     s->particles[p_idx].color = (SDL_Color)COLOR_LASER_RED; 
     s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
 
-    // Muzzle flash effect
     int m_idx = s->particle_next_idx;
     s->particles[m_idx].active = true;
     s->particles[m_idx].type = PARTICLE_GLOW; 
@@ -311,11 +162,9 @@ static void FireWeapon(AppState *s, Unit *u, int asteroid_idx, float damage, flo
     s->particles[m_idx].color = (SDL_Color)COLOR_MUZZLE_FLASH;
     s->particle_next_idx = (s->particle_next_idx + 1) % MAX_PARTICLES;
 
-    // Small Impact Explosion (Puff + Sparks + Debris)
     float impact_scale = 0.5f + (damage / 2000.0f);
-    SpawnExplosion(s, impact_pos, 15, impact_scale, EXPLOSION_IMPACT, a->tex_idx); 
+    Particles_SpawnExplosion(s, impact_pos, 15, impact_scale, EXPLOSION_IMPACT, a->tex_idx); 
 
-    // Extra Bright Glow at impact point
     int i_g_idx = s->particle_next_idx;
     s->particles[i_g_idx].active = true;
     s->particles[i_g_idx].type = PARTICLE_GLOW;
@@ -348,12 +197,12 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
                 u->has_target = false;
 
                 int attempts = 0;
-                while (attempts < 10) {
-                    float rx = (float)(rand() % 10000 - 5000), ry = (float)(rand() % 10000 - 5000);
+                while (attempts < RESPAWN_ATTEMPTS) {
+                    float rx = (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE), ry = (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE);
                     bool safe = true;
                     for (int j = 0; j < MAX_ASTEROIDS; j++) {
                         if (!s->asteroids[j].active) continue;
-                        if (Vector_DistanceSq((Vec2){rx, ry}, s->asteroids[j].pos) < powf(s->asteroids[j].radius + u->stats->radius + 500.0f, 2)) { safe = false; break; }
+                        if (Vector_DistanceSq((Vec2){rx, ry}, s->asteroids[j].pos) < powf(s->asteroids[j].radius + u->stats->radius + RESPAWN_BUFFER, 2)) { safe = false; break; }
                     }
                     if (safe) { u->pos = (Vec2){rx, ry}; break; }
                     attempts++;
@@ -382,45 +231,24 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
     }
 
     int attempts = 0;
-    while (s->asteroid_count < total_target_count && attempts < 20) {
+    while (s->asteroid_count < total_target_count && attempts < SPAWN_ATTEMPTS) {
         attempts++;
         Vec2 target_center = s->sim_anchors[rand() % s->sim_anchor_count].pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        // Increased min dist from 3000 to 4500 to account for 0.2 zoom (width ~6400)
-        float dist = 4500.0f + (float)(rand() % (int)(DESPAWN_RANGE * 0.8f - 4500.0f));
+        float dist = SPAWN_MIN_DIST + (float)(rand() % (int)(DESPAWN_RANGE * 0.8f - SPAWN_MIN_DIST));
         Vec2 spawn_pos = {target_center.x + cosf(angle) * dist, target_center.y + sinf(angle) * dist};
         
         if (((float)rand() / (float)RAND_MAX) < GetAsteroidDensity(spawn_pos)) {
             float new_rad = ASTEROID_BASE_RADIUS_MIN + (rand() % (int)ASTEROID_BASE_RADIUS_VARIANCE);
             bool overlap = false;
             for (int j = 0; j < MAX_ASTEROIDS; j++) {
-                if (s->asteroids[j].active && Vector_DistanceSq(s->asteroids[j].pos, spawn_pos) < powf((s->asteroids[j].radius + new_rad) * ASTEROID_HITBOX_MULT + 1000.0f, 2)) { overlap = true; break; }
+                if (s->asteroids[j].active && Vector_DistanceSq(s->asteroids[j].pos, spawn_pos) < powf((s->asteroids[j].radius + new_rad) * ASTEROID_HITBOX_MULT + SPAWN_BUFFER, 2)) { overlap = true; break; }
             }
             if (!overlap) {
                 float move_angle = (float)(rand() % 360) * 0.0174533f;
                 SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, new_rad);
             }
         }
-    }
-}
-
-static void UpdateAsteroidPhysics(AppState *s, float dt) {
-    for (int i = 0; i < MAX_ASTEROIDS; i++) {
-        if (!s->asteroids[i].active) continue;
-        int gx = (int)floorf(s->asteroids[i].pos.x / CELESTIAL_GRID_SIZE_F), gy = (int)floorf(s->asteroids[i].pos.y / CELESTIAL_GRID_SIZE_F);
-        for (int oy = -1; oy <= 1; oy++) for (int ox = -1; ox <= 1; ox++) {
-            Vec2 b_pos; float b_type, b_rad;
-            if (GetCelestialBodyInfo(gx + ox, gy + oy, &b_pos, &b_type, &b_rad)) {
-                float dsq = Vector_DistanceSq(b_pos, s->asteroids[i].pos);
-                if (dsq > 100.0f) {
-                    float force = (b_type > 0.95f ? 50000000.0f : 10000000.0f) / dsq;
-                    Vec2 dir = Vector_Normalize(Vector_Sub(b_pos, s->asteroids[i].pos));
-                    s->asteroids[i].velocity = Vector_Add(s->asteroids[i].velocity, Vector_Scale(dir, force * dt));
-                }
-            }
-        }
-        s->asteroids[i].pos = Vector_Add(s->asteroids[i].pos, Vector_Scale(s->asteroids[i].velocity, dt));
-        s->asteroids[i].rotation += s->asteroids[i].rot_speed * dt;
     }
 }
 
@@ -431,7 +259,6 @@ void Game_Update(AppState *s, float dt) {
   HandleRespawn(s, dt, win_w, win_h);
   if (s->hold_flash_timer > 0) s->hold_flash_timer -= dt;
 
-  // Camera & Energy
   Vec2 cam_center = {s->camera_pos.x + (win_w / 2.0f) / s->zoom, s->camera_pos.y + (win_h / 2.0f) / s->zoom};
   float move_speed = CAMERA_SPEED / s->zoom;
   if (s->mouse_pos.x < EDGE_SCROLL_THRESHOLD) s->camera_pos.x -= move_speed * dt;
@@ -443,7 +270,9 @@ void Game_Update(AppState *s, float dt) {
   s->energy = fminf(INITIAL_ENERGY, s->energy + ENERGY_REGEN_RATE * dt);
 
   UpdateSpawning(s, cam_center);
-  UpdateAsteroidPhysics(s, dt);
+  
+  Physics_UpdateAsteroids(s, dt);
+  Physics_HandleCollisions(s, dt);
 
   for (int i = 0; i < MAX_UNITS; i++) {
       if (!s->units[i].active) continue;
@@ -480,125 +309,20 @@ void Game_Update(AppState *s, float dt) {
 
           if (l_target != -1 && s->asteroids[l_target].active) {
               s->asteroids[l_target].targeted = true;
-              if (u->large_cannon_cooldown <= 0 && Vector_DistanceSq(s->asteroids[l_target].pos, u->pos) <= powf(u->stats->main_cannon_range * WEAPON_FIRING_RANGE_MULT, 2)) {
+              if (u->large_cannon_cooldown <= 0 && Vector_DistanceSq(s->asteroids[l_target].pos, u->pos) <= powf(u->stats->main_cannon_range, 2)) {
                   FireWeapon(s, u, l_target, u->stats->main_cannon_damage, u->stats->main_cannon_energy_cost, true);
                   u->large_cannon_cooldown = u->stats->main_cannon_cooldown;
               }
           }
           for (int c = 0; c < 4; c++) if (s_targets[c] != -1 && s->asteroids[s_targets[c]].active) {
               s->asteroids[s_targets[c]].targeted = true;
-              if (u->small_cannon_cooldown[c] <= 0 && Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos) <= powf(u->stats->small_cannon_range * WEAPON_FIRING_RANGE_MULT, 2)) {
+              if (u->small_cannon_cooldown[c] <= 0 && Vector_DistanceSq(s->asteroids[s_targets[c]].pos, u->pos) <= powf(u->stats->small_cannon_range, 2)) {
                   FireWeapon(s, u, s_targets[c], u->stats->small_cannon_damage, u->stats->small_cannon_energy_cost, false);
                   u->small_cannon_cooldown[c] = u->stats->small_cannon_cooldown;
               }
           }
       }
   }
-  for (int i = 0; i < MAX_PARTICLES; i++) {
-    if (!s->particles[i].active) continue;
-    if (s->particles[i].type == PARTICLE_TRACER) s->particles[i].life -= dt * 2.0f;
-    else if (s->particles[i].type == PARTICLE_SHOCKWAVE) {
-        s->particles[i].life -= dt * 2.0f;
-        s->particles[i].size += dt * 1200.0f; // Slower expansion
-    }
-    else { s->particles[i].pos = Vector_Add(s->particles[i].pos, Vector_Scale(s->particles[i].velocity, dt)); s->particles[i].life -= dt * PARTICLE_LIFE_DECAY; }
-    if (s->particles[i].life <= 0) s->particles[i].active = false;
-  }
-  for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->asteroids[i].active) continue;
-    for (int j = i + 1; j < MAX_ASTEROIDS; j++) {
-      if (!s->asteroids[j].active) continue;
-      float dsq = Vector_DistanceSq(s->asteroids[j].pos, s->asteroids[i].pos);
-      float r1 = s->asteroids[i].radius * ASTEROID_HITBOX_MULT, r2 = s->asteroids[j].radius * ASTEROID_HITBOX_MULT;
-                  if (dsq < (r1 + r2) * (r1 + r2)) {
-                    Asteroid a = s->asteroids[i], b = s->asteroids[j];
-                    SpawnExplosion(s, Vector_Add(a.pos, Vector_Scale(Vector_Sub(b.pos, a.pos), 0.5f)), 40, (a.radius + b.radius) / 100.0f, EXPLOSION_COLLISION, a.tex_idx);
-            
-                    int sm_i = -1, bg_i = -1;        if (a.radius < b.radius * 0.7f) { sm_i = i; bg_i = j; } else if (b.radius < a.radius * 0.7f) { sm_i = j; bg_i = i; }
-        
-        // Calculate collision normal (from A to B)
-        Vec2 normal = Vector_Normalize(Vector_Sub(b.pos, a.pos));
-
-        if (sm_i != -1) {
-            Asteroid sm = s->asteroids[sm_i];
-            
-            // Calculate reflection for the smaller asteroid
-            // R = V - 2(V.N)N
-            // Normal needs to point towards the incoming asteroid (sm)
-            Vec2 n_surf = (sm_i == i) ? Vector_Scale(normal, -1.0f) : normal;
-            Vec2 v_inc = sm.velocity;
-            if (Vector_Length(v_inc) < 10.0f) v_inc = Vector_Normalize(Vector_Sub(sm.pos, s->asteroids[bg_i].pos));
-            
-            float dot = v_inc.x * n_surf.x + v_inc.y * n_surf.y;
-            Vec2 reflect = Vector_Sub(v_inc, Vector_Scale(n_surf, 2.0f * dot));
-            float reflect_angle = atan2f(reflect.y, reflect.x);
-
-            s->asteroids[sm_i].active = false; s->asteroid_count--;
-            s->asteroids[bg_i].radius *= 0.9f; s->asteroids[bg_i].health *= 0.9f;
-            
-            float cr = sm.radius * 0.5f;
-            if (cr >= ASTEROID_MIN_RADIUS) {
-                float sa = reflect_angle + ((float)(rand() % 100) / 100.0f - 0.5f) * 0.5f;
-                SpawnAsteroid(s, Vector_Add(sm.pos, (Vec2){cosf(sa)*cr, sinf(sa)*cr}), (Vec2){cosf(sa), sinf(sa)}, cr);
-            }
-            if (sm.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
-                float chr = ASTEROID_SPLIT_MIN_RADIUS * powf(sm.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
-                if (chr >= ASTEROID_MIN_RADIUS) for (int k = 0; k < 2; k++) {
-                    float ssa = reflect_angle + (k == 0 ? 0.3f : -0.3f) + ((float)(rand() % 100) / 100.0f - 0.5f) * 0.4f;
-                    SpawnAsteroid(s, Vector_Add(sm.pos, (Vec2){cosf(ssa)*chr, sinf(ssa)*chr}), (Vec2){cosf(ssa), sinf(ssa)}, chr);
-                }
-            }
-        } else {
-            s->asteroids[i].active = false; s->asteroids[j].active = false; s->asteroid_count -= 2;
-            
-            // A reflects off B (Normal points A -> B, so surface normal for A is N)
-            // Wait, normal is A->B. Surface of B facing A has normal -N.
-            // Surface of A facing B has normal N.
-            // If A hits B, A bounces off B's surface. Surface normal is -Normal (B->A).
-            
-            Vec2 v_a = a.velocity;
-            Vec2 n_a = Vector_Scale(normal, -1.0f); // Surface of B pointing at A
-            float d_a = v_a.x * n_a.x + v_a.y * n_a.y;
-            Vec2 ref_a = Vector_Sub(v_a, Vector_Scale(n_a, 2.0f * d_a));
-            float ang_a = atan2f(ref_a.y, ref_a.x);
-
-            // B reflects off A (Surface normal is Normal A->B)
-            Vec2 v_b = b.velocity;
-            float d_b = v_b.x * normal.x + v_b.y * normal.y;
-            Vec2 ref_b = Vector_Sub(v_b, Vector_Scale(normal, 2.0f * d_b));
-            float ang_b = atan2f(ref_b.y, ref_b.x);
-
-            if (a.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
-              float chr = ASTEROID_SPLIT_MIN_RADIUS * powf(a.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
-              if (chr >= ASTEROID_MIN_RADIUS) for (int k = 0; k < 2; k++) {
-                float sa = ang_a + (k == 0 ? 0.4f : -0.4f);
-                SpawnAsteroid(s, Vector_Add(a.pos, (Vec2){cosf(sa)*chr, sinf(sa)*chr}), (Vec2){cosf(sa), sinf(sa)}, chr);
-              }
-            }
-            if (b.radius > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
-              float chr = ASTEROID_SPLIT_MIN_RADIUS * powf(b.radius / ASTEROID_SPLIT_MIN_RADIUS, ASTEROID_SPLIT_EXPONENT);
-              if (chr >= ASTEROID_MIN_RADIUS) for (int k = 0; k < 2; k++) {
-                float sa = ang_b + (k == 0 ? 0.4f : -0.4f);
-                SpawnAsteroid(s, Vector_Add(b.pos, (Vec2){cosf(sa)*chr, sinf(sa)*chr}), (Vec2){cosf(sa), sinf(sa)}, chr);
-              }
-            }
-        }
-        break;
-      }
-    }
-    for (int u = 0; u < MAX_UNITS; u++) {
-        if (!s->units[u].active) continue;
-        float dsq = Vector_DistanceSq(s->units[u].pos, s->asteroids[i].pos), md = s->asteroids[i].radius * ASTEROID_HITBOX_MULT + s->units[u].stats->radius;
-        if (dsq < md * md) {
-            s->units[u].health -= s->asteroids[i].radius * ASTEROID_HITBOX_MULT;
-            SpawnExplosion(s, s->asteroids[i].pos, 20, s->asteroids[i].radius / 100.0f, EXPLOSION_COLLISION, s->asteroids[i].tex_idx);
-            s->asteroids[i].active = false; s->asteroid_count--;
-            if (s->units[u].health <= 0) {
-                SpawnExplosion(s, s->units[u].pos, 100, 2.0f, EXPLOSION_COLLISION, s->asteroids[i].tex_idx);
-                if (s->units[u].type == UNIT_MOTHERSHIP) { s->units[u].active = false; s->respawn_timer = RESPAWN_TIME; s->respawn_pos = s->units[u].pos; } else s->units[u].active = false;
-            }
-            break;
-        }
-    }
-  }
+  
+  Particles_Update(s, dt);
 }

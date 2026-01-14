@@ -17,7 +17,15 @@ else()
 endif()
 
 # Define executable
-add_executable(asteriodz ${SOURCES})
+add_executable(asteriodz
+    src/main.c
+    src/game.c
+    src/input.c
+    src/renderer.c
+    src/utils.c
+    src/physics.c
+    src/particles.c
+)
 
 # Target properties
 target_include_directories(asteriodz PRIVATE include)
