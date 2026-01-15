@@ -41,79 +41,91 @@ void UI_DrawHUD(AppState *s) {
     }
     if (!any_selected) return;
 
-    float gx = 20.0f, csz = 55.0f, pad = 5.0f, gy = wh - (csz * 2 + pad) - 20.0f;
-    
-    // Command Bar (Top row)
-    const char *lb1[4] = {"Q", "W", "E", "R"};
-    const char *ac1[4] = {"PATROL", "MOVE", "ATTACK", "STOP"};
-    for (int col = 0; col < 4; col++) {
-        SDL_FRect cell = {gx + col * (csz + pad), gy, csz, csz};
-        bool key_down = false;
-        if (col == 0 && s->input.key_q_down) key_down = true;
-        if (col == 1 && s->input.key_w_down) key_down = true;
-        if (col == 2 && s->input.key_e_down) key_down = true;
-        if (col == 3 && s->input.key_r_down) key_down = true;
+    // --- RTS Command Card (3x5 Grid) ---
+    float csz = 60.0f, pad = 4.0f;
+    float card_w = (csz * 5) + (pad * 4);
+    float card_h = (csz * 3) + (pad * 2);
+    float gx = ww - card_w - 20.0f;
+    float gy = wh - card_h - 20.0f;
 
-        if (key_down) SDL_SetRenderDrawColor(s->renderer, 200, 200, 200, 150);
-        else SDL_SetRenderDrawColor(s->renderer, 40, 40, 40, 200);
-        
-        SDL_RenderFillRect(s->renderer, &cell); SDL_SetRenderDrawColor(s->renderer, 80, 80, 80, 255); SDL_RenderRect(s->renderer, &cell);
-        
-        SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255); 
-        SDL_RenderDebugText(s->renderer, cell.x + 5, cell.y + 5, lb1[col]); 
-        SDL_SetRenderDrawColor(s->renderer, 150, 150, 150, 255); 
-        SDL_RenderDebugText(s->renderer, cell.x + 5, cell.y + 35, ac1[col]);
+    // Grid Mapping:
+    // [Q] [W] [E] [R] [ ]
+    // [A] [S] [D] [ ] [ ]
+    // [Z] [ ] [ ] [ ] [ ]
 
-        if (col == 2) { // ATTACK bar (for main cannon)
-            float cd_pct = 0;
-            float cd_val = 0;
-            for (int i = 0; i < MAX_UNITS; i++) {
-                if (s->world.units[i].active && s->world.units[i].type == UNIT_MOTHERSHIP) {
-                    cd_pct = s->world.units[i].large_cannon_cooldown / s->world.units[i].stats->main_cannon_cooldown;
-                    cd_val = s->world.units[i].large_cannon_cooldown;
-                    break;
-                }
+    struct {
+        const char *hotkey;
+        const char *label;
+        bool is_active;
+        bool key_down;
+        int row, col;
+        float cd_pct;
+        float cd_val;
+    } buttons[15];
+    SDL_memset(buttons, 0, sizeof(buttons));
+
+    // Row 0: Commands
+    buttons[0] = (typeof(buttons[0])){ "Q", "PATROL", false, s->input.key_q_down, 0, 0 };
+    buttons[1] = (typeof(buttons[0])){ "W", "MOVE",   false, s->input.key_w_down, 0, 1 };
+    buttons[2] = (typeof(buttons[0])){ "E", "ATTACK", false, s->input.key_e_down, 0, 2 };
+    buttons[3] = (typeof(buttons[0])){ "R", "STOP",   false, s->input.key_r_down, 0, 3 };
+
+    // Row 1: Tactical Behaviors
+    buttons[5] = (typeof(buttons[0])){ "A", "OFFENS", primary_behavior == BEHAVIOR_OFFENSIVE,   s->input.key_a_down, 1, 0 };
+    buttons[6] = (typeof(buttons[0])){ "S", "DEFENS", primary_behavior == BEHAVIOR_DEFENSIVE,   s->input.key_s_down, 1, 1 };
+    buttons[7] = (typeof(buttons[0])){ "D", "HOLD G", primary_behavior == BEHAVIOR_HOLD_GROUND, s->input.key_d_down, 1, 2 };
+
+    // Row 2: Abilities (Mothership Main Cannon)
+    if (has_mothership) {
+        float cd_pct = 0, cd_val = 0;
+        for (int i = 0; i < MAX_UNITS; i++) {
+            if (s->world.units[i].active && s->world.units[i].type == UNIT_MOTHERSHIP) {
+                cd_pct = s->world.units[i].large_cannon_cooldown / s->world.units[i].stats->main_cannon_cooldown;
+                cd_val = s->world.units[i].large_cannon_cooldown;
+                break;
             }
-            if (cd_val > 0) {
-                SDL_FRect cd_rect = {cell.x, cell.y + cell.h * (1.0f - cd_pct), cell.w, cell.h * cd_pct};
+        }
+        buttons[10] = (typeof(buttons[0])){ "Z", "MAIN C", false, false, 2, 0, cd_pct, cd_val };
+    }
+
+    for (int i = 0; i < 15; i++) {
+        int r = i / 5, c = i % 5;
+        SDL_FRect cell = {gx + c * (csz + pad), gy + r * (csz + pad), csz, csz};
+        
+        // Background
+        if (buttons[i].hotkey && buttons[i].hotkey[0] != '\0') {
+            if (buttons[i].key_down) SDL_SetRenderDrawColor(s->renderer, 200, 200, 200, 150);
+            else if (buttons[i].is_active) SDL_SetRenderDrawColor(s->renderer, 100, 100, 255, 180);
+            else SDL_SetRenderDrawColor(s->renderer, 40, 40, 40, 200);
+        } else {
+            SDL_SetRenderDrawColor(s->renderer, 20, 20, 20, 100);
+        }
+        
+        SDL_RenderFillRect(s->renderer, &cell);
+        SDL_SetRenderDrawColor(s->renderer, 60, 60, 60, 255);
+        SDL_RenderRect(s->renderer, &cell);
+
+        if (buttons[i].hotkey && buttons[i].hotkey[0] != '\0') {
+            // Hotkey label
+            SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+            SDL_RenderDebugText(s->renderer, cell.x + 4, cell.y + 4, buttons[i].hotkey);
+            // Action label
+            SDL_SetRenderDrawColor(s->renderer, 180, 180, 180, 255);
+            SDL_RenderDebugText(s->renderer, cell.x + 4, cell.y + csz - 14, buttons[i].label);
+
+            // Cooldown
+            if (buttons[i].cd_val > 0) {
+                SDL_FRect cd_rect = {cell.x, cell.y + cell.h * (1.0f - buttons[i].cd_pct), cell.w, cell.h * buttons[i].cd_pct};
                 SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 180);
                 SDL_RenderFillRect(s->renderer, &cd_rect);
-                char cd_str[8]; snprintf(cd_str, 8, "%.1fs", cd_val);
+                char cd_str[8]; snprintf(cd_str, 8, "%.1f", buttons[i].cd_val);
                 SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
-                SDL_RenderDebugText(s->renderer, cell.x + (cell.w - (SDL_strlen(cd_str) * 8)) / 2.0f, cell.y + (cell.h - 8) / 2.0f, cd_str);
+                SDL_RenderDebugText(s->renderer, cell.x + (csz - SDL_strlen(cd_str)*8)/2, cell.y + (csz-8)/2, cd_str);
             }
         }
     }
 
-    // Tactical Bar (Bottom row)
-    gy += csz + pad;
-    const char *lb2[4] = {"A", "S", "D", ""};
-    const char *ac2[4] = {"OFFENS", "DEFENS", "HOLD G", ""};
-    for (int col = 0; col < 3; col++) {
-        SDL_FRect cell = {gx + col * (csz + pad), gy, csz, csz};
-        bool key_down = false;
-        if (col == 0 && s->input.key_a_down) key_down = true;
-        if (col == 1 && s->input.key_s_down) key_down = true;
-        if (col == 2 && s->input.key_d_down) key_down = true;
-
-        bool is_active = false;
-        if (col == 0 && primary_behavior == BEHAVIOR_OFFENSIVE) is_active = true;
-        if (col == 1 && primary_behavior == BEHAVIOR_DEFENSIVE) is_active = true;
-        if (col == 2 && primary_behavior == BEHAVIOR_HOLD_GROUND) is_active = true;
-
-        if (s->ui.tactical_flash_timer > 0 && key_down) SDL_SetRenderDrawColor(s->renderer, 255, 255, 100, 255);
-        else if (is_active) SDL_SetRenderDrawColor(s->renderer, 100, 100, 255, 180);
-        else if (key_down) SDL_SetRenderDrawColor(s->renderer, 200, 200, 200, 150);
-        else SDL_SetRenderDrawColor(s->renderer, 40, 40, 40, 200);
-
-        SDL_RenderFillRect(s->renderer, &cell); SDL_SetRenderDrawColor(s->renderer, 80, 80, 80, 255); SDL_RenderRect(s->renderer, &cell);
-        
-        SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255); 
-        SDL_RenderDebugText(s->renderer, cell.x + 5, cell.y + 5, lb2[col]); 
-        SDL_SetRenderDrawColor(s->renderer, 150, 150, 150, 255); 
-        SDL_RenderDebugText(s->renderer, cell.x + 5, cell.y + 35, ac2[col]); 
-    }
-
+    // --- Hull Integrity Bar ---
     if (found) {
         float bw = 400.0f, bh = 15.0f, bx = (ww - bw) / 2.0f, by = 30.0f;
         SDL_SetRenderDrawColor(s->renderer, 20, 40, 20, 180); SDL_RenderFillRect(s->renderer, &(SDL_FRect){bx, by, bw, bh});

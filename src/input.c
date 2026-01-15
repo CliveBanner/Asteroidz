@@ -125,7 +125,12 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 if (u->command_count < MAX_COMMANDS) { u->command_queue[u->command_count++] = cmd; u->has_target = true; }
             } else {
                 u->command_queue[0] = cmd; u->command_count = 1; u->command_current_idx = 0; u->has_target = true;
-                if (type == CMD_STOP) { u->velocity = (Vec2){0,0}; u->has_target = false; }
+                if (type == CMD_STOP) { 
+                    u->velocity = (Vec2){0,0}; 
+                    u->has_target = false; 
+                    u->command_count = 0;
+                    u->command_current_idx = 0;
+                }
             }
         }
     }
