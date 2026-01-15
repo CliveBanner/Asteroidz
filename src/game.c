@@ -296,8 +296,8 @@ void Game_Update(AppState *s, float dt) {
       continue;
     float dx = s->world.asteroids[a].pos.x - wx,
           dy = s->world.asteroids[a].pos.y - wy;
-    if (dx * dx + dy * dy <
-        s->world.asteroids[a].radius * s->world.asteroids[a].radius) {
+    float r = s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT;
+    if (dx * dx + dy * dy < r * r) {
       s->input.hover_asteroid_idx = a;
       break;
     }

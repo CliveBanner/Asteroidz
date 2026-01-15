@@ -39,20 +39,6 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (s->selection.box_active) {
         s->selection.box_current = s->input.mouse_pos;
     }
-
-    // Update hover target
-    float wx_h = s->camera.pos.x + s->input.mouse_pos.x / s->camera.zoom;
-    float wy_h = s->camera.pos.y + s->input.mouse_pos.y / s->camera.zoom;
-    s->input.hover_asteroid_idx = -1;
-    for (int a = 0; a < MAX_ASTEROIDS; a++) {
-        if (!s->world.asteroids[a].active) continue;
-        float dx = s->world.asteroids[a].pos.x - wx_h, dy = s->world.asteroids[a].pos.y - wy_h;
-        float r = s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT;
-        if (dx*dx + dy*dy < r * r) {
-            s->input.hover_asteroid_idx = a;
-            break;
-        }
-    }
     break;
 
   case SDL_EVENT_MOUSE_BUTTON_DOWN: {
