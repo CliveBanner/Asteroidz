@@ -42,6 +42,7 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
 
       for (int c = 0; c < 4; c++) {
         if (s_targets[c] != -1 && s->world.asteroids[s_targets[c]].active) {
+          s->world.asteroids[s_targets[c]].targeted = true;
           float dsq = Vector_DistanceSq(s->world.asteroids[s_targets[c]].pos, u->pos);
           float max_d = u->stats->small_cannon_range +
                         s->world.asteroids[s_targets[c]].radius * ASTEROID_HITBOX_MULT;

@@ -273,6 +273,9 @@ void Game_Update(AppState *s, float dt) {
   UpdateSimAnchors(s, cam_center);
   s->world.energy =
       fminf(INITIAL_ENERGY, s->world.energy + ENERGY_REGEN_RATE * dt);
+
+  for (int i = 0; i < MAX_ASTEROIDS; i++) s->world.asteroids[i].targeted = false;
+
   UpdateRadar(s);
 
   // Update Mouse Over Asteroid
