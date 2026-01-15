@@ -336,8 +336,9 @@ void Game_Update(AppState *s, float dt) {
         // If attack move with target, stop at firing range
         if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
             Asteroid *a = &s->world.asteroids[cur_cmd->target_idx];
+            // Use full range for direct attack
             stop_dist = u->stats->small_cannon_range + a->radius * ASTEROID_HITBOX_MULT;
-            stop_dist *= 0.9f; // Hysteresis buffer
+            stop_dist *= 0.95f; // Slight buffer to ensure firing
         }
 
         if (dsq > stop_dist * stop_dist) {

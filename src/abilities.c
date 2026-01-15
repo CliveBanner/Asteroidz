@@ -44,9 +44,18 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
         if (s_targets[c] != -1 && s->world.asteroids[s_targets[c]].active) {
           s->world.asteroids[s_targets[c]].targeted = true;
           float dsq = Vector_DistanceSq(s->world.asteroids[s_targets[c]].pos, u->pos);
+          
           float range_mult = 1.0f;
-          if (u->behavior == BEHAVIOR_HOLD_GROUND) range_mult = 0.8f;
-          else if (u->behavior == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / u->stats->small_cannon_range;
+          bool is_command_target = false;
+          if (u->has_target) {
+              Command *cmd = &u->command_queue[u->command_current_idx];
+              if (cmd->type == CMD_ATTACK_MOVE && cmd->target_idx == s_targets[c]) is_command_target = true;
+          }
+
+          if (!is_command_target) {
+              if (u->behavior == BEHAVIOR_HOLD_GROUND) range_mult = 0.8f;
+              else if (u->behavior == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / u->stats->small_cannon_range;
+          }
 
           float max_d = (u->stats->small_cannon_range * range_mult) +
                         s->world.asteroids[s_targets[c]].radius * ASTEROID_HITBOX_MULT;
