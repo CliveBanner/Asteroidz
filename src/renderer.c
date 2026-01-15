@@ -179,7 +179,7 @@ static void DrawGradientCircle(SDL_Renderer *r, float cx, float cy, float radius
 static void DrawTargetCrosshair(SDL_Renderer *r, float x, float y, float size, SDL_Color color) {
     SDL_SetRenderDrawColor(r, color.r, color.g, color.b, color.a);
     float h = size / 2.0f;
-    float gap = size * 0.3f;
+    float gap = size * 0.15f;
     SDL_RenderLine(r, x, y - h, x, y - gap);
     SDL_RenderLine(r, x, y + h, x, y + gap);
     SDL_RenderLine(r, x - h, y, x - gap, y);
@@ -472,7 +472,7 @@ void Renderer_Draw(AppState *s) {
           float hit_r = s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT;
           if (dx*dx + dy*dy < hit_r * hit_r) {
               Vec2 as = WorldToScreenParallax(s->world.asteroids[a].pos, 1.0f, s, ww, wh);
-              float ring_r = (s->world.asteroids[a].radius * ASTEROID_CORE_SCALE * 2.5f) * s->camera.zoom;
+              float ring_r = (s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT * 1.1f) * s->camera.zoom;
               float pulse = 0.7f + 0.3f * sinf(s->current_time * 15.0f);
               SDL_Color col = {255, 255, 255, (Uint8)(200 * pulse)};
               DrawTargetRing(s->renderer, as.x, as.y, ring_r, col);
@@ -482,7 +482,7 @@ void Renderer_Draw(AppState *s) {
   }
   if (s->input.hover_asteroid_idx != -1 && s->input.pending_input_type == INPUT_NONE) {
       Vec2 as = WorldToScreenParallax(s->world.asteroids[s->input.hover_asteroid_idx].pos, 1.0f, s, ww, wh);
-      float cross_sz = (s->world.asteroids[s->input.hover_asteroid_idx].radius * ASTEROID_CORE_SCALE * 2.5f) * s->camera.zoom;
+      float cross_sz = (s->world.asteroids[s->input.hover_asteroid_idx].radius * ASTEROID_HITBOX_MULT * 2.1f) * s->camera.zoom;
       DrawTargetCrosshair(s->renderer, as.x, as.y, cross_sz, (SDL_Color){255, 255, 255, 100});
   }
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);
