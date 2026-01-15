@@ -105,7 +105,9 @@ void Game_Init(AppState *s) {
   u->rotation = 0;
   u->health = u->stats->max_health;
   u->energy = u->stats->max_energy;
+  u->behavior = BEHAVIOR_OFFENSIVE;
   u->command_count = 0;
+  u->command_current_idx = 0;
   u->has_target = false;
   u->large_target_idx = -1;
   for (int c = 0; c < 4; c++)
@@ -253,8 +255,8 @@ void Game_Update(AppState *s, float dt) {
   HandleRespawn(s, dt, win_w, win_h);
   if (s->ui.hold_flash_timer > 0)
     s->ui.hold_flash_timer -= dt;
-  if (s->ui.auto_attack_flash_timer > 0)
-    s->ui.auto_attack_flash_timer -= dt;
+  if (s->ui.tactical_flash_timer > 0)
+    s->ui.tactical_flash_timer -= dt;
   if (s->ui.ui_error_timer > 0)
     s->ui.ui_error_timer -= dt;
 
@@ -305,6 +307,11 @@ void Game_Update(AppState *s, float dt) {
     Unit *u = &s->world.units[i];
     if (u->has_target) {
       Command *cur_cmd = &u->command_queue[u->command_current_idx];
+
+      if (u->behavior == BEHAVIOR_HOLD_GROUND) {
+          u->velocity = (Vec2){0,0};
+          // Don't advance command, just stay put and rotate
+      }
 
       // Auto-advance if target-based command target is dead
       if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {

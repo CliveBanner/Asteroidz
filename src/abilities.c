@@ -33,7 +33,7 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
     }
 
     // 2. Auto-Attacks (Small Cannons)
-    if (s->input.auto_attack_enabled) {
+    if (u->behavior != BEHAVIOR_PASSIVE) {
       SDL_LockMutex(s->threads.unit_fx_mutex);
       int s_targets[4];
       for (int c = 0; c < 4; c++)
@@ -44,7 +44,8 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
         if (s_targets[c] != -1 && s->world.asteroids[s_targets[c]].active) {
           s->world.asteroids[s_targets[c]].targeted = true;
           float dsq = Vector_DistanceSq(s->world.asteroids[s_targets[c]].pos, u->pos);
-          float max_d = u->stats->small_cannon_range +
+          float range_mult = (u->behavior == BEHAVIOR_HOLD_GROUND) ? 0.8f : 1.0f;
+          float max_d = (u->stats->small_cannon_range * range_mult) +
                         s->world.asteroids[s_targets[c]].radius * ASTEROID_HITBOX_MULT;
 
           if (dsq <= max_d * max_d) {

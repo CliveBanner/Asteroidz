@@ -100,8 +100,8 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         CommandType type;
         if (s->input.key_q_down) type = CMD_PATROL;
         else if (s->input.key_w_down) type = CMD_MOVE;
-        else if (s->input.key_r_down) type = CMD_MAIN_CANNON;
-        else if (s->input.key_h_down) type = CMD_HOLD;
+        else if (s->input.key_e_down) type = CMD_ATTACK_MOVE;
+        else if (s->input.key_r_down) type = CMD_STOP;
         else type = (target_a != -1) ? CMD_ATTACK_MOVE : CMD_MOVE;
 
         // Validation for target-based
@@ -125,7 +125,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 if (u->command_count < MAX_COMMANDS) { u->command_queue[u->command_count++] = cmd; u->has_target = true; }
             } else {
                 u->command_queue[0] = cmd; u->command_count = 1; u->command_current_idx = 0; u->has_target = true;
-                if (type == CMD_HOLD) { u->velocity = (Vec2){0,0}; u->has_target = false; }
+                if (type == CMD_STOP) { u->velocity = (Vec2){0,0}; u->has_target = false; }
             }
         }
     }
@@ -180,14 +180,24 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         
         if (event->key.key == SDLK_Q) s->input.key_q_down = true;
         if (event->key.key == SDLK_W) s->input.key_w_down = true;
-        if (event->key.key == SDLK_E) {
-            s->input.key_e_down = true;
-            // PASSIVE Toggle on press
-            s->input.auto_attack_enabled = !s->input.auto_attack_enabled;
-            s->ui.auto_attack_flash_timer = 0.15f; 
-        }
+        if (event->key.key == SDLK_E) s->input.key_e_down = true;
         if (event->key.key == SDLK_R) s->input.key_r_down = true;
-        if (event->key.key == SDLK_H) s->input.key_h_down = true;
+
+        if (event->key.key == SDLK_A) {
+            s->input.key_a_down = true;
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units[i].active && s->selection.unit_selected[i]) s->world.units[i].behavior = BEHAVIOR_OFFENSIVE;
+            s->ui.tactical_flash_timer = 0.2f;
+        }
+        if (event->key.key == SDLK_S) {
+            s->input.key_s_down = true;
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units[i].active && s->selection.unit_selected[i]) s->world.units[i].behavior = BEHAVIOR_DEFENSIVE;
+            s->ui.tactical_flash_timer = 0.2f;
+        }
+        if (event->key.key == SDLK_D) {
+            s->input.key_d_down = true;
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units[i].active && s->selection.unit_selected[i]) s->world.units[i].behavior = BEHAVIOR_HOLD_GROUND;
+            s->ui.tactical_flash_timer = 0.2f;
+        }
     
         if (event->key.key == SDLK_G) {
               s->input.show_grid = !s->input.show_grid;
@@ -244,23 +254,31 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
 
     
 
-          if (event->key.key == SDLK_Q) s->input.key_q_down = false;
+                    if (event->key.key == SDLK_Q) s->input.key_q_down = false;
 
     
 
-          if (event->key.key == SDLK_W) s->input.key_w_down = false;
+                    if (event->key.key == SDLK_W) s->input.key_w_down = false;
 
     
 
-          if (event->key.key == SDLK_E) s->input.key_e_down = false;
+                    if (event->key.key == SDLK_E) s->input.key_e_down = false;
 
     
 
-          if (event->key.key == SDLK_R) s->input.key_r_down = false;
+                    if (event->key.key == SDLK_R) s->input.key_r_down = false;
 
     
 
-          if (event->key.key == SDLK_H) s->input.key_h_down = false;
+                    if (event->key.key == SDLK_A) s->input.key_a_down = false;
+
+    
+
+                    if (event->key.key == SDLK_S) s->input.key_s_down = false;
+
+    
+
+                    if (event->key.key == SDLK_D) s->input.key_d_down = false;
 
     
 

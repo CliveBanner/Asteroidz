@@ -19,7 +19,7 @@ static int SDLCALL AI_UnitTargetingThread(void *data) {
             }
         }
         if (manual_target != -1) { for(int c=0; c<4; c++) best_s[c] = manual_target; }
-        else if (s->input.auto_attack_enabled) {
+        else if (u->behavior != BEHAVIOR_PASSIVE) {
             float max_search_range = WARNING_RANGE_FAR; int best_target_idx = -1; float best_score = 1e15f;
             SDL_LockMutex(s->threads.unit_fx_mutex); int prev_targets[4]; for(int c=0; c<4; c++) prev_targets[c] = u->small_target_idx[c]; SDL_UnlockMutex(s->threads.unit_fx_mutex);
             for (int a = 0; a < MAX_ASTEROIDS; a++) {

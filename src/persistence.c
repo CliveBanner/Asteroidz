@@ -32,7 +32,6 @@ bool Persistence_SaveGame(const AppState *s, const char *filename) {
     fwrite(&s->camera.zoom, sizeof(float), 1, f);
     fwrite(&s->world.energy, sizeof(float), 1, f);
     fwrite(&s->current_time, sizeof(float), 1, f);
-    fwrite(&s->input.auto_attack_enabled, sizeof(bool), 1, f);
 
     // 2. Entities
     fwrite(s->world.units, sizeof(Unit), MAX_UNITS, f);
@@ -56,7 +55,6 @@ bool Persistence_LoadGame(AppState *s, const char *filename) {
     fread(&s->camera.zoom, sizeof(float), 1, f);
     fread(&s->world.energy, sizeof(float), 1, f);
     fread(&s->current_time, sizeof(float), 1, f);
-    fread(&s->input.auto_attack_enabled, sizeof(bool), 1, f);
 
     // 2. Entities
     fread(s->world.units, sizeof(Unit), MAX_UNITS, f);

@@ -53,12 +53,18 @@ typedef enum {
 } AbilityInputType;
 
 typedef enum {
+    BEHAVIOR_OFFENSIVE,
+    BEHAVIOR_DEFENSIVE,
+    BEHAVIOR_HOLD_GROUND,
+    BEHAVIOR_PASSIVE
+} TacticalBehavior;
+
+typedef enum {
     CMD_MOVE,
     CMD_ATTACK_MOVE,
     CMD_PATROL,
-    CMD_HOLD,
-    CMD_MAIN_CANNON,
-    CMD_TOGGLE_ATTACK // Passive toggle
+    CMD_STOP,
+    CMD_MAIN_CANNON
 } CommandType;
 
 typedef struct {
@@ -93,6 +99,8 @@ typedef struct {
     // AI State
     Vec2 patrol_start;
     bool patrolling_back;
+
+    TacticalBehavior behavior;
 } Unit;
 
 typedef struct {
@@ -164,7 +172,6 @@ typedef struct {
 } SelectionState;
 
 typedef struct {
-    bool auto_attack_enabled;
     CommandType pending_cmd_type;
     AbilityInputType pending_input_type;
     Vec2 mouse_pos;
@@ -172,7 +179,7 @@ typedef struct {
     bool show_grid;
     bool show_density;
     bool shift_down;
-    bool key_q_down, key_w_down, key_e_down, key_r_down, key_h_down;
+    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down;
 } InputControlState;
 
 typedef struct {
@@ -249,7 +256,7 @@ typedef struct {
     float respawn_timer;
     Vec2 respawn_pos;
     float hold_flash_timer;
-    float auto_attack_flash_timer;
+    float tactical_flash_timer;
     char ui_error_msg[128];
     float ui_error_timer;
 } UIState;
