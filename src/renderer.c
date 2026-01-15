@@ -286,6 +286,35 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
       float sx = (x - s->camera.pos.x) * s->camera.zoom, sy = (y - s->camera.pos.y) * s->camera.zoom;
       if (sx >= -10 && sx < win_w && sy >= -10 && sy < win_h) { char l[32]; snprintf(l, 32, "(%.0fk,%.0fk)", x / 1000.0f, y / 1000.0f); SDL_RenderDebugText(renderer, sx + 5, sy + 5, l); }
   }
+
+  // --- Target Zone Visualization ---
+  Vec2 m_pos; bool found = false;
+  for (int i = 0; i < MAX_UNITS; i++) if (s->world.units[i].active && s->world.units[i].type == UNIT_MOTHERSHIP) { m_pos = s->world.units[i].pos; found = true; break; }
+  
+  if (found) {
+      Vec2 ms = WorldToScreenParallax(m_pos, 1.0f, s, win_w, win_h);
+      SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+      
+      struct { float r; SDL_Color c; const char* l; bool dashed; float y_off; } zones[] = {
+          { LARGE_CANNON_RANGE, {180, 50, 255, 120}, "MAIN CANNON LIMIT", true, -25.0f },
+          { WARNING_RANGE_FAR, {80, 80, 150, 100}, "FAR WARNING", false, -10.0f },
+          { SMALL_CANNON_RANGE, {255, 255, 255, 100}, "LASER LIMIT", true, 5.0f },
+          { WARNING_RANGE_MID, {150, 100, 80, 120}, "MID WARNING", false, 20.0f },
+          { WARNING_RANGE_NEAR, {200, 60, 60, 150}, "NEAR WARNING", false, 35.0f }
+      };
+
+      for(int z=0; z<5; z++) {
+          float r_px = zones[z].r * s->camera.zoom;
+          SDL_SetRenderDrawColor(renderer, zones[z].c.r, zones[z].c.g, zones[z].c.b, zones[z].c.a);
+          const int segs = 128;
+          for(int i=0; i<segs; i++) {
+              if (zones[z].dashed && (i % 4 >= 2)) continue; 
+              float a1 = i * (SDL_PI_F * 2.0f) / (float)segs, a2 = (i+1) * (SDL_PI_F * 2.0f) / (float)segs;
+              SDL_RenderLine(renderer, ms.x + cosf(a1)*r_px, ms.y + sinf(a1)*r_px, ms.x + cosf(a2)*r_px, ms.y + sinf(a2)*r_px);
+          }
+          SDL_RenderDebugText(renderer, ms.x + r_px + 5, ms.y + zones[z].y_off, zones[z].l);
+      }
+  }
 }
 
 static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) {
