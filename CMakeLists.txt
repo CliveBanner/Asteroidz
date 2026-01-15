@@ -28,6 +28,7 @@ add_executable(asteriodz
     src/ui.c
     src/workers.c
     src/weapons.c
+    src/abilities.c
 )
 
 # Target properties
