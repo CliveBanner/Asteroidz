@@ -45,7 +45,7 @@ void UI_DrawHUD(AppState *s) {
     float csz = 60.0f, pad = 4.0f;
     float card_w = (csz * 5) + (pad * 4);
     float card_h = (csz * 3) + (pad * 2);
-    float gx = ww - card_w - 20.0f;
+    float gx = 20.0f;
     float gy = wh - card_h - 20.0f;
 
     // Grid Mapping:
