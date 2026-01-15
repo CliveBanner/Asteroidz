@@ -59,8 +59,8 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
           }
 
           if (!is_command_target) {
-              if (u->behavior == BEHAVIOR_HOLD_GROUND) range_mult = 0.8f;
-              else if (u->behavior == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / u->stats->small_cannon_range;
+              if (u->behavior == BEHAVIOR_HOLD_GROUND || u->behavior == BEHAVIOR_PASSIVE) continue;
+              if (u->behavior == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / u->stats->small_cannon_range;
           }
 
           float max_d = (u->stats->small_cannon_range * range_mult) +
