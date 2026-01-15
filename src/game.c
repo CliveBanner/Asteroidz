@@ -303,21 +303,33 @@ void Game_Update(AppState *s, float dt) {
       Command *cur_cmd = &u->command_queue[u->command_current_idx];
 
       // Auto-advance if target-based command target is dead
-      if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1 &&
-          !s->world.asteroids[cur_cmd->target_idx].active) {
-        u->command_current_idx++;
-        if (u->command_current_idx >= u->command_count) {
-          u->has_target = false;
-          u->command_count = 0;
-          u->command_current_idx = 0;
-        }
-        // Skip movement update this frame to re-evaluate next cmd in next frame
-        continue;
+      if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
+          Asteroid *a = &s->world.asteroids[cur_cmd->target_idx];
+          if (!a->active) {
+            u->command_current_idx++;
+            if (u->command_current_idx >= u->command_count) {
+              u->has_target = false;
+              u->command_count = 0;
+              u->command_current_idx = 0;
+            }
+            continue;
+          }
+          // Update command position to track moving target
+          cur_cmd->pos = a->pos;
       }
 
       if (u->has_target) {
         float dsq = Vector_DistanceSq(cur_cmd->pos, u->pos);
-        if (dsq > UNIT_STOP_DIST * UNIT_STOP_DIST) {
+        float stop_dist = UNIT_STOP_DIST;
+        
+        // If attack move with target, stop at firing range
+        if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
+            Asteroid *a = &s->world.asteroids[cur_cmd->target_idx];
+            stop_dist = u->stats->small_cannon_range + a->radius * ASTEROID_HITBOX_MULT;
+            stop_dist *= 0.9f; // Hysteresis buffer
+        }
+
+        if (dsq > stop_dist * stop_dist) {
           float dist = sqrtf(dsq), speed = u->stats->speed;
           // Only brake if it's the final command and NOT a patrol command
           // (which loops)
@@ -333,26 +345,37 @@ void Game_Update(AppState *s, float dt) {
               (target_v.y - u->velocity.y) * UNIT_STEERING_FORCE * dt;
         } else {
           // Reached waypoint
-          if (cur_cmd->type == CMD_PATROL) {
-            // If we are at the last point, loop back to the FIRST consecutive
-            // patrol point
-            if (u->command_current_idx == u->command_count - 1) {
-              int first_patrol = u->command_current_idx;
-              while (first_patrol > 0 &&
-                     u->command_queue[first_patrol - 1].type == CMD_PATROL) {
-                first_patrol--;
+          bool should_advance = true;
+          if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
+              // If we have a specific target, we only "reach" the waypoint if the target is dead.
+              // Since we already handled dead targets at the top of the loop,
+              // being here means the target is alive and we are simply in range.
+              should_advance = false;
+              u->velocity = (Vec2){0,0}; // Stay put
+          }
+
+          if (should_advance) {
+              if (cur_cmd->type == CMD_PATROL) {
+                // If we are at the last point, loop back to the FIRST consecutive
+                // patrol point
+                if (u->command_current_idx == u->command_count - 1) {
+                  int first_patrol = u->command_current_idx;
+                  while (first_patrol > 0 &&
+                         u->command_queue[first_patrol - 1].type == CMD_PATROL) {
+                    first_patrol--;
+                  }
+                  u->command_current_idx = first_patrol;
+                } else {
+                  u->command_current_idx++;
+                }
+              } else {
+                u->command_current_idx++;
+                if (u->command_current_idx >= u->command_count) {
+                  u->has_target = false;
+                  u->command_count = 0;
+                  u->command_current_idx = 0;
+                }
               }
-              u->command_current_idx = first_patrol;
-            } else {
-              u->command_current_idx++;
-            }
-          } else {
-            u->command_current_idx++;
-            if (u->command_current_idx >= u->command_count) {
-              u->has_target = false;
-              u->command_count = 0;
-              u->command_current_idx = 0;
-            }
           }
         }
       }
@@ -361,14 +384,25 @@ void Game_Update(AppState *s, float dt) {
         u->velocity, Vector_Scale(u->velocity, u->stats->friction * dt));
     u->pos = Vector_Add(u->pos, Vector_Scale(u->velocity, dt));
 
-    // Rotate to face movement direction
+    // Rotate to face movement direction or target
     float speed_sq =
         u->velocity.x * u->velocity.x + u->velocity.y * u->velocity.y;
-    if (speed_sq > 100.0f) {
-      float target_rot =
-          atan2f(u->velocity.y, u->velocity.x) * (180.0f / SDL_PI_F) +
-          90.0f; // +90 because sprite is front-up
+    bool should_rotate = false;
+    float target_rot = 0.0f;
 
+    if (speed_sq > 100.0f) {
+      target_rot = atan2f(u->velocity.y, u->velocity.x) * (180.0f / SDL_PI_F) + 90.0f;
+      should_rotate = true;
+    } else if (u->has_target) {
+      Command *cur_cmd = &u->command_queue[u->command_current_idx];
+      Vec2 dir = Vector_Sub(cur_cmd->pos, u->pos);
+      if (Vector_Length(dir) > 0.1f) {
+          target_rot = atan2f(dir.y, dir.x) * (180.0f / SDL_PI_F) + 90.0f;
+          should_rotate = true;
+      }
+    }
+
+    if (should_rotate) {
       // Smooth rotation (LerpAngle equivalent)
       float diff = target_rot - u->rotation;
       while (diff < -180.0f)
