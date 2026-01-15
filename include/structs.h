@@ -179,7 +179,7 @@ typedef struct {
     bool show_grid;
     bool show_density;
     bool shift_down;
-    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down;
+    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down, key_z_down;
 } InputControlState;
 
 typedef struct {
