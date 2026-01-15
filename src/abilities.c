@@ -34,9 +34,11 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
 
     // 2. Auto-Attacks (Small Cannons)
     bool is_moving_normally = false;
+    bool is_aggressive_cmd = false;
     if (u->has_target) {
         Command *cmd = &u->command_queue[u->command_current_idx];
         if (cmd->type == CMD_MOVE) is_moving_normally = true;
+        if (cmd->type == CMD_ATTACK_MOVE || cmd->type == CMD_PATROL) is_aggressive_cmd = true;
     }
 
     if (u->behavior != BEHAVIOR_PASSIVE && !is_moving_normally) {
@@ -58,7 +60,7 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
               if (cmd->type == CMD_ATTACK_MOVE && cmd->target_idx == s_targets[c]) is_command_target = true;
           }
 
-          if (!is_command_target) {
+          if (!is_command_target && !is_aggressive_cmd) {
               if (u->behavior == BEHAVIOR_HOLD_GROUND || u->behavior == BEHAVIOR_PASSIVE) continue;
               if (u->behavior == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / u->stats->small_cannon_range;
           }
