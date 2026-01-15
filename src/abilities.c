@@ -33,7 +33,13 @@ void Abilities_Update(AppState *s, Unit *u, float dt) {
     }
 
     // 2. Auto-Attacks (Small Cannons)
-    if (u->behavior != BEHAVIOR_PASSIVE) {
+    bool is_moving_normally = false;
+    if (u->has_target) {
+        Command *cmd = &u->command_queue[u->command_current_idx];
+        if (cmd->type == CMD_MOVE) is_moving_normally = true;
+    }
+
+    if (u->behavior != BEHAVIOR_PASSIVE && !is_moving_normally) {
       SDL_LockMutex(s->threads.unit_fx_mutex);
       int s_targets[4];
       for (int c = 0; c < 4; c++)
