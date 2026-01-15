@@ -7,41 +7,41 @@
 
 void Physics_UpdateAsteroids(AppState *s, float dt) {
     for (int i = 0; i < MAX_ASTEROIDS; i++) {
-        if (!s->asteroids[i].active) continue;
-        int gx = (int)floorf(s->asteroids[i].pos.x / CELESTIAL_GRID_SIZE_F);
-        int gy = (int)floorf(s->asteroids[i].pos.y / CELESTIAL_GRID_SIZE_F);
+        if (!s->world.asteroids[i].active) continue;
+        int gx = (int)floorf(s->world.asteroids[i].pos.x / CELESTIAL_GRID_SIZE_F);
+        int gy = (int)floorf(s->world.asteroids[i].pos.y / CELESTIAL_GRID_SIZE_F);
         
         for (int oy = -1; oy <= 1; oy++) {
             for (int ox = -1; ox <= 1; ox++) {
                 Vec2 b_pos; float b_type, b_rad;
                 if (GetCelestialBodyInfo(gx + ox, gy + oy, &b_pos, &b_type, &b_rad)) {
-                    float dsq = Vector_DistanceSq(b_pos, s->asteroids[i].pos);
+                    float dsq = Vector_DistanceSq(b_pos, s->world.asteroids[i].pos);
                     if (dsq > GRAVITY_MIN_DIST) {
                         float force = (b_type > 0.95f ? GRAVITY_MAX_FORCE : GRAVITY_MIN_FORCE) / dsq;
-                        Vec2 dir = Vector_Normalize(Vector_Sub(b_pos, s->asteroids[i].pos));
-                        s->asteroids[i].velocity = Vector_Add(s->asteroids[i].velocity, Vector_Scale(dir, force * dt));
+                        Vec2 dir = Vector_Normalize(Vector_Sub(b_pos, s->world.asteroids[i].pos));
+                        s->world.asteroids[i].velocity = Vector_Add(s->world.asteroids[i].velocity, Vector_Scale(dir, force * dt));
                     }
                 }
             }
         }
-        s->asteroids[i].pos = Vector_Add(s->asteroids[i].pos, Vector_Scale(s->asteroids[i].velocity, dt));
-        s->asteroids[i].rotation += s->asteroids[i].rot_speed * dt;
+        s->world.asteroids[i].pos = Vector_Add(s->world.asteroids[i].pos, Vector_Scale(s->world.asteroids[i].velocity, dt));
+        s->world.asteroids[i].rotation += s->world.asteroids[i].rot_speed * dt;
     }
 }
 
 void Physics_HandleCollisions(AppState *s, float dt) {
     // 1. Asteroid vs Asteroid
     for (int i = 0; i < MAX_ASTEROIDS; i++) {
-        if (!s->asteroids[i].active) continue;
+        if (!s->world.asteroids[i].active) continue;
         for (int j = i + 1; j < MAX_ASTEROIDS; j++) {
-            if (!s->asteroids[j].active) continue;
-            float dsq = Vector_DistanceSq(s->asteroids[j].pos, s->asteroids[i].pos);
-            float r1 = s->asteroids[i].radius * ASTEROID_HITBOX_MULT;
-            float r2 = s->asteroids[j].radius * ASTEROID_HITBOX_MULT;
+            if (!s->world.asteroids[j].active) continue;
+            float dsq = Vector_DistanceSq(s->world.asteroids[j].pos, s->world.asteroids[i].pos);
+            float r1 = s->world.asteroids[i].radius * ASTEROID_HITBOX_MULT;
+            float r2 = s->world.asteroids[j].radius * ASTEROID_HITBOX_MULT;
             
             if (dsq < (r1 + r2) * (r1 + r2)) {
-                Asteroid *a = &s->asteroids[i];
-                Asteroid *b = &s->asteroids[j];
+                Asteroid *a = &s->world.asteroids[i];
+                Asteroid *b = &s->world.asteroids[j];
                 
                 // Spawn collision effect
                 Particles_SpawnExplosion(s, Vector_Add(a->pos, Vector_Scale(Vector_Sub(b->pos, a->pos), 0.5f)), 
@@ -56,8 +56,8 @@ void Physics_HandleCollisions(AppState *s, float dt) {
 
                 if (sm_i != -1) {
                     // Small hits Large: Small is destroyed/reflected, Large takes damage
-                    Asteroid *sm = &s->asteroids[sm_i];
-                    Asteroid *bg = &s->asteroids[bg_i];
+                    Asteroid *sm = &s->world.asteroids[sm_i];
+                    Asteroid *bg = &s->world.asteroids[bg_i];
                     
                     Vec2 n_surf = (sm_i == i) ? Vector_Scale(normal, -1.0f) : normal;
                     Vec2 v_inc = sm->velocity;
@@ -67,7 +67,7 @@ void Physics_HandleCollisions(AppState *s, float dt) {
                     Vec2 reflect = Vector_Sub(v_inc, Vector_Scale(n_surf, 2.0f * dot));
                     float reflect_angle = atan2f(reflect.y, reflect.x);
 
-                    sm->active = false; s->asteroid_count--;
+                    sm->active = false; s->world.asteroid_count--;
                     bg->radius *= 0.9f; bg->health *= 0.9f;
                     
                     // Spawn fragments from small asteroid
@@ -85,7 +85,7 @@ void Physics_HandleCollisions(AppState *s, float dt) {
                     }
                 } else {
                     // Similar sizes: Both destroyed
-                    s->asteroids[i].active = false; s->asteroids[j].active = false; s->asteroid_count -= 2;
+                    s->world.asteroids[i].active = false; s->world.asteroids[j].active = false; s->world.asteroid_count -= 2;
                     
                     // A reflects off B
                     Vec2 v_a = a->velocity;
@@ -121,25 +121,25 @@ void Physics_HandleCollisions(AppState *s, float dt) {
 
     // 2. Unit vs Asteroid
     for (int u = 0; u < MAX_UNITS; u++) {
-        if (!s->units[u].active) continue;
+        if (!s->world.units[u].active) continue;
         for (int i = 0; i < MAX_ASTEROIDS; i++) {
-            if (!s->asteroids[i].active) continue;
-            float dsq = Vector_DistanceSq(s->units[u].pos, s->asteroids[i].pos);
-            float md = s->asteroids[i].radius * ASTEROID_HITBOX_MULT + s->units[u].stats->radius;
+            if (!s->world.asteroids[i].active) continue;
+            float dsq = Vector_DistanceSq(s->world.units[u].pos, s->world.asteroids[i].pos);
+            float md = s->world.asteroids[i].radius * ASTEROID_HITBOX_MULT + s->world.units[u].stats->radius;
             
             if (dsq < md * md) {
-                s->units[u].health -= s->asteroids[i].radius * ASTEROID_HITBOX_MULT;
-                Particles_SpawnExplosion(s, s->asteroids[i].pos, 20, s->asteroids[i].radius / 100.0f, EXPLOSION_COLLISION, s->asteroids[i].tex_idx);
-                s->asteroids[i].active = false; s->asteroid_count--;
+                s->world.units[u].health -= s->world.asteroids[i].radius * ASTEROID_HITBOX_MULT;
+                Particles_SpawnExplosion(s, s->world.asteroids[i].pos, 20, s->world.asteroids[i].radius / 100.0f, EXPLOSION_COLLISION, s->world.asteroids[i].tex_idx);
+                s->world.asteroids[i].active = false; s->world.asteroid_count--;
                 
-                if (s->units[u].health <= 0) {
-                    Particles_SpawnExplosion(s, s->units[u].pos, 100, 2.0f, EXPLOSION_COLLISION, s->asteroids[i].tex_idx);
-                    if (s->units[u].type == UNIT_MOTHERSHIP) {
-                        s->units[u].active = false; 
-                        s->respawn_timer = RESPAWN_TIME; 
-                        s->respawn_pos = s->units[u].pos;
+                if (s->world.units[u].health <= 0) {
+                    Particles_SpawnExplosion(s, s->world.units[u].pos, 100, 2.0f, EXPLOSION_COLLISION, s->world.asteroids[i].tex_idx);
+                    if (s->world.units[u].type == UNIT_MOTHERSHIP) {
+                        s->world.units[u].active = false; 
+                        s->ui.respawn_timer = RESPAWN_TIME; 
+                        s->ui.respawn_pos = s->world.units[u].pos;
                     } else {
-                        s->units[u].active = false;
+                        s->world.units[u].active = false;
                     }
                 }
                 break; // One collision per unit per frame max

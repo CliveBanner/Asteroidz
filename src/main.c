@@ -2,6 +2,9 @@
 #include "constants.h"
 #include "game.h"
 #include "ai.h"
+#include "assets.h"
+#include "ui.h"
+#include "workers.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
@@ -25,16 +28,16 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
   SDL_SetRenderLogicalPresentation(s->renderer, init_w, init_h, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-  s->state = STATE_LAUNCHER;
+  s->game_state = STATE_LAUNCHER;
   s->launcher.selected_res_index = 0; // Default 1280x720
   s->launcher.fullscreen = false;
 
   // Initialize Camera at 0, 0
-  s->zoom = 1.0f;
-  s->camera_pos.x = 0.0f;
-  s->camera_pos.y = 0.0f;
-  s->show_grid = true;
-  s->selected_unit_idx = -1;
+  s->camera.zoom = 1.0f;
+  s->camera.pos.x = 0.0f;
+  s->camera.pos.y = 0.0f;
+  s->input.show_grid = true;
+  s->selection.primary_unit_idx = -1;
 
   Game_Init(s);
   Renderer_Init(s); // Only sets up textures, doesn't start threads yet
@@ -47,7 +50,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
   if (event->type == SDL_EVENT_QUIT)
     return SDL_APP_SUCCESS;
 
-  if (s->state == STATE_LAUNCHER) {
+  if (s->game_state == STATE_LAUNCHER) {
       if (event->type == SDL_EVENT_MOUSE_MOTION) {
           float mx = event->motion.x;
           float my = event->motion.y;
@@ -85,15 +88,15 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
               SDL_SetWindowTitle(s->window, "Asteriodz RTS");
               
               // Start Game
-              Renderer_StartBackgroundThreads(s);
+              Workers_Start(s);
               AI_StartThreads(s);
-              s->state = STATE_GAME;
+              s->game_state = STATE_LOADING;
           }
       }
       return SDL_APP_CONTINUE;
   }
 
-  if (s->is_loading && event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
+  if (s->game_state == STATE_LOADING && event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
       return SDL_APP_SUCCESS;
   }
 
@@ -104,8 +107,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
   AppState *s = (AppState *)appstate;
   
-  if (s->state == STATE_LAUNCHER) {
-      Renderer_DrawLauncher(s);
+  if (s->game_state == STATE_LAUNCHER) {
+      UI_DrawLauncher(s);
       return SDL_APP_CONTINUE;
   }
 
@@ -132,10 +135,10 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   s->current_time += dt;
 
-  if (s->is_loading) {
-    Renderer_GenerateAssetStep(s);
-    Renderer_DrawLoading(s);
-  } else {
+  if (s->game_state == STATE_LOADING) {
+    Asset_GenerateStep(s);
+    Asset_DrawLoading(s);
+  } else if (s->game_state == STATE_GAME || s->game_state == STATE_PAUSED || s->game_state == STATE_GAMEOVER) {
     Game_Update(s, dt);
     Renderer_Draw(s);
   }
@@ -147,34 +150,34 @@ void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   AppState *s = (AppState *)appstate;
   if (s) {
     // Stop all background threads
-    if (s->bg_thread) {
-      SDL_SetAtomicInt(&s->bg_should_quit, 1);
-      SDL_WaitThread(s->bg_thread, NULL);
+    if (s->threads.bg_thread) {
+      SDL_SetAtomicInt(&s->threads.bg_should_quit, 1);
+      SDL_WaitThread(s->threads.bg_thread, NULL);
     }
-    if (s->density_thread) {
-      SDL_SetAtomicInt(&s->density_should_quit, 1);
-      SDL_WaitThread(s->density_thread, NULL);
+    if (s->threads.density_thread) {
+      SDL_SetAtomicInt(&s->threads.density_should_quit, 1);
+      SDL_WaitThread(s->threads.density_thread, NULL);
     }
-    if (s->radar_thread) {
-      SDL_SetAtomicInt(&s->radar_should_quit, 1);
-      SDL_WaitThread(s->radar_thread, NULL);
+    if (s->threads.radar_thread) {
+      SDL_SetAtomicInt(&s->threads.radar_should_quit, 1);
+      SDL_WaitThread(s->threads.radar_thread, NULL);
     }
-    if (s->unit_fx_thread) {
-      SDL_SetAtomicInt(&s->unit_fx_should_quit, 1);
-      SDL_WaitThread(s->unit_fx_thread, NULL);
+    if (s->threads.unit_fx_thread) {
+      SDL_SetAtomicInt(&s->threads.unit_fx_should_quit, 1);
+      SDL_WaitThread(s->threads.unit_fx_thread, NULL);
     }
 
     // Destroy all mutexes
-    if (s->bg_mutex) SDL_DestroyMutex(s->bg_mutex);
-    if (s->density_mutex) SDL_DestroyMutex(s->density_mutex);
-    if (s->radar_mutex) SDL_DestroyMutex(s->radar_mutex);
-    if (s->unit_fx_mutex) SDL_DestroyMutex(s->unit_fx_mutex);
+    if (s->threads.bg_mutex) SDL_DestroyMutex(s->threads.bg_mutex);
+    if (s->threads.density_mutex) SDL_DestroyMutex(s->threads.density_mutex);
+    if (s->threads.radar_mutex) SDL_DestroyMutex(s->threads.radar_mutex);
+    if (s->threads.unit_fx_mutex) SDL_DestroyMutex(s->threads.unit_fx_mutex);
 
     // Free all pixel buffers
-    if (s->bg_pixel_buffer) SDL_free(s->bg_pixel_buffer);
-    if (s->density_pixel_buffer) SDL_free(s->density_pixel_buffer);
-    if (s->mothership_hull_buffer) SDL_free(s->mothership_hull_buffer);
-    if (s->mothership_arm_buffer) SDL_free(s->mothership_arm_buffer);
+    if (s->threads.bg_pixel_buffer) SDL_free(s->threads.bg_pixel_buffer);
+    if (s->threads.density_pixel_buffer) SDL_free(s->threads.density_pixel_buffer);
+    if (s->threads.mothership_hull_buffer) SDL_free(s->threads.mothership_hull_buffer);
+    if (s->threads.mothership_arm_buffer) SDL_free(s->threads.mothership_arm_buffer);
 
     SDL_free(s);
   }

@@ -11,6 +11,7 @@ typedef struct {
 
 typedef enum {
     STATE_LAUNCHER,
+    STATE_LOADING,
     STATE_GAME,
     STATE_PAUSED,
     STATE_GAMEOVER
@@ -123,7 +124,7 @@ typedef struct {
     float size;
     float rotation;
     int tex_idx;
-    int asteroid_tex_idx; // New: to match debris to asteroid color
+    int asteroid_tex_idx;
     SDL_Color color;
     ParticleType type;
     bool active;
@@ -147,131 +148,127 @@ typedef struct {
     Vec2 pos;
 } SimAnchor;
 
+// --- Sub-structs for AppState ---
+
 typedef struct {
-    // State
-    GameState state;
-    LauncherState launcher;
-
-    // Camera
-    Vec2 camera_pos;      // Top-left position of the camera in the world
+    Vec2 pos;
     float zoom;
-    
-    // Simulation Anchors
-    SimAnchor sim_anchors[MAX_SIM_ANCHORS];
-    int sim_anchor_count;
+} CameraState;
 
-    // Selection
-    int selected_unit_idx; // Primary selected (last clicked)
-    bool unit_selected[MAX_UNITS]; // Multiple selection
-    
-    // Box Selection
+typedef struct {
+    int primary_unit_idx;
+    bool unit_selected[MAX_UNITS];
     bool box_active;
-    Vec2 box_start; // Screen coordinates
+    Vec2 box_start;
     Vec2 box_current;
+} SelectionState;
 
-    // Command Mode
+typedef struct {
     bool auto_attack_enabled;
     bool patrol_mode;
     CommandType pending_cmd_type;
     AbilityInputType pending_input_type;
-
-    // Game Entities
-    Asteroid asteroids[MAX_ASTEROIDS];
-    int asteroid_count;
-
-    Unit units[MAX_UNITS];
-    UnitStats unit_stats[UNIT_TYPE_COUNT];
-    int unit_count;
-
-    Particle particles[MAX_PARTICLES];
-    int particle_next_idx;
-
-    // Input State
-    Vec2 mouse_pos;       // Screen coordinates
+    Vec2 mouse_pos;
     int hover_asteroid_idx;
     bool show_grid;
     bool show_density;
     bool shift_down;
     bool key_q_down, key_w_down, key_e_down, key_r_down, key_h_down;
-    
-    // Resources
-    float energy; // Global energy pool
+} InputControlState;
 
-    // Rendering
+typedef struct {
+    Asteroid asteroids[MAX_ASTEROIDS];
+    int asteroid_count;
+    Unit units[MAX_UNITS];
+    UnitStats unit_stats[UNIT_TYPE_COUNT];
+    int unit_count;
+    Particle particles[MAX_PARTICLES];
+    int particle_next_idx;
+    SimAnchor sim_anchors[MAX_SIM_ANCHORS];
+    int sim_anchor_count;
+    float energy;
+} WorldState;
+
+typedef struct {
     SDL_Texture *bg_texture;
     SDL_Texture *explosion_puff_texture;
-    SDL_Texture *mothership_texture;
-    int bg_w, bg_h;
-    float current_fps;
-    float current_time;
-
+    SDL_Texture *mothership_hull_texture;
+    SDL_Texture *mothership_arm_texture;
     SDL_Texture *planet_textures[PLANET_COUNT];
     SDL_Texture *galaxy_textures[GALAXY_COUNT];
     SDL_Texture *asteroid_textures[ASTEROID_TYPE_COUNT];
     SDL_Texture *debris_textures[DEBRIS_COUNT];
-    
-    bool is_loading;
-    int assets_generated;
+    SDL_Texture *density_texture;
+    int bg_w, bg_h;
+    int mothership_fx_size;
+} TextureState;
 
-    // UI
+typedef struct {
+    // Nebula
+    SDL_Thread *bg_thread;
+    SDL_Mutex *bg_mutex;
+    SDL_AtomicInt bg_should_quit;
+    SDL_AtomicInt bg_request_update;
+    SDL_AtomicInt bg_data_ready;
+    Uint32 *bg_pixel_buffer;
+    Vec2 bg_target_cam_pos;
+    float bg_target_zoom;
+    float bg_target_time;
+
+    // Density
+    SDL_Thread *density_thread;
+    SDL_Mutex *density_mutex;
+    SDL_AtomicInt density_should_quit;
+    SDL_AtomicInt density_request_update;
+    SDL_AtomicInt density_data_ready;
+    Uint32 *density_pixel_buffer;
+    int density_w, density_h;
+    Vec2 density_target_cam_pos;
+    Vec2 density_texture_cam_pos;
+
+    // Radar
+    SDL_Thread *radar_thread;
+    SDL_Mutex *radar_mutex;
+    SDL_AtomicInt radar_should_quit;
+    SDL_AtomicInt radar_request_update;
+    SDL_AtomicInt radar_data_ready;
+    RadarBlip radar_blips[MAX_RADAR_BLIPS];
+    int radar_blip_count;
+    Vec2 radar_mothership_pos;
+
+    // UnitFX
+    SDL_Thread *unit_fx_thread;
+    SDL_Mutex *unit_fx_mutex;
+    SDL_AtomicInt unit_fx_should_quit;
+    Uint32 *mothership_hull_buffer;
+    Uint32 *mothership_arm_buffer;
+    SDL_AtomicInt mothership_data_ready;
+    Vec2 unit_fx_cam_pos;
+} ThreadState;
+
+typedef struct {
     float respawn_timer;
     Vec2 respawn_pos;
     float hold_flash_timer;
     float auto_attack_flash_timer;
     char ui_error_msg[128];
     float ui_error_timer;
+} UIState;
 
-    // Background Threading (Nebula)
-    SDL_Thread *bg_thread;
-    SDL_Mutex *bg_mutex;
-    SDL_AtomicInt bg_should_quit;
-    SDL_AtomicInt bg_request_update;
-    SDL_AtomicInt bg_data_ready;
-    
-    Uint32 *bg_pixel_buffer;
-    Vec2 bg_target_cam_pos;
-    float bg_target_zoom;
-    float bg_target_time;
+typedef struct {
+    GameState game_state;
+    LauncherState launcher;
+    CameraState camera;
+    SelectionState selection;
+    InputControlState input;
+    WorldState world;
+    TextureState textures;
+    ThreadState threads;
+    UIState ui;
 
-    // Density Threading
-    SDL_Thread *density_thread;
-    SDL_Mutex *density_mutex;
-    SDL_AtomicInt density_should_quit;
-    SDL_AtomicInt density_request_update;
-    SDL_AtomicInt density_data_ready;
-
-    Uint32 *density_pixel_buffer;
-    int density_w, density_h;
-    Vec2 density_target_cam_pos;
-    Vec2 density_texture_cam_pos; // Position of the currently uploaded texture
-    SDL_Texture *density_texture;
-
-    // Radar Threading
-    SDL_Thread *radar_thread;
-    SDL_Mutex *radar_mutex;
-    SDL_AtomicInt radar_should_quit;
-    SDL_AtomicInt radar_request_update;
-    SDL_AtomicInt radar_data_ready;
-    
-    RadarBlip radar_blips[MAX_RADAR_BLIPS];
-    int radar_blip_count;
-    Vec2 radar_mothership_pos;
-
-    // UnitFX & Targeting Threading
-    SDL_Thread *unit_fx_thread;
-    SDL_Mutex *unit_fx_mutex;
-    SDL_AtomicInt unit_fx_should_quit;
-    
-    SDL_Texture *mothership_fx_texture; // Legacy/unused soon
-    SDL_Texture *mothership_hull_texture;
-    SDL_Texture *mothership_arm_texture;
-    
-    Uint32 *mothership_hull_buffer;
-    Uint32 *mothership_arm_buffer;
-    SDL_AtomicInt mothership_data_ready;
-    
-    int mothership_fx_size;
-    Vec2 unit_fx_cam_pos; // Camera position at time of last successful FX generation
+    int assets_generated;
+    float current_fps;
+    float current_time;
 
     SDL_Renderer *renderer;
     SDL_Window *window;

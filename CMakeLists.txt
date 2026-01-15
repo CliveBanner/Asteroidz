@@ -4,9 +4,6 @@ project(asteriodz)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find sources
-file(GLOB SOURCES "src/*.c")
-
 # This assumes SDL is vendored or available system-wide.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendored/SDL")
     add_subdirectory(vendored/SDL SDL_LIB EXCLUDE_FROM_ALL)
@@ -27,6 +24,10 @@ add_executable(asteriodz
     src/particles.c
     src/ai.c
     src/persistence.c
+    src/assets.c
+    src/ui.c
+    src/workers.c
+    src/weapons.c
 )
 
 # Target properties
