@@ -47,10 +47,10 @@ static void DrawParallaxLayer(SDL_Renderer *r, const AppState *s, int win_w,
   float min_wy = cy - visible_h / 2.0f;
   float max_wx = cx + visible_w / 2.0f;
   float max_wy = cy + visible_h / 2.0f;
-  int sgx = (int)floorf(min_wx / (float)cell_size);
-  int sgy = (int)floorf(min_wy / (float)cell_size);
-  int egx = (int)ceilf(max_wx / (float)cell_size);
-  int egy = (int)ceilf(max_wy / (float)cell_size);
+  int sgx = (int)floorf(min_wx / (float)cell_size) - 4;
+  int sgy = (int)floorf(min_wy / (float)cell_size) - 4;
+  int egx = (int)ceilf(max_wx / (float)cell_size) + 4;
+  int egy = (int)ceilf(max_wy / (float)cell_size) + 4;
   float half_sw = sw / 2.0f;
   float half_sh = sh / 2.0f;
   float scale = parallax * zoom;

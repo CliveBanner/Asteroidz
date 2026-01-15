@@ -165,7 +165,6 @@ typedef struct {
 
 typedef struct {
     bool auto_attack_enabled;
-    bool patrol_mode;
     CommandType pending_cmd_type;
     AbilityInputType pending_input_type;
     Vec2 mouse_pos;

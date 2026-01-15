@@ -61,8 +61,8 @@
 #define ASTEROID_SPLIT_EXPONENT 0.5f
 #define ASTEROID_SPLIT_MIN_RADIUS 300.0f
 #define ASTEROID_HITBOX_MULT 0.3f
-#define ASTEROID_VISUAL_SCALE 1.0f // Restore to full texture size
-#define ASTEROID_CORE_SCALE 0.4f   // Edge of the solid rock for UI/Lasers
+#define ASTEROID_VISUAL_SCALE 1.0f
+#define ASTEROID_CORE_SCALE 0.4f
 
 #define PLANET_VISUAL_SCALE 1.1f
 #define GALAXY_VISUAL_SCALE 1.0f
@@ -144,8 +144,8 @@
 #define SYSTEM_LAYER_PARALLAX 0.7f
 #define GRID_SIZE_SMALL 200
 #define GRID_SIZE_LARGE 1000
-#define DENSITY_CELL_SIZE 1000
-#define GRID_DENSITY_SUB_RES 2
+#define DENSITY_CELL_SIZE 2000
+#define GRID_DENSITY_SUB_RES 1
 
 // World Generation
 #define CELESTIAL_GRID_SIZE 5000
@@ -158,16 +158,16 @@
 #define PLANET_RADIUS_VARIANCE 1200.0f
 
 // Asteroid Belt Scaling
-#define GALAXY_BELT_INNER_MULT 1.1f
+#define GALAXY_BELT_INNER_MULT 0.4f
 #define GALAXY_BELT_OUTER_MULT 4.0f
 #define PLANET_BELT_INNER_MULT 3.0f
 #define PLANET_BELT_OUTER_MULT 12.0f
 
 // Global Asteroid Belts (Linear)
 #define GLOBAL_BELT_FREQ 0.0001f
-#define GLOBAL_BELT_WIDTH 0.8f // Higher means thinner
+#define GLOBAL_BELT_WIDTH 0.8f
 #define GLOBAL_BELT_WEIGHT 0.5f
-#define GLOBAL_BELT_ANGLE 0.6f // Radians
+#define GLOBAL_BELT_ANGLE 0.6f
 
 #define GLOBAL_BELT_SEC_FREQ 0.00015f
 #define GLOBAL_BELT_SEC_WIDTH 0.6f
