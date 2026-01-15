@@ -315,11 +315,6 @@ void Game_Update(AppState *s, float dt) {
     if (u->has_target) {
       Command *cur_cmd = &u->command_queue[u->command_current_idx];
 
-      if (u->behavior == BEHAVIOR_HOLD_GROUND) {
-          u->velocity = (Vec2){0,0};
-          // Don't advance command, just stay put and rotate
-      }
-
       // Auto-advance if target-based command target is dead
       if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
           Asteroid *a = &s->world.asteroids[cur_cmd->target_idx];
