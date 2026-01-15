@@ -215,7 +215,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
 
         }
 
-        if (event->key.key == SDLK_S) {
+        if (event->key.key == SDLK_K) {
             if (Persistence_SaveGame(s, "savegame.dat")) {
                 snprintf(s->ui.ui_error_msg, 128, "GAME SAVED"); s->ui.ui_error_timer = 1.5f;
             } else {

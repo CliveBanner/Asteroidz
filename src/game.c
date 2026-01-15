@@ -105,7 +105,7 @@ void Game_Init(AppState *s) {
   u->rotation = 0;
   u->health = u->stats->max_health;
   u->energy = u->stats->max_energy;
-  u->behavior = BEHAVIOR_OFFENSIVE;
+  u->behavior = BEHAVIOR_DEFENSIVE;
   u->command_count = 0;
   u->command_current_idx = 0;
   u->has_target = false;
@@ -116,6 +116,13 @@ void Game_Init(AppState *s) {
   s->selection.primary_unit_idx = 0;
   SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
   s->selection.unit_selected[0] = true;
+
+  // Initialize Camera
+  int win_w, win_h;
+  SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
+  s->camera.zoom = MIN_ZOOM;
+  s->camera.pos.x = u->pos.x - (win_w / 2.0f) / s->camera.zoom;
+  s->camera.pos.y = u->pos.y - (win_h / 2.0f) / s->camera.zoom;
 }
 
 static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
