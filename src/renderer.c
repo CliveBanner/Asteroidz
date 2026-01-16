@@ -363,6 +363,24 @@ static void DrawMinimap(SDL_Renderer *r, const AppState *s, int win_w, int win_h
           if (s->world.units.type[i] == UNIT_MOTHERSHIP) { float rpx = MOTHERSHIP_RADAR_RANGE * wmm; SDL_SetRenderDrawColor(r, 0, 255, 0, 40); SDL_RenderRect(r, &(SDL_FRect){px - rpx, py - rpx, rpx * 2, rpx * 2}); SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){px - 4, py - 4, 8, 8}); }
       }
   }
+  // Radar: Asteroids
+  SDL_SetRenderDrawColor(r, 200, 50, 50, 200); 
+  for (int i = 0; i < MAX_ASTEROIDS; i++) {
+      if (!s->world.asteroids.active[i]) continue;
+      float dx = s->world.asteroids.pos[i].x - cx, dy = s->world.asteroids.pos[i].y - cy;
+      if (fabsf(dx) < MINIMAP_RANGE / 2 && fabsf(dy) < MINIMAP_RANGE / 2) {
+          SDL_RenderPoint(r, mm_x + MINIMAP_SIZE / 2 + dx * wmm, mm_y + MINIMAP_SIZE / 2 + dy * wmm);
+      }
+  }
+  // Radar: Crystals
+  SDL_SetRenderDrawColor(r, 50, 200, 255, 200);
+  for (int i = 0; i < MAX_RESOURCES; i++) {
+      if (!s->world.resources.active[i]) continue;
+      float dx = s->world.resources.pos[i].x - cx, dy = s->world.resources.pos[i].y - cy;
+      if (fabsf(dx) < MINIMAP_RANGE / 2 && fabsf(dy) < MINIMAP_RANGE / 2) {
+          SDL_RenderPoint(r, mm_x + MINIMAP_SIZE / 2 + dx * wmm, mm_y + MINIMAP_SIZE / 2 + dy * wmm);
+      }
+  }
   SDL_LockMutex(s->threads.radar_mutex); int bc = s->threads.radar_blip_count; SDL_SetRenderDrawColor(r, 0, 255, 0, 180);
   for (int i = 0; i < bc; i++) {
       float dx = s->threads.radar_blips[i].pos.x - cx, dy = s->threads.radar_blips[i].pos.y - cy;
