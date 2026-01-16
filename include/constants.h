@@ -54,8 +54,8 @@
 // Crystal Resources
 #define CRYSTAL_PROB_PLANET 0.005f
 #define CRYSTAL_PROB_GALAXY 0.02f
-#define CRYSTAL_RADIUS_MIN 150.0f
-#define CRYSTAL_RADIUS_VARIANCE 400.0f
+#define CRYSTAL_RADIUS_MIN 80.0f
+#define CRYSTAL_RADIUS_VARIANCE 200.0f
 #define CRYSTAL_VALUE_MULT 5.0f // Resource per unit of radius
 #define CRYSTAL_VISUAL_SCALE 1.5f
 #define MAX_RESOURCES 128

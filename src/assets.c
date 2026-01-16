@@ -174,15 +174,15 @@ void DrawCrystalToBuffer(Uint32 *pixels, int size, float seed) {
           Uint8 rv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (r * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
           Uint8 gv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (g * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
           Uint8 bv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (b * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
-          Uint8 av = (Uint8)fminf(255, 200 + shine * 55);
+          Uint8 av = (Uint8)fminf(255, 120 + shine * 80); // Increased transparency for body
           pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
       } else {
           // Glow / Dust
-          float glow_dist = dist / (base_radius * 2.0f);
+          float glow_dist = dist / (base_radius * 2.5f); // Increased glow radius
           if (glow_dist < 1.0f) {
               float glow_n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f + seed);
-              float glow_alpha = powf(1.0f - glow_dist, 3.0f) * (0.3f + glow_n * 0.4f);
-              if (glow_alpha > 0.02f) {
+              float glow_alpha = powf(1.0f - glow_dist, 2.0f) * (0.4f + glow_n * 0.6f); // Stronger alpha curve
+              if (glow_alpha > 0.01f) {
                   float a_theme = DeterministicHash((int)(seed * 123), 456);
                   float r, g, b;
                   if (a_theme > 0.6f) { r = 0.2f; g = 0.8f; b = 1.0f; } 
@@ -192,7 +192,7 @@ void DrawCrystalToBuffer(Uint32 *pixels, int size, float seed) {
                   Uint8 rv = (Uint8)(r * 255);
                   Uint8 gv = (Uint8)(g * 255);
                   Uint8 bv = (Uint8)(b * 255);
-                  Uint8 av = (Uint8)(glow_alpha * 220); // Boosted alpha for visibility
+                  Uint8 av = (Uint8)fminf(255, glow_alpha * 255.0f); // Maximize opacity
                   pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
               }
           }
