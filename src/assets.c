@@ -13,48 +13,81 @@ static uint8_t ApplyContrast(uint8_t c) {
 }
 
 void DrawPlanetToBuffer(Uint32 *pixels, int size, float seed) {
-  int center = size / 2; float radius = size * 0.45f;
+  int center = size / 2;
+  float radius = (size / 2.0f) * 0.70f;
+  float atmo_outer = (size / 2.0f) * 0.95f;
   float theme = DeterministicHash((int)(seed * 1000), 42);
-  float r1, g1, b1, r2, g2, b2;
-  if (theme > 0.7f) { r1 = 0.8f; g1 = 0.3f; b1 = 0.2f; r2 = 0.4f; g2 = 0.1f; b2 = 0.1f; }
-  else if (theme > 0.4f) { r1 = 0.2f; g1 = 0.5f; b1 = 0.8f; r2 = 0.1f; g2 = 0.2f; b2 = 0.4f; }
-  else { r1 = 0.4f; g1 = 0.6f; b1 = 0.3f; r2 = 0.2f; g2 = 0.3f; b2 = 0.1f; }
+  float rm, gm, bm;
+  if (theme > 0.75f) { rm = 1.0f; gm = 0.4f; bm = 0.4f; }
+  else if (theme > 0.50f) { rm = 0.4f; gm = 1.0f; bm = 0.5f; }
+  else if (theme > 0.25f) { rm = 0.8f; gm = 0.5f; bm = 1.0f; }
+  else { rm = 0.5f; gm = 0.7f; bm = 1.0f; }
   for (int y = 0; y < size; y++) {
     for (int x = 0; x < size; x++) {
       float dx = (float)(x - center), dy = (float)(y - center);
       float dist = sqrtf(dx * dx + dy * dy);
-      if (dist <= radius) {
-        float noise = 0.0f, freq = 0.02f, amp = 1.0f;
+      if (dist <= atmo_outer) {
+        float nx = dx / radius, ny = dy / radius;
+        float nz = (dist <= radius) ? sqrtf(fmaxf(0.0f, 1.0f - nx * nx - ny * ny)) : 0.0f;
+        float noise = 0.0f, amp = 0.7f, freq = 0.02f;
         for (int o = 0; o < 4; o++) { noise += PerlinNoise2D((float)x * freq + seed, (float)y * freq + seed * 2.0f) * amp; amp *= 0.35f; freq *= 2.0f; }
-        float dot = (dx / radius * 0.5f + 0.5f) * (dy / radius * 0.5f + 0.5f);
-        float final_val = fminf(1.0f, noise * 0.8f + dot * 0.4f);
-        float mix_val = SDL_clamp(noise * 1.5f + 0.2f, 0.0f, 1.0f);
-        Uint8 r = (Uint8)(255 * (r1 * mix_val + r2 * (1.0f - mix_val)) * final_val);
-        Uint8 g = (Uint8)(255 * (g1 * mix_val + g2 * (1.0f - mix_val)) * final_val);
-        Uint8 b = (Uint8)(255 * (b1 * mix_val + b2 * (1.0f - mix_val)) * final_val);
-        pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+        float dot = fmaxf(0.15f, nx * -0.6f + ny * -0.6f + nz * 0.5f); 
+        float shading = powf(dot, 0.7f);
+        Uint8 r = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * rm * shading)));
+        Uint8 g = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * gm * shading)));
+        Uint8 b = QUANTIZE(ApplyContrast((Uint8)fminf(255.0f, (100 + noise * 155) * bm * shading)));
+        Uint8 alpha = 255;
+        if (dist > radius) {
+          float atmo_t = (dist - radius) / (atmo_outer - radius);
+          float an = PerlinNoise2D((float)x * 0.01f + seed, (float)y * 0.01f);
+          float af = powf(1.0f - atmo_t, 1.5f) * (0.3f + an * 0.7f);
+          alpha = (Uint8)(af * 120);
+          r = QUANTIZE(ApplyContrast((Uint8)(r * 0.2f + 255 * rm * af))); 
+          g = QUANTIZE(ApplyContrast((Uint8)(g * 0.2f + 255 * gm * af))); 
+          b = QUANTIZE(ApplyContrast((Uint8)(b * 0.2f + 255 * bm * af)));
+        }
+        pixels[y * size + x] = (alpha << 24) | (b << 16) | (g << 8) | r;
       }
     }
   }
 }
 
 void DrawGalaxyToBuffer(Uint32 *pixels, int size, float seed) {
-  int center = size / 2; float max_rad = size * 0.48f;
-  float theme = DeterministicHash((int)(seed * 1000), 88);
-  float cr, cg, cb;
-  if (theme > 0.6f) { cr = 1.0f; cg = 0.4f; cb = 0.8f; } else if (theme > 0.3f) { cr = 0.4f; cg = 0.6f; cb = 1.0f; } else { cr = 1.0f; cg = 0.8f; cb = 0.4f; }
+  int center = size / 2;
+  int s_int = (int)(seed * 1000000.0f);
+  float twist = 5.0f + DeterministicHash(s_int, 7) * 15.0f;
+  int arms = 2 + (int)(DeterministicHash(s_int, 13) * 10);
+  float arm_thickness = 1.0f + DeterministicHash(s_int, 88) * 3.0f;
+  float core_rad = size * (0.002f + DeterministicHash(s_int, 19) * 0.01f);
+  float theme = DeterministicHash(s_int, 42);
+  float tr, tg, tb, tr2, tg2, tb2;
+  if (theme > 0.90f) { tr = 1.0f; tg = 0.8f; tb = 0.2f; tr2 = 1.0f; tg2 = 0.1f; tb2 = 0.1f; }
+  else if (theme > 0.80f) { tr = 0.2f; tg = 1.0f; tb = 0.3f; tr2 = 1.0f; tg2 = 1.0f; tb2 = 0.2f; }
+  else if (theme > 0.50f) { tr = 0.1f; tg = 0.2f; tb = 1.0f; tr2 = 0.2f; tg2 = 0.9f; tb2 = 1.0f; }
+  else if (theme > 0.25f) { tr = 0.5f; tg = 0.1f; tb = 1.0f; tr2 = 1.0f; tg2 = 0.2f; tb2 = 0.8f; }
+  else { tr = 0.1f; tg = 0.8f; tb = 0.8f; tr2 = 0.1f; tg2 = 0.3f; tb2 = 1.0f; }
+  float cloud_scale = 0.5f + DeterministicHash(s_int, 55) * 2.0f;
   for (int y = 0; y < size; y++) {
     for (int x = 0; x < size; x++) {
       float dx = (float)(x - center), dy = (float)(y - center);
-      float dist = sqrtf(dx * dx + dy * dy); if (dist > max_rad) continue;
+      float dist = sqrtf(dx * dx + dy * dy);
+      float max_dist = size * 0.45f;
+      if (dist > max_dist) continue;
       float angle = atan2f(dy, dx);
-      float arms = sinf(angle * 3.0f + powf(dist / max_rad, 0.5f) * 8.0f);
-      float arm_noise = PerlinNoise2D(x * 0.05f + seed, y * 0.05f + seed);
-      float final_val = powf(1.0f - (dist / max_rad), 2.0f) * (0.4f + 0.6f * arms) * arm_noise;
-      if (final_val > 0.05f) {
-        float core = powf(1.0f - fminf(1.0f, dist / (max_rad * 0.2f)), 2.0f);
-        float falloff = 1.0f - (dist / max_rad);
-        float norm_dist = dist / max_rad;
+      float norm_dist = dist / max_dist;
+      float twisted_angle = angle - norm_dist * twist;
+      float arm_sin = powf(fabsf(cosf(twisted_angle * (float)arms / 2.0f)), arm_thickness);
+      float n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f);
+      float cloud_n = PerlinNoise2D(x * 0.01f + seed + 200, y * 0.01f + 300);
+      float cloud = powf(cloud_n, 1.1f) * cloud_scale;
+      float intensity = (arm_sin * 0.5f + 0.1f) * n + cloud;
+      float falloff = 1.0f - powf(norm_dist, 0.3f);
+      float core = expf(-dist / core_rad) * 4.0f;
+      float final_val = fminf(1.0f, (intensity * falloff + core) * 1.5f);
+      if (final_val > 0.02f) {
+        float cn = PerlinNoise2D(x * 0.025f + seed + 500, y * 0.025f);
+        float mix_val = fmaxf(0.0f, fminf(1.0f, (cn - 0.5f) * (1.0f + norm_dist * 4.0f) + 0.5f));
+        float cr = tr * (1.0f - mix_val) + tr2 * mix_val, cg = tg * (1.0f - mix_val) + tg2 * mix_val, cb = tb * (1.0f - mix_val) + tb2 * mix_val;
         float saturation = fminf(1.0f, norm_dist * 8.0f);
         cr = cr * saturation + (1.0f - saturation); cg = cg * saturation + (1.0f - saturation); cb = cb * saturation + (1.0f - saturation);
         Uint8 rv = QUANTIZE(ApplyContrast((Uint8)fminf(255, final_val * (cr * 150 + core * 255))));
@@ -138,9 +171,9 @@ void DrawCrystalToBuffer(Uint32 *pixels, int size, float seed) {
           if (a_theme > 0.6f) { r = 0.2f; g = 0.8f; b = 1.0f; } 
           else if (a_theme > 0.3f) { r = 0.8f; g = 0.3f; b = 1.0f; }
           else { r = 0.4f; g = 1.0f; b = 0.4f; }
-          Uint8 rv = (Uint8)fminf(255, (r * 150 + shine * 105) * (1.2f - norm_dist * 0.5f));
-          Uint8 gv = (Uint8)fminf(255, (g * 150 + shine * 105) * (1.2f - norm_dist * 0.5f));
-          Uint8 bv = (Uint8)fminf(255, (b * 150 + shine * 105) * (1.2f - norm_dist * 0.5f));
+          Uint8 rv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (r * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
+          Uint8 gv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (g * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
+          Uint8 bv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (b * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
           Uint8 av = (Uint8)fminf(255, 200 + shine * 55);
           pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
       }
@@ -229,6 +262,7 @@ void Asset_GenerateStep(AppState *s) {
     DrawPlanetToBuffer(p, sz, (float)i * 567.89f);
     s->textures.planet_textures[i] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.planet_textures[i], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.planet_textures[i], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.planet_textures[i], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT) {
     int i = s->assets_generated - PLANET_COUNT;
@@ -236,6 +270,7 @@ void Asset_GenerateStep(AppState *s) {
     DrawGalaxyToBuffer(p, sz, (float)i * 123.45f + 99.0f);
     s->textures.galaxy_textures[i] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.galaxy_textures[i], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.galaxy_textures[i], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.galaxy_textures[i], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT) {
     int i = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT);
@@ -243,6 +278,7 @@ void Asset_GenerateStep(AppState *s) {
     DrawAsteroidToBuffer(p, sz, (float)i * 432.1f + 11.0f);
     s->textures.asteroid_textures[i] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.asteroid_textures[i], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.asteroid_textures[i], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.asteroid_textures[i], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT) {
     int i = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT);
@@ -250,6 +286,7 @@ void Asset_GenerateStep(AppState *s) {
     DrawCrystalToBuffer(p, sz, (float)i * 12.3f);
     s->textures.crystal_textures[i] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.crystal_textures[i], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.crystal_textures[i], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.crystal_textures[i], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated < PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT + DEBRIS_COUNT) {
     int i = s->assets_generated - (PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT);
@@ -257,18 +294,21 @@ void Asset_GenerateStep(AppState *s) {
     DrawDebrisToBuffer(p, sz, (float)i * 987.6f + 55.0f);
     s->textures.debris_textures[i] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.debris_textures[i], SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.debris_textures[i], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.debris_textures[i], NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated == total_assets - 2) {
     int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawExplosionPuffToBuffer(p, sz, 777.7f);
     s->textures.explosion_puff_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.explosion_puff_texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.explosion_puff_texture, SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.explosion_puff_texture, NULL, p, sz * 4); SDL_free(p);
   } else if (s->assets_generated == total_assets - 1) {
     int sz = 256; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawMothershipToBuffer(p, sz, 123.4f);
     s->textures.mothership_hull_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.mothership_hull_texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.mothership_hull_texture, SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.mothership_hull_texture, NULL, p, sz * 4); SDL_free(p);
   }
   
