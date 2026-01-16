@@ -176,6 +176,26 @@ void DrawCrystalToBuffer(Uint32 *pixels, int size, float seed) {
           Uint8 bv = QUANTIZE(ApplyContrast((Uint8)fminf(255, (b * 150 + shine * 105) * (1.2f - norm_dist * 0.5f))));
           Uint8 av = (Uint8)fminf(255, 200 + shine * 55);
           pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
+      } else {
+          // Glow / Dust
+          float glow_dist = dist / (base_radius * 2.0f);
+          if (glow_dist < 1.0f) {
+              float glow_n = PerlinNoise2D(x * 0.05f + seed, y * 0.05f + seed);
+              float glow_alpha = powf(1.0f - glow_dist, 3.0f) * (0.3f + glow_n * 0.4f);
+              if (glow_alpha > 0.02f) {
+                  float a_theme = DeterministicHash((int)(seed * 123), 456);
+                  float r, g, b;
+                  if (a_theme > 0.6f) { r = 0.2f; g = 0.8f; b = 1.0f; } 
+                  else if (a_theme > 0.3f) { r = 0.8f; g = 0.3f; b = 1.0f; }
+                  else { r = 0.4f; g = 1.0f; b = 0.4f; }
+                  
+                  Uint8 rv = (Uint8)(r * 255);
+                  Uint8 gv = (Uint8)(g * 255);
+                  Uint8 bv = (Uint8)(b * 255);
+                  Uint8 av = (Uint8)(glow_alpha * 150);
+                  pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
+              }
+          }
       }
     }
   }
