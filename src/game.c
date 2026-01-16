@@ -262,6 +262,16 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
     Vec2 spawn_pos = {target_center.x + cosf(angle) * dist,
                       target_center.y + sinf(angle) * dist};
 
+    // Check safe zone around ALL anchors (units + camera)
+    bool unsafe = false;
+    for (int a = 0; a < s->world.sim_anchor_count; a++) {
+        if (Vector_DistanceSq(spawn_pos, s->world.sim_anchors[a].pos) < SPAWN_SAFE_ZONE * SPAWN_SAFE_ZONE) {
+            unsafe = true;
+            break;
+        }
+    }
+    if (unsafe) continue;
+
     // --- CRYSTAL SPAWNING LOGIC ---
     // Check celestial body at this grid
     int gx = (int)floorf(spawn_pos.x / CELESTIAL_GRID_SIZE_F);
