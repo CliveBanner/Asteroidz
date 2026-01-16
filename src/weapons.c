@@ -47,14 +47,14 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
     // Muzzle flash
-    Particles_SpawnLaserFlash(s, start_pos, s->world.particles.size[p_idx], false);
+    Particles_SpawnLaserFlash(s, start_pos, s->world.particles.size[p_idx], (SDL_Color)COLOR_LASER_RED, false);
 
     // Impact Effect
     float impact_scale = 0.5f + (damage / 2000.0f);
     Particles_SpawnExplosion(s, impact_pos, 15, impact_scale, EXPLOSION_IMPACT, s->world.asteroids.tex_idx[asteroid_idx]); 
     
     // Impact flash
-    Particles_SpawnLaserFlash(s, impact_pos, s->world.particles.size[p_idx], true);
+    Particles_SpawnLaserFlash(s, impact_pos, s->world.particles.size[p_idx], (SDL_Color)COLOR_LASER_RED, true);
 }
 
 void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount) {
@@ -93,7 +93,8 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount)
     s->world.particles.color[p_idx] = (SDL_Color){50, 255, 200, 255}; // Cyan mining laser
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
-    Particles_SpawnLaserFlash(s, start_pos, 4.0f, false);
-    Particles_SpawnLaserFlash(s, impact_pos, 6.0f, true);
+    SDL_Color mining_color = {50, 255, 200, 255};
+    Particles_SpawnLaserFlash(s, start_pos, 4.0f, mining_color, false);
+    Particles_SpawnLaserFlash(s, impact_pos, 6.0f, mining_color, true);
     Particles_SpawnMiningEffect(s, impact_pos, s->world.units.pos[u_idx], amount / 10.0f);
 }

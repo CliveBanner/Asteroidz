@@ -140,7 +140,7 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
   }
 }
 
-void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact) {
+void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, SDL_Color color, bool is_impact) {
     int m_idx = s->world.particle_next_idx;
     s->world.particles.active[m_idx] = true;
     s->world.particles.type[m_idx] = PARTICLE_GLOW; 
@@ -148,7 +148,7 @@ void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact
     s->world.particles.velocity[m_idx] = (Vec2){0, 0};
     s->world.particles.life[m_idx] = MUZZLE_FLASH_LIFE;
     s->world.particles.size[m_idx] = size * MUZZLE_FLASH_SIZE_MULT;
-    s->world.particles.color[m_idx] = (SDL_Color)COLOR_MUZZLE_FLASH;
+    s->world.particles.color[m_idx] = color;
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
     if (is_impact) {
@@ -165,8 +165,13 @@ void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact
 }
 
 void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, float intensity) {
+    // Boosted intensity for visibility
+    float effective_intensity = intensity * 10.0f;
+    
     // 1. Impact Sparks
-    int spark_count = (int)(2 * intensity);
+    int spark_count = (int)(effective_intensity);
+    if (spark_count < 1) spark_count = 1; // Always at least one
+    
     for (int i = 0; i < spark_count; i++) {
         int idx = s->world.particle_next_idx;
         s->world.particles.active[idx] = true;
@@ -176,14 +181,14 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         float speed = (float)(rand() % 400 + 200);
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = 0.3f;
-        s->world.particles.size[idx] = (float)(rand() % 8 + 4);
+        s->world.particles.life[idx] = 0.4f;
+        s->world.particles.size[idx] = (float)(rand() % 10 + 5);
         s->world.particles.color[idx] = (SDL_Color){50, 255, 200, 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 
     // 2. Resource Stream (bits that flow toward the unit)
-    if (rand() % 100 < 20) { // Occasional bits
+    if (rand() % 100 < 40) { // More frequent bits
         int idx = s->world.particle_next_idx;
         s->world.particles.active[idx] = true;
         s->world.particles.type[idx] = PARTICLE_PUFF;
@@ -191,13 +196,13 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         
         // Target unit direction
         Vec2 dir = Vector_Normalize(Vector_Sub(unit_pos, crystal_pos));
-        float speed = (float)(rand() % 200 + 300);
+        float speed = (float)(rand() % 300 + 400);
         s->world.particles.velocity[idx] = Vector_Scale(dir, speed);
-        s->world.particles.target_pos[idx] = unit_pos; // Store destination
+        s->world.particles.target_pos[idx] = unit_pos; 
         
-        s->world.particles.life[idx] = 1.0f;
-        s->world.particles.size[idx] = (float)(rand() % 15 + 10);
-        s->world.particles.color[idx] = (SDL_Color){200, 255, 100, 255}; // Yellowish energy
+        s->world.particles.life[idx] = 0.8f;
+        s->world.particles.size[idx] = (float)(rand() % 20 + 15);
+        s->world.particles.color[idx] = (SDL_Color){255, 255, 100, 255}; // Bright yellow bits
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 }
