@@ -112,7 +112,7 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount)
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
     SDL_Color mining_color = {50, 255, 200, 255};
-    Particles_SpawnLaserFlash(s, start_pos, 4.0f, mining_color, false);
-    Particles_SpawnLaserFlash(s, impact_pos, 6.0f, mining_color, true);
+    Particles_SpawnLaserFlash(s, start_pos, 2.0f, mining_color, false);
+    Particles_SpawnLaserFlash(s, impact_pos, 2.0f, mining_color, false); // No white flash
     Particles_SpawnMiningEffect(s, impact_pos, s->world.units.pos[u_idx], amount / 10.0f);
 }
