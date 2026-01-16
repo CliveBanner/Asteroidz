@@ -140,17 +140,17 @@ typedef struct {
 } Particle;
 
 typedef struct {
-    Vec2 pos;
-    Vec2 velocity;
-    float radius;
-    float rotation;
-    float rot_speed;
-    float health;
-    float max_health;
-    int tex_idx;
-    bool active;
-    bool targeted;
-} Asteroid;
+    Vec2 pos[MAX_ASTEROIDS];
+    Vec2 velocity[MAX_ASTEROIDS];
+    float radius[MAX_ASTEROIDS];
+    float rotation[MAX_ASTEROIDS];
+    float rot_speed[MAX_ASTEROIDS];
+    float health[MAX_ASTEROIDS];
+    float max_health[MAX_ASTEROIDS];
+    int tex_idx[MAX_ASTEROIDS];
+    bool active[MAX_ASTEROIDS];
+    bool targeted[MAX_ASTEROIDS];
+} AsteroidPool;
 
 typedef struct {
     Vec2 pos;
@@ -183,7 +183,7 @@ typedef struct {
 } InputControlState;
 
 typedef struct {
-    Asteroid asteroids[MAX_ASTEROIDS];
+    AsteroidPool asteroids;
     int asteroid_count;
     Unit units[MAX_UNITS];
     UnitStats unit_stats[UNIT_TYPE_COUNT];

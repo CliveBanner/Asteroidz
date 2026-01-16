@@ -13,21 +13,21 @@ void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
   if (s->world.asteroid_count >= MAX_ASTEROIDS)
     return;
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->world.asteroids[i].active) {
-      s->world.asteroids[i].pos = pos;
+    if (!s->world.asteroids.active[i]) {
+      s->world.asteroids.pos[i] = pos;
       float speed = ASTEROID_SPEED_FACTOR / radius;
-      s->world.asteroids[i].velocity.x = vel_dir.x * speed;
-      s->world.asteroids[i].velocity.y = vel_dir.y * speed;
-      s->world.asteroids[i].radius = radius;
-      s->world.asteroids[i].rotation = (float)(rand() % 360);
-      s->world.asteroids[i].rot_speed =
+      s->world.asteroids.velocity[i].x = vel_dir.x * speed;
+      s->world.asteroids.velocity[i].y = vel_dir.y * speed;
+      s->world.asteroids.radius[i] = radius;
+      s->world.asteroids.rotation[i] = (float)(rand() % 360);
+      s->world.asteroids.rot_speed[i] =
           ((float)(rand() % 100) / 50.0f - 1.0f) *
           (ASTEROID_ROTATION_SPEED_FACTOR / radius);
-      s->world.asteroids[i].tex_idx = rand() % ASTEROID_TYPE_COUNT;
-      s->world.asteroids[i].active = true;
-      s->world.asteroids[i].max_health = radius * ASTEROID_HEALTH_MULT;
-      s->world.asteroids[i].health = s->world.asteroids[i].max_health;
-      s->world.asteroids[i].targeted = false;
+      s->world.asteroids.tex_idx[i] = rand() % ASTEROID_TYPE_COUNT;
+      s->world.asteroids.active[i] = true;
+      s->world.asteroids.max_health[i] = radius * ASTEROID_HEALTH_MULT;
+      s->world.asteroids.health[i] = s->world.asteroids.max_health[i];
+      s->world.asteroids.targeted[i] = false;
       s->world.asteroid_count++;
       break;
     }
@@ -94,6 +94,10 @@ void Game_Init(AppState *s) {
   s->world.unit_count = 0;
   s->world.energy = INITIAL_ENERGY;
 
+  // Clear asteroids
+  SDL_memset(&s->world.asteroids, 0, sizeof(AsteroidPool));
+  s->world.asteroid_count = 0;
+
   // Spawn Initial Mothership
   int idx = s->world.unit_count++;
   Unit *u = &s->world.units[idx];
@@ -151,10 +155,10 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
                 ry = (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE);
           bool safe = true;
           for (int j = 0; j < MAX_ASTEROIDS; j++) {
-            if (!s->world.asteroids[j].active)
+            if (!s->world.asteroids.active[j])
               continue;
-            if (Vector_DistanceSq((Vec2){rx, ry}, s->world.asteroids[j].pos) <
-                powf(s->world.asteroids[j].radius + u->stats->radius +
+            if (Vector_DistanceSq((Vec2){rx, ry}, s->world.asteroids.pos[j]) <
+                powf(s->world.asteroids.radius[j] + u->stats->radius +
                          RESPAWN_BUFFER,
                      2)) {
               safe = false;
@@ -182,12 +186,12 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
     total_target_count = 200;
 
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->world.asteroids[i].active)
+    if (!s->world.asteroids.active[i])
       continue;
-    s->world.asteroids[i].targeted = false;
+    s->world.asteroids.targeted[i] = false;
     bool in_range = false;
     for (int a = 0; a < s->world.sim_anchor_count; a++) {
-      if (Vector_DistanceSq(s->world.asteroids[i].pos,
+      if (Vector_DistanceSq(s->world.asteroids.pos[i],
                             s->world.sim_anchors[a].pos) <
           DESPAWN_RANGE * DESPAWN_RANGE) {
         in_range = true;
@@ -195,7 +199,7 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
       }
     }
     if (!in_range) {
-      s->world.asteroids[i].active = false;
+      s->world.asteroids.active[i] = false;
       s->world.asteroid_count--;
     }
   }
@@ -217,9 +221,9 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
                       (rand() % (int)ASTEROID_BASE_RADIUS_VARIANCE);
       bool overlap = false;
       for (int j = 0; j < MAX_ASTEROIDS; j++) {
-        if (s->world.asteroids[j].active &&
-            Vector_DistanceSq(s->world.asteroids[j].pos, spawn_pos) <
-                powf((s->world.asteroids[j].radius + new_rad) *
+        if (s->world.asteroids.active[j] &&
+            Vector_DistanceSq(s->world.asteroids.pos[j], spawn_pos) <
+                powf((s->world.asteroids.radius[j] + new_rad) *
                              ASTEROID_HITBOX_MULT +
                          SPAWN_BUFFER,
                      2)) {
@@ -283,7 +287,7 @@ void Game_Update(AppState *s, float dt) {
   s->world.energy =
       fminf(INITIAL_ENERGY, s->world.energy + ENERGY_REGEN_RATE * dt);
 
-  for (int i = 0; i < MAX_ASTEROIDS; i++) s->world.asteroids[i].targeted = false;
+  for (int i = 0; i < MAX_ASTEROIDS; i++) s->world.asteroids.targeted[i] = false;
 
   UpdateRadar(s);
 
@@ -292,11 +296,11 @@ void Game_Update(AppState *s, float dt) {
   float wy = s->camera.pos.y + s->input.mouse_pos.y / s->camera.zoom;
   s->input.hover_asteroid_idx = -1;
   for (int a = 0; a < MAX_ASTEROIDS; a++) {
-    if (!s->world.asteroids[a].active)
+    if (!s->world.asteroids.active[a])
       continue;
-    float dx = s->world.asteroids[a].pos.x - wx,
-          dy = s->world.asteroids[a].pos.y - wy;
-    float r = s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT;
+    float dx = s->world.asteroids.pos[a].x - wx,
+          dy = s->world.asteroids.pos[a].y - wy;
+    float r = s->world.asteroids.radius[a] * ASTEROID_HITBOX_MULT;
     if (dx * dx + dy * dy < r * r) {
       s->input.hover_asteroid_idx = a;
       break;
@@ -317,8 +321,8 @@ void Game_Update(AppState *s, float dt) {
 
       // Auto-advance if target-based command target is dead
       if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
-          Asteroid *a = &s->world.asteroids[cur_cmd->target_idx];
-          if (!a->active) {
+          int ti = cur_cmd->target_idx;
+          if (!s->world.asteroids.active[ti]) {
             u->command_current_idx++;
             if (u->command_current_idx >= u->command_count) {
               u->has_target = false;
@@ -328,7 +332,7 @@ void Game_Update(AppState *s, float dt) {
             continue;
           }
           // Update command position to track moving target
-          cur_cmd->pos = a->pos;
+          cur_cmd->pos = s->world.asteroids.pos[ti];
       }
 
       if (u->has_target) {
@@ -337,9 +341,9 @@ void Game_Update(AppState *s, float dt) {
         
         // If attack move with target, stop at firing range
         if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
-            Asteroid *a = &s->world.asteroids[cur_cmd->target_idx];
+            int ti = cur_cmd->target_idx;
             // Use full range for direct attack
-            stop_dist = u->stats->small_cannon_range + a->radius * ASTEROID_HITBOX_MULT;
+            stop_dist = u->stats->small_cannon_range + s->world.asteroids.radius[ti] * ASTEROID_HITBOX_MULT;
             stop_dist *= 0.95f; // Slight buffer to ensure firing
         }
 

@@ -77,9 +77,9 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         // --- RTS COMMAND MODIFIER LOGIC ---
         int target_a = -1;
         for (int a = 0; a < MAX_ASTEROIDS; a++) {
-            if (!s->world.asteroids[a].active) continue;
-            float dx = s->world.asteroids[a].pos.x - wx, dy = s->world.asteroids[a].pos.y - wy;
-            float r = s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT;
+            if (!s->world.asteroids.active[a]) continue;
+            float dx = s->world.asteroids.pos[a].x - wx, dy = s->world.asteroids.pos[a].y - wy;
+            float r = s->world.asteroids.radius[a] * ASTEROID_HITBOX_MULT;
             if (dx*dx + dy*dy < r * r) { target_a = a; break; }
         }
 

@@ -18,15 +18,14 @@ static void HandleManualMainCannon(AppState *s, Unit *u) {
 
     if (l_target == -1) return;
 
-    Asteroid *a = &s->world.asteroids[l_target];
-    if (!a->active) {
+    if (!s->world.asteroids.active[l_target]) {
         u->large_target_idx = -1;
         return;
     }
 
-    a->targeted = true;
-    float dsq = Vector_DistanceSq(a->pos, u->pos);
-    float max_d = u->stats->main_cannon_range + a->radius * ASTEROID_HITBOX_MULT;
+    s->world.asteroids.targeted[l_target] = true;
+    float dsq = Vector_DistanceSq(s->world.asteroids.pos[l_target], u->pos);
+    float max_d = u->stats->main_cannon_range + s->world.asteroids.radius[l_target] * ASTEROID_HITBOX_MULT;
 
     if (dsq <= max_d * max_d) {
         if (u->large_cannon_cooldown <= 0) {
@@ -61,10 +60,9 @@ static void HandleAutoAttacks(AppState *s, Unit *u) {
         int t_idx = s_targets[c];
         if (t_idx == -1) continue;
 
-        Asteroid *a = &s->world.asteroids[t_idx];
-        if (!a->active) continue;
+        if (!s->world.asteroids.active[t_idx]) continue;
 
-        a->targeted = true;
+        s->world.asteroids.targeted[t_idx] = true;
         
         // Determine effective range based on behavior and command context
         float range_mult = 1.0f;
@@ -80,8 +78,8 @@ static void HandleAutoAttacks(AppState *s, Unit *u) {
             if (u->behavior == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / u->stats->small_cannon_range;
         }
 
-        float dsq = Vector_DistanceSq(a->pos, u->pos);
-        float max_d = (u->stats->small_cannon_range * range_mult) + a->radius * ASTEROID_HITBOX_MULT;
+        float dsq = Vector_DistanceSq(s->world.asteroids.pos[t_idx], u->pos);
+        float max_d = (u->stats->small_cannon_range * range_mult) + s->world.asteroids.radius[t_idx] * ASTEROID_HITBOX_MULT;
 
         if (dsq <= max_d * max_d && u->small_cannon_cooldown[c] <= 0) {
             Weapons_Fire(s, u, t_idx, u->stats->small_cannon_damage, u->stats->small_cannon_energy_cost, false);

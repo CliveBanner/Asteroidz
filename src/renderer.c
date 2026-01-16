@@ -149,11 +149,11 @@ static void SystemLayerFn(SDL_Renderer *r, const AppState *s, const LayerCell *c
 
 static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->world.asteroids[i].active) continue;
-    Vec2 sx_y = WorldToScreenParallax(s->world.asteroids[i].pos, 1.0f, s, win_w, win_h); float rad = s->world.asteroids[i].radius * s->camera.zoom, v_rad = rad * ASTEROID_VISUAL_SCALE, c_rad = rad * ASTEROID_CORE_SCALE;
+    if (!s->world.asteroids.active[i]) continue;
+    Vec2 sx_y = WorldToScreenParallax(s->world.asteroids.pos[i], 1.0f, s, win_w, win_h); float rad = s->world.asteroids.radius[i] * s->camera.zoom, v_rad = rad * ASTEROID_VISUAL_SCALE, c_rad = rad * ASTEROID_CORE_SCALE;
     if (!IsVisible(sx_y.x, sx_y.y, v_rad, win_w, win_h)) continue;
-    SDL_RenderTextureRotated(r, s->textures.asteroid_textures[s->world.asteroids[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - v_rad, sx_y.y - v_rad, v_rad * 2.0f, v_rad * 2.0f}, s->world.asteroids[i].rotation, NULL, SDL_FLIP_NONE);
-    if (s->world.asteroids[i].targeted) { float hp_pct = s->world.asteroids[i].health / s->world.asteroids[i].max_health, bw = c_rad * 1.5f; SDL_FRect rct = {sx_y.x - bw/2, sx_y.y + c_rad + 2.0f, bw, 4.0f}; SDL_SetRenderDrawColor(r, 50, 0, 0, 200); SDL_RenderFillRect(r, &rct); rct.w *= hp_pct; SDL_SetRenderDrawColor(r, 255, 50, 50, 255); SDL_RenderFillRect(r, &rct); }
+    SDL_RenderTextureRotated(r, s->textures.asteroid_textures[s->world.asteroids.tex_idx[i]], NULL, &(SDL_FRect){sx_y.x - v_rad, sx_y.y - v_rad, v_rad * 2.0f, v_rad * 2.0f}, s->world.asteroids.rotation[i], NULL, SDL_FLIP_NONE);
+    if (s->world.asteroids.targeted[i]) { float hp_pct = s->world.asteroids.health[i] / s->world.asteroids.max_health[i], bw = c_rad * 1.5f; SDL_FRect rct = {sx_y.x - bw/2, sx_y.y + c_rad + 2.0f, bw, 4.0f}; SDL_SetRenderDrawColor(r, 50, 0, 0, 200); SDL_RenderFillRect(r, &rct); rct.w *= hp_pct; SDL_SetRenderDrawColor(r, 255, 50, 50, 255); SDL_RenderFillRect(r, &rct); }
   }
 }
 
@@ -373,51 +373,51 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
   for (int i = 0; i < MAX_UNITS; i++) {
     if (!s->world.units[i].active) continue;
     Vec2 sx_y = WorldToScreenParallax(s->world.units[i].pos, 1.0f, s, win_w, win_h); float rad = s->world.units[i].stats->radius * s->camera.zoom;
-        if (s->world.units[i].type == UNIT_MOTHERSHIP) {
-          bool unit_visible = IsVisible(sx_y.x, sx_y.y, rad * MOTHERSHIP_VISUAL_SCALE, win_w, win_h);
-          
-          if (unit_visible) {
-              if (s->world.units[i].large_target_idx != -1) {
-                  int ti = s->world.units[i].large_target_idx;
-                  float dx = s->world.asteroids[ti].pos.x - s->world.units[i].pos.x, dy = s->world.asteroids[ti].pos.y - s->world.units[i].pos.y;
-                  float dist = sqrtf(dx * dx + dy * dy);
-                  SDL_Color col = (dist <= s->world.units[i].stats->main_cannon_range + s->world.asteroids[ti].radius) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
-                  Vec2 tsx = WorldToScreenParallax(s->world.asteroids[ti].pos, 1.0f, s, win_w, win_h);
-                  float ring_sz = (s->world.asteroids[ti].radius * 0.45f) * s->camera.zoom;
-                  DrawTargetRing(r, tsx.x, tsx.y, fmaxf(15.0f, ring_sz), col);
-              }
-              for (int c = 0; c < 4; c++) if (s->world.units[i].small_target_idx[c] != -1) {
-                  int ti = s->world.units[i].small_target_idx[c];
-                  float dx = s->world.asteroids[ti].pos.x - s->world.units[i].pos.x, dy = s->world.asteroids[ti].pos.y - s->world.units[i].pos.y;
-                  float dist = sqrtf(dx * dx + dy * dy);
-                  SDL_Color col = (dist <= s->world.units[i].stats->small_cannon_range + s->world.asteroids[ti].radius) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
-                  Vec2 tsx = WorldToScreenParallax(s->world.asteroids[ti].pos, 1.0f, s, win_w, win_h);
-                  float ring_sz = (s->world.asteroids[ti].radius * 0.4f) * s->camera.zoom;
-                  DrawTargetRing(r, tsx.x, tsx.y, fmaxf(10.0f, ring_sz), col);
-              }
-              if (s->textures.mothership_hull_texture) {
-                  float dr = rad * MOTHERSHIP_VISUAL_SCALE;
-                  SDL_RenderTextureRotated(r, s->textures.mothership_hull_texture, NULL, 
-                      &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
-                      s->world.units[i].rotation, NULL, SDL_FLIP_NONE);
-              }
-              if (s->selection.primary_unit_idx == i) {
-                  float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad * MOTHERSHIP_VISUAL_SCALE + 5.0f;
-                  SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                  SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.units[i].health / s->world.units[i].stats->max_health), bh});
-                  by += bh + 2.0f;
-                  SDL_SetRenderDrawColor(r, 0, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                  SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.energy / INITIAL_ENERGY), bh});
-                  by += bh + 2.0f;
-                  if (s->world.units[i].stats->main_cannon_damage > 0) {
-                      SDL_SetRenderDrawColor(r, 40, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                      float cd_pct = s->world.units[i].large_cannon_cooldown / s->world.units[i].stats->main_cannon_cooldown;
-                      SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (1.0f - cd_pct), bh});
-                  }
+    if (s->world.units[i].type == UNIT_MOTHERSHIP) {
+      bool unit_visible = IsVisible(sx_y.x, sx_y.y, rad * MOTHERSHIP_VISUAL_SCALE, win_w, win_h);
+      
+      if (unit_visible) {
+          if (s->world.units[i].large_target_idx != -1) {
+              int ti = s->world.units[i].large_target_idx;
+              float dx = s->world.asteroids.pos[ti].x - s->world.units[i].pos.x, dy = s->world.asteroids.pos[ti].y - s->world.units[i].pos.y;
+              float dist = sqrtf(dx * dx + dy * dy);
+              SDL_Color col = (dist <= s->world.units[i].stats->main_cannon_range + s->world.asteroids.radius[ti]) ? (SDL_Color){255, 50, 50, 180} : (SDL_Color){100, 100, 100, 80};
+              Vec2 tsx = WorldToScreenParallax(s->world.asteroids.pos[ti], 1.0f, s, win_w, win_h);
+              float ring_sz = (s->world.asteroids.radius[ti] * 0.45f) * s->camera.zoom;
+              DrawTargetRing(r, tsx.x, tsx.y, fmaxf(15.0f, ring_sz), col);
+          }
+          for (int c = 0; c < 4; c++) if (s->world.units[i].small_target_idx[c] != -1) {
+              int ti = s->world.units[i].small_target_idx[c];
+              float dx = s->world.asteroids.pos[ti].x - s->world.units[i].pos.x, dy = s->world.asteroids.pos[ti].y - s->world.units[i].pos.y;
+              float dist = sqrtf(dx * dx + dy * dy);
+              SDL_Color col = (dist <= s->world.units[i].stats->small_cannon_range + s->world.asteroids.radius[ti]) ? (SDL_Color){255, 100, 100, 150} : (SDL_Color){100, 100, 100, 80};
+              Vec2 tsx = WorldToScreenParallax(s->world.asteroids.pos[ti], 1.0f, s, win_w, win_h);
+              float ring_sz = (s->world.asteroids.radius[ti] * 0.4f) * s->camera.zoom;
+              DrawTargetRing(r, tsx.x, tsx.y, fmaxf(10.0f, ring_sz), col);
+          }
+          if (s->textures.mothership_hull_texture) {
+              float dr = rad * MOTHERSHIP_VISUAL_SCALE;
+              SDL_RenderTextureRotated(r, s->textures.mothership_hull_texture, NULL, 
+                  &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
+                  s->world.units[i].rotation, NULL, SDL_FLIP_NONE);
+          }
+          if (s->selection.primary_unit_idx == i) {
+              float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad * MOTHERSHIP_VISUAL_SCALE + 5.0f;
+              SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+              SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.units[i].health / s->world.units[i].stats->max_health), bh});
+              by += bh + 2.0f;
+              SDL_SetRenderDrawColor(r, 0, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+              SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.energy / INITIAL_ENERGY), bh});
+              by += bh + 2.0f;
+              if (s->world.units[i].stats->main_cannon_damage > 0) {
+                  SDL_SetRenderDrawColor(r, 40, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+                  float cd_pct = s->world.units[i].large_cannon_cooldown / s->world.units[i].stats->main_cannon_cooldown;
+                  SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (1.0f - cd_pct), bh});
               }
           }
-        }
-        if (s->selection.primary_unit_idx == i) {
+      }
+    }
+    if (s->selection.primary_unit_idx == i) {
         if (s->world.units[i].has_target) {
             Vec2 lp = sx_y;
             float visual_rad_px = s->world.units[i].stats->radius * MOTHERSHIP_VISUAL_SCALE * s->camera.zoom;
@@ -470,12 +470,12 @@ void Renderer_Draw(AppState *s) {
       float wx = s->camera.pos.x + s->input.mouse_pos.x / s->camera.zoom;
       float wy = s->camera.pos.y + s->input.mouse_pos.y / s->camera.zoom;
       for (int a = 0; a < MAX_ASTEROIDS; a++) {
-          if (!s->world.asteroids[a].active) continue;
-          float dx = s->world.asteroids[a].pos.x - wx, dy = s->world.asteroids[a].pos.y - wy;
-          float hit_r = s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT;
+          if (!s->world.asteroids.active[a]) continue;
+          float dx = s->world.asteroids.pos[a].x - wx, dy = s->world.asteroids.pos[a].y - wy;
+          float hit_r = s->world.asteroids.radius[a] * ASTEROID_HITBOX_MULT;
           if (dx*dx + dy*dy < hit_r * hit_r) {
-              Vec2 as = WorldToScreenParallax(s->world.asteroids[a].pos, 1.0f, s, ww, wh);
-              float ring_r = (s->world.asteroids[a].radius * ASTEROID_HITBOX_MULT * 1.1f) * s->camera.zoom;
+              Vec2 as = WorldToScreenParallax(s->world.asteroids.pos[a], 1.0f, s, ww, wh);
+              float ring_r = (s->world.asteroids.radius[a] * ASTEROID_HITBOX_MULT * 1.1f) * s->camera.zoom;
               float pulse = 0.7f + 0.3f * sinf(s->current_time * 15.0f);
               SDL_Color col = {255, 255, 255, (Uint8)(200 * pulse)};
               DrawTargetRing(s->renderer, as.x, as.y, ring_r, col);
@@ -484,8 +484,8 @@ void Renderer_Draw(AppState *s) {
       }
   }
   if (s->input.hover_asteroid_idx != -1 && s->input.pending_input_type == INPUT_NONE) {
-      Vec2 as = WorldToScreenParallax(s->world.asteroids[s->input.hover_asteroid_idx].pos, 1.0f, s, ww, wh);
-      float cross_sz = (s->world.asteroids[s->input.hover_asteroid_idx].radius * ASTEROID_HITBOX_MULT * 2.1f) * s->camera.zoom;
+      Vec2 as = WorldToScreenParallax(s->world.asteroids.pos[s->input.hover_asteroid_idx], 1.0f, s, ww, wh);
+      float cross_sz = (s->world.asteroids.radius[s->input.hover_asteroid_idx] * ASTEROID_HITBOX_MULT * 2.1f) * s->camera.zoom;
       DrawTargetCrosshair(s->renderer, as.x, as.y, cross_sz, (SDL_Color){255, 255, 255, 100});
   }
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);
