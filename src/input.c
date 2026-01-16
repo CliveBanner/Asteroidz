@@ -68,6 +68,12 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 if (s->world.units.type[i] == UNIT_MOTHERSHIP && target_a != -1) s->world.units.large_target_idx[i] = target_a;
                 continue;
             }
+            if (type == CMD_GATHER) {
+                if (s->world.units.current_cargo[i] >= s->world.units.stats[i]->max_cargo) {
+                    snprintf(s->ui.ui_error_msg, 128, "CARGO FULL"); s->ui.ui_error_timer = 1.0f;
+                    continue;
+                }
+            }
             Command cmd = { .pos = {wx, wy}, .target_idx = target_a, .type = type };
             if (s->input.shift_down) { if (s->world.units.command_count[i] < MAX_COMMANDS) { s->world.units.command_queue[i][s->world.units.command_count[i]++] = cmd; s->world.units.has_target[i] = true; } }
             else { s->world.units.command_queue[i][0] = cmd; s->world.units.command_count[i] = 1; s->world.units.command_current_idx[i] = 0; s->world.units.has_target[i] = true; }

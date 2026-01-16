@@ -121,30 +121,7 @@ void UI_DrawHUD(AppState *s) {
     }
 
     // --- Hull Integrity Bar ---
-    if (found) {
-        float bw = 400.0f, bh = 15.0f, bx = (ww - bw) / 2.0f, by = 30.0f;
-        SDL_SetRenderDrawColor(s->renderer, 20, 40, 20, 180); SDL_RenderFillRect(s->renderer, &(SDL_FRect){bx, by, bw, bh});
-        float hpp = hp / max_hp; 
-        SDL_SetRenderDrawColor(s->renderer, 100, 255, 100, 255); SDL_RenderFillRect(s->renderer, &(SDL_FRect){bx, by, bw * (hpp < 0 ? 0 : hpp), bh});
-        SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255); 
-        const char *title = "HULL INTEGRITY";
-        SDL_RenderDebugText(s->renderer, (ww - (SDL_strlen(title) * 8)) / 2.0f, by - 15, title);
-        
-        // Cargo Bar (if selected)
-        if (s->selection.primary_unit_idx != -1 && s->world.units.active[s->selection.primary_unit_idx]) {
-            int uid = s->selection.primary_unit_idx;
-            float cargo = s->world.units.current_cargo[uid];
-            float max_cargo = s->world.units.stats[uid]->max_cargo;
-            
-            by += 30.0f;
-            SDL_SetRenderDrawColor(s->renderer, 40, 40, 20, 180); SDL_RenderFillRect(s->renderer, &(SDL_FRect){bx, by, bw, bh});
-            float cp = cargo / max_cargo;
-            SDL_SetRenderDrawColor(s->renderer, 200, 200, 50, 255); SDL_RenderFillRect(s->renderer, &(SDL_FRect){bx, by, bw * (cp < 0 ? 0 : cp), bh});
-            const char *ctitle = "CARGO HOLD";
-            SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
-            SDL_RenderDebugText(s->renderer, (ww - (SDL_strlen(ctitle) * 8)) / 2.0f, by - 15, ctitle);
-        }
-    }
+    // Removed: Displayed in-world now.
 
     if (s->ui.ui_error_timer > 0) {
         SDL_SetRenderDrawColor(s->renderer, 255, 50, 50, 255);
