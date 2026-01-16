@@ -36,6 +36,7 @@ bool Persistence_SaveGame(const AppState *s, const char *filename) {
     // 2. Entities
     fwrite(&s->world.units, sizeof(UnitPool), 1, f);
     fwrite(&s->world.asteroids, sizeof(AsteroidPool), 1, f);
+    fwrite(&s->world.resources, sizeof(ResourcePool), 1, f);
 
     fclose(f);
     return true;
@@ -59,6 +60,7 @@ bool Persistence_LoadGame(AppState *s, const char *filename) {
     // 2. Entities
     fread(&s->world.units, sizeof(UnitPool), 1, f);
     fread(&s->world.asteroids, sizeof(AsteroidPool), 1, f);
+    fread(&s->world.resources, sizeof(ResourcePool), 1, f);
 
     // Re-link pointers
     for (int i = 0; i < MAX_UNITS; i++) {
