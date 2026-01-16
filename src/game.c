@@ -48,7 +48,6 @@ void SpawnCrystal(AppState *s, Vec2 pos, float radius) {
             s->world.resources.tex_idx[i] = rand() % CRYSTAL_COUNT;
             s->world.resources.active[i] = true;
             s->world.resource_count++;
-            SDL_Log("Crystal spawned at %.1f, %.1f (Total: %d)", pos.x, pos.y, s->world.resource_count);
             break;
         }
     }
@@ -127,6 +126,10 @@ void Game_Init(AppState *s) {
   // Clear asteroids
   SDL_memset(&s->world.asteroids, 0, sizeof(AsteroidPool));
   s->world.asteroid_count = 0;
+
+  // Clear resources
+  SDL_memset(&s->world.resources, 0, sizeof(ResourcePool));
+  s->world.resource_count = 0;
 
   // Spawn Initial Mothership
   int idx = 0;
