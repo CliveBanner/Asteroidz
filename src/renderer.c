@@ -161,6 +161,18 @@ static void Renderer_DrawCrystals(SDL_Renderer *r, const AppState *s, int win_w,
         SDL_RenderTextureRotated(r, s->textures.crystal_textures[s->world.resources.tex_idx[i]], NULL,
             &(SDL_FRect){sp.x - dr, sp.y - dr, dr * 2, dr * 2},
             s->world.resources.rotation[i], NULL, SDL_FLIP_NONE);
+            
+        // Health Bar
+        if (s->world.resources.health[i] < s->world.resources.max_health[i]) {
+            float hp_pct = s->world.resources.health[i] / s->world.resources.max_health[i];
+            float bw = dr * 1.2f;
+            SDL_FRect rct = {sp.x - bw/2, sp.y + dr + 2.0f, bw, 4.0f};
+            SDL_SetRenderDrawColor(r, 20, 40, 20, 200); 
+            SDL_RenderFillRect(r, &rct);
+            rct.w *= hp_pct;
+            SDL_SetRenderDrawColor(r, 100, 255, 100, 255);
+            SDL_RenderFillRect(r, &rct);
+        }
     }
 }
 
