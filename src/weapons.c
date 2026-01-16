@@ -95,4 +95,5 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount)
 
     Particles_SpawnLaserFlash(s, start_pos, 4.0f, false);
     Particles_SpawnLaserFlash(s, impact_pos, 6.0f, true);
+    Particles_SpawnMiningEffect(s, impact_pos, s->world.units.pos[u_idx], amount / 10.0f);
 }

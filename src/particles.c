@@ -164,6 +164,44 @@ void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact
     }
 }
 
+void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, float intensity) {
+    // 1. Impact Sparks
+    int spark_count = (int)(2 * intensity);
+    for (int i = 0; i < spark_count; i++) {
+        int idx = s->world.particle_next_idx;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_SPARK;
+        s->world.particles.pos[idx] = crystal_pos;
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        float speed = (float)(rand() % 400 + 200);
+        s->world.particles.velocity[idx].x = cosf(angle) * speed;
+        s->world.particles.velocity[idx].y = sinf(angle) * speed;
+        s->world.particles.life[idx] = 0.3f;
+        s->world.particles.size[idx] = (float)(rand() % 8 + 4);
+        s->world.particles.color[idx] = (SDL_Color){50, 255, 200, 255};
+        s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+    }
+
+    // 2. Resource Stream (bits that flow toward the unit)
+    if (rand() % 100 < 20) { // Occasional bits
+        int idx = s->world.particle_next_idx;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_PUFF;
+        s->world.particles.pos[idx] = crystal_pos;
+        
+        // Target unit direction
+        Vec2 dir = Vector_Normalize(Vector_Sub(unit_pos, crystal_pos));
+        float speed = (float)(rand() % 200 + 300);
+        s->world.particles.velocity[idx] = Vector_Scale(dir, speed);
+        s->world.particles.target_pos[idx] = unit_pos; // Store destination
+        
+        s->world.particles.life[idx] = 1.0f;
+        s->world.particles.size[idx] = (float)(rand() % 15 + 10);
+        s->world.particles.color[idx] = (SDL_Color){200, 255, 100, 255}; // Yellowish energy
+        s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+    }
+}
+
 void Particles_Update(AppState *s, float dt) {
   for (int i = 0; i < MAX_PARTICLES; i++) {
     if (!s->world.particles.active[i]) continue;
