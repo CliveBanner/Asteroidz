@@ -27,7 +27,7 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
     Vec2 impact_pos = s->world.asteroids.pos[asteroid_idx];
 
     if (dist > 0.1f) {
-        float unit_r = s->world.units.stats[u_idx]->radius * s->world.units.stats[u_idx]->visual_scale * (LASER_START_OFFSET_MULT * 0.1f); 
+        float unit_r = s->world.units.stats[u_idx]->radius * s->world.units.stats[u_idx]->visual_scale * (s->world.units.stats[u_idx]->laser_start_offset_mult * 0.1f); 
         float ast_r = s->world.asteroids.radius[asteroid_idx] * ASTEROID_CORE_SCALE * 0.5f;
         start_pos.x += (dx / dist) * unit_r;
         start_pos.y += (dy / dist) * unit_r;

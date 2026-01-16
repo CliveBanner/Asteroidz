@@ -77,7 +77,10 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = SMALL_CANNON_RANGE,
                   .small_cannon_cooldown = SMALL_CANNON_COOLDOWN,
                   .small_cannon_energy_cost = SMALL_CANNON_ENERGY_COST,
-                  .laser_thickness = LASER_THICKNESS_MULT};
+                  .laser_thickness = LASER_THICKNESS_MULT,
+                  .laser_glow_mult = LASER_GLOW_MULT,
+                  .laser_core_thickness_mult = LASER_CORE_THICKNESS_MULT,
+                  .laser_start_offset_mult = LASER_START_OFFSET_MULT};
 
   // Scout Stats
   s->world.unit_stats[UNIT_SCOUT] =
@@ -95,7 +98,10 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = 1500.0f,
                   .small_cannon_cooldown = 0.5f,
                   .small_cannon_energy_cost = 5.0f,
-                  .laser_thickness = 0.1f};
+                  .laser_thickness = 0.1f,
+                  .laser_glow_mult = 1.5f,
+                  .laser_core_thickness_mult = 0.4f,
+                  .laser_start_offset_mult = 5.0f};
 
   SDL_memset(&s->world.units, 0, sizeof(UnitPool));
   s->world.unit_count = 0;

@@ -217,7 +217,16 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
         float a_f = fminf(1.0f, s->world.particles.life[i]); 
         
         int ui = s->world.particles.unit_idx[i];
-        float thickness_mult = (ui >= 0 && ui < MAX_UNITS && s->world.units.active[ui]) ? s->world.units.stats[ui]->laser_thickness : LASER_THICKNESS_MULT;
+        float thickness_mult = LASER_THICKNESS_MULT;
+        float glow_mult = LASER_GLOW_MULT;
+        float core_thickness_mult = LASER_CORE_THICKNESS_MULT;
+        
+        if (ui >= 0 && ui < MAX_UNITS && s->world.units.active[ui]) {
+            thickness_mult = s->world.units.stats[ui]->laser_thickness;
+            glow_mult = s->world.units.stats[ui]->laser_glow_mult;
+            core_thickness_mult = s->world.units.stats[ui]->laser_core_thickness_mult;
+        }
+        
         float th = s->world.particles.size[i] * s->camera.zoom * thickness_mult;
         
         float dx = tsx_y.x - sx_y.x, dy = tsx_y.y - sx_y.y;
@@ -225,7 +234,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
         if (len > 0.1f) {
             float nx = -dy / len, ny = dx / len;
             SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
-            float glow_th = th * LASER_GLOW_MULT;
+            float glow_th = th * glow_mult;
             SDL_Vertex vg[4];
             SDL_FColor glow_col = { s->world.particles.color[i].r / 255.0f * 0.3f, s->world.particles.color[i].g / 255.0f * 0.3f, s->world.particles.color[i].b / 255.0f * 0.3f, a_f * 0.4f };
             vg[0].position = (SDL_FPoint){ sx_y.x + nx * glow_th, sx_y.y + ny * glow_th }; vg[0].color = glow_col;
@@ -240,7 +249,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
             SDL_Vertex vb[6]; 
             SDL_FColor edge_col = { s->world.particles.color[i].r / 255.0f, s->world.particles.color[i].g / 255.0f, s->world.particles.color[i].b / 255.0f, a_f };
             SDL_FColor core_col = { 1.0f, 1.0f, 1.0f, a_f }; 
-            float core_th = cur_th * LASER_CORE_THICKNESS_MULT;
+            float core_th = cur_th * core_thickness_mult;
             vb[0].position = (SDL_FPoint){ sx_y.x + nx * cur_th, sx_y.y + ny * cur_th }; vb[0].color = edge_col;
             vb[1].position = (SDL_FPoint){ sx_y.x, sx_y.y };                           vb[1].color = core_col;
             vb[2].position = (SDL_FPoint){ sx_y.x - nx * cur_th, sx_y.y - ny * cur_th }; vb[2].color = edge_col;
