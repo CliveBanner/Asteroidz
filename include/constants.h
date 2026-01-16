@@ -57,7 +57,7 @@
 #define CRYSTAL_RADIUS_MIN 80.0f
 #define CRYSTAL_RADIUS_VARIANCE 200.0f
 #define CRYSTAL_VALUE_MULT 5.0f // Resource per unit of radius
-#define CRYSTAL_VISUAL_SCALE 1.5f
+#define CRYSTAL_VISUAL_SCALE 3.0f
 #define MAX_RESOURCES 128
 
 // Game Logic

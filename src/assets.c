@@ -155,7 +155,7 @@ void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
 
 void DrawCrystalToBuffer(Uint32 *pixels, int size, float seed) {
   int center = size / 2;
-  float base_radius = size * 0.35f;
+  float base_radius = size * 0.18f; // Reduced to fit glow (2.5x radius)
   for (int y = 0; y < size; y++) {
     for (int x = 0; x < size; x++) {
       float dx = (float)(x - center), dy = (float)(y - center);
