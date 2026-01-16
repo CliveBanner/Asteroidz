@@ -182,7 +182,7 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
         s->world.particles.life[idx] = 0.4f;
-        s->world.particles.size[idx] = (float)(rand() % 10 + 5);
+        s->world.particles.size[idx] = (float)(rand() % 6 + 3); // Smaller sparks
         s->world.particles.color[idx] = (SDL_Color){50, 255, 200, 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
@@ -200,7 +200,7 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
         s->world.particles.life[idx] = 0.6f;
-        s->world.particles.size[idx] = (float)(rand() % 40 + 20);
+        s->world.particles.size[idx] = (float)(rand() % 60 + 40); // Bigger dust puffs
         s->world.particles.color[idx] = (SDL_Color){50, 200, 255, 100}; // Light blue/cyan dust
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
@@ -219,7 +219,7 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         s->world.particles.target_pos[idx] = unit_pos; 
         
         s->world.particles.life[idx] = 0.8f;
-        s->world.particles.size[idx] = (float)(rand() % 20 + 15);
+        s->world.particles.size[idx] = (float)(rand() % 30 + 25); // Bigger resource bits
         s->world.particles.color[idx] = (SDL_Color){255, 255, 100, 255}; // Bright yellow bits
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
