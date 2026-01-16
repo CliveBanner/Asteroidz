@@ -286,7 +286,10 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
                 spawn_pos.y + sinf(spread_angle) * spread_dist
             };
             
-            SpawnCrystal(s, crystal_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, c_rad);
+            // Check distance from camera to prevent pop-in
+            if (Vector_DistanceSq(crystal_pos, cam_center) > (1280.0f/s->camera.zoom) * (1280.0f/s->camera.zoom)) {
+                SpawnCrystal(s, crystal_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, c_rad);
+            }
             continue; // Successfully spawned crystal, skip asteroid for this attempt
         }
     }

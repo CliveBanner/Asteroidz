@@ -192,7 +192,7 @@ void DrawCrystalToBuffer(Uint32 *pixels, int size, float seed) {
                   Uint8 rv = (Uint8)(r * 255);
                   Uint8 gv = (Uint8)(g * 255);
                   Uint8 bv = (Uint8)(b * 255);
-                  Uint8 av = (Uint8)(glow_alpha * 150);
+                  Uint8 av = (Uint8)(glow_alpha * 220); // Boosted alpha for visibility
                   pixels[y * size + x] = (av << 24) | (bv << 16) | (gv << 8) | rv;
               }
           }

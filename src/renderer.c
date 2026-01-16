@@ -157,11 +157,10 @@ static void Renderer_DrawCrystals(SDL_Renderer *r, const AppState *s, int win_w,
         float dr = rad * CRYSTAL_VISUAL_SCALE;
         if (!IsVisible(sp.x, sp.y, dr, win_w, win_h)) continue;
         
-        SDL_SetTextureAlphaMod(s->textures.crystal_textures[s->world.resources.tex_idx[i]], 200);
+        SDL_SetTextureBlendMode(s->textures.crystal_textures[s->world.resources.tex_idx[i]], SDL_BLENDMODE_BLEND);
         SDL_RenderTextureRotated(r, s->textures.crystal_textures[s->world.resources.tex_idx[i]], NULL,
             &(SDL_FRect){sp.x - dr, sp.y - dr, dr * 2, dr * 2},
             s->world.resources.rotation[i], NULL, SDL_FLIP_NONE);
-        SDL_SetTextureAlphaMod(s->textures.crystal_textures[s->world.resources.tex_idx[i]], 255); // Reset alpha
     }
 }
 
