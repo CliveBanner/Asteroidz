@@ -178,12 +178,12 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         s->world.particles.type[idx] = PARTICLE_SPARK;
         s->world.particles.pos[idx] = crystal_pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 400 + 200);
+        float speed = (float)(rand() % 200 + 100); // Slower sparks
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = 0.4f;
-        s->world.particles.size[idx] = (float)(rand() % 6 + 3); // Smaller sparks
-        s->world.particles.color[idx] = (SDL_Color){50, 255, 200, 255};
+        s->world.particles.life[idx] = 0.25f; // Shorter life
+        s->world.particles.size[idx] = (float)(rand() % 4 + 2); // Even smaller sparks
+        s->world.particles.color[idx] = (SDL_Color){25, 128, 100, 180}; // Dimmer, more transparent cyan
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 
