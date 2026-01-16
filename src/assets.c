@@ -128,7 +128,7 @@ void DrawAsteroidToBuffer(Uint32 *pixels, int size, float seed) {
         float nx = dx / (dist + 0.1f), ny = dy / (dist + 0.1f);
         float dot = fmaxf(0.2f, nx * lx + ny * ly);
         float shade_3d = powf(dot, 0.5f);
-        float base_val = 180.0f + ValueNoise2D(x * 0.15f + seed, y * 0.15f + seed) * 120.0f + shape_n * 25.0f;
+        float base_val = 140.0f + ValueNoise2D(x * 0.15f + seed, y * 0.15f + seed) * 100.0f + shape_n * 20.0f;
         float edge_shade = 1.0f - powf(dist / distorted_radius, 4.0f) * 0.6f;
         float darken = edge_shade * shade_3d * (0.4f + 0.6f * powf(fmaxf(0.0f, fminf(1.0f, cracks1 / 0.4f)), 0.8f)) * (0.6f + 0.4f * powf(fmaxf(0.0f, fminf(1.0f, cracks2 / 0.2f)), 0.8f));
         Uint8 r = QUANTIZE(ApplyContrast((Uint8)fminf(255, base_val * tr * darken)));
