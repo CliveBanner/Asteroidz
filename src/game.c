@@ -277,7 +277,16 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
         if (((float)rand() / (float)RAND_MAX) < crystal_prob) {
             float c_rad = CRYSTAL_RADIUS_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_VARIANCE;
             float move_angle = (float)(rand() % 360) * 0.0174533f;
-            SpawnCrystal(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, c_rad);
+            
+            // Spread crystals out further
+            float spread_dist = 500.0f + ((float)rand() / (float)RAND_MAX) * 2000.0f;
+            float spread_angle = (float)(rand() % 360) * 0.0174533f;
+            Vec2 crystal_pos = {
+                spawn_pos.x + cosf(spread_angle) * spread_dist,
+                spawn_pos.y + sinf(spread_angle) * spread_dist
+            };
+            
+            SpawnCrystal(s, crystal_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, c_rad);
             continue; // Successfully spawned crystal, skip asteroid for this attempt
         }
     }
