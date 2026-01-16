@@ -37,6 +37,22 @@ void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
   }
 }
 
+void SpawnCrystal(AppState *s, Vec2 pos, float radius) {
+    if (s->world.resource_count >= MAX_RESOURCES) return;
+    for (int i = 0; i < MAX_RESOURCES; i++) {
+        if (!s->world.resources.active[i]) {
+            s->world.resources.pos[i] = pos;
+            s->world.resources.radius[i] = radius;
+            s->world.resources.rotation[i] = (float)(rand() % 360);
+            s->world.resources.amount[i] = radius * CRYSTAL_VALUE_MULT;
+            s->world.resources.tex_idx[i] = rand() % CRYSTAL_COUNT;
+            s->world.resources.active[i] = true;
+            s->world.resource_count++;
+            break;
+        }
+    }
+}
+
 static void UpdateSimAnchors(AppState *s, Vec2 cam_center) {
   s->world.sim_anchor_count = 0;
   s->world.sim_anchors[s->world.sim_anchor_count++].pos = cam_center;
@@ -215,6 +231,15 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
     }
   }
 
+  for (int i = 0; i < MAX_RESOURCES; i++) {
+      if (!s->world.resources.active[i]) continue;
+      bool in_range = false;
+      for (int a = 0; a < s->world.sim_anchor_count; a++) {
+          if (Vector_DistanceSq(s->world.resources.pos[i], s->world.sim_anchors[a].pos) < DESPAWN_RANGE * DESPAWN_RANGE) { in_range = true; break; }
+      }
+      if (!in_range) { s->world.resources.active[i] = false; s->world.resource_count--; }
+  }
+
   int attempts = 0;
   while (s->world.asteroid_count < total_target_count &&
          attempts < SPAWN_ATTEMPTS) {
@@ -244,8 +269,26 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
       }
       if (!overlap) {
         float move_angle = (float)(rand() % 360) * 0.0174533f;
-        SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)},
-                      new_rad);
+        
+        // --- CRYSTAL SPAWNING LOGIC ---
+        // Check celestial body at this grid
+        int gx = (int)floorf(spawn_pos.x / CELESTIAL_GRID_SIZE_F);
+        int gy = (int)floorf(spawn_pos.y / CELESTIAL_GRID_SIZE_F);
+        Vec2 b_pos; float type_seed, b_rad;
+        if (GetCelestialBodyInfo(gx, gy, &b_pos, &type_seed, &b_rad)) {
+            float crystal_prob = 0.0f;
+            if (type_seed > 0.95f) crystal_prob = CRYSTAL_PROB_GALAXY;
+            else crystal_prob = CRYSTAL_PROB_PLANET * (b_rad / PLANET_RADIUS_MIN);
+            
+            if (((float)rand() / (float)RAND_MAX) < crystal_prob) {
+                float c_rad = CRYSTAL_RADIUS_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_VARIANCE;
+                SpawnCrystal(s, spawn_pos, c_rad);
+            } else {
+                SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, new_rad);
+            }
+        } else {
+            SpawnAsteroid(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, new_rad);
+        }
       }
     }
   }

@@ -181,6 +181,15 @@ typedef struct {
 } InputControlState;
 
 typedef struct {
+    Vec2 pos[MAX_ASTEROIDS]; // Reusing MAX_ASTEROIDS for resource limit for now
+    float radius[MAX_ASTEROIDS];
+    float rotation[MAX_ASTEROIDS];
+    float amount[MAX_ASTEROIDS];
+    int tex_idx[MAX_ASTEROIDS];
+    bool active[MAX_ASTEROIDS];
+} ResourcePool;
+
+typedef struct {
     AsteroidPool asteroids;
     int asteroid_count;
     UnitPool units;
@@ -188,6 +197,8 @@ typedef struct {
     int unit_count;
     ParticlePool particles;
     int particle_next_idx;
+    ResourcePool resources;
+    int resource_count;
     SimAnchor sim_anchors[MAX_SIM_ANCHORS];
     int sim_anchor_count;
     float energy;
@@ -201,6 +212,7 @@ typedef struct {
     SDL_Texture *planet_textures[PLANET_COUNT];
     SDL_Texture *galaxy_textures[GALAXY_COUNT];
     SDL_Texture *asteroid_textures[ASTEROID_TYPE_COUNT];
+    SDL_Texture *crystal_textures[8]; // 8 variations of crystals
     SDL_Texture *debris_textures[DEBRIS_COUNT];
     SDL_Texture *density_texture;
     int bg_w, bg_h;

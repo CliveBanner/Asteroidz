@@ -45,10 +45,20 @@
 #define PLANET_COUNT 8
 #define GALAXY_COUNT 4
 #define ASTEROID_TYPE_COUNT 16
+#define CRYSTAL_COUNT 8
 #define DEBRIS_COUNT 8
 #define MAX_PARTICLES 4096
 #define MAX_UNITS 128
 #define MAX_COMMANDS 16
+
+// Crystal Resources
+#define CRYSTAL_PROB_PLANET 0.15f
+#define CRYSTAL_PROB_GALAXY 0.45f
+#define CRYSTAL_RADIUS_MIN 150.0f
+#define CRYSTAL_RADIUS_VARIANCE 400.0f
+#define CRYSTAL_VALUE_MULT 5.0f // Resource per unit of radius
+#define CRYSTAL_VISUAL_SCALE 1.5f
+#define MAX_RESOURCES 512
 
 // Game Logic
 #define ASTEROID_SPEED_FACTOR 150000.0f

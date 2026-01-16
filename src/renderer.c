@@ -149,6 +149,20 @@ static void Renderer_DrawAsteroids(SDL_Renderer *r, const AppState *s, int win_w
   }
 }
 
+static void Renderer_DrawCrystals(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
+    for (int i = 0; i < MAX_RESOURCES; i++) {
+        if (!s->world.resources.active[i]) continue;
+        Vec2 sp = WorldToScreenParallax(s->world.resources.pos[i], 1.0f, s, win_w, win_h);
+        float rad = s->world.resources.radius[i] * s->camera.zoom;
+        float dr = rad * CRYSTAL_VISUAL_SCALE;
+        if (!IsVisible(sp.x, sp.y, dr, win_w, win_h)) continue;
+        
+        SDL_RenderTextureRotated(r, s->textures.crystal_textures[s->world.resources.tex_idx[i]], NULL,
+            &(SDL_FRect){sp.x - dr, sp.y - dr, dr * 2, dr * 2},
+            s->world.resources.rotation[i], NULL, SDL_FLIP_NONE);
+    }
+}
+
 static void DrawGradientCircle(SDL_Renderer *r, float cx, float cy, float radius, SDL_FColor center_color, SDL_FColor edge_color) {
     const int segments = 32;
     SDL_Vertex vertices[segments + 2];
@@ -490,6 +504,7 @@ void Renderer_Draw(AppState *s) {
       DrawTargetCrosshair(s->renderer, as.x, as.y, cross_sz, (SDL_Color){255, 255, 255, 100});
   }
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);
+  Renderer_DrawCrystals(s->renderer, s, ww, wh);
   Renderer_DrawUnits(s->renderer, s, ww, wh); 
   Renderer_DrawParticles(s->renderer, s, ww, wh);
   if (s->selection.box_active) { float x1 = fminf(s->selection.box_start.x, s->selection.box_current.x), y1 = fminf(s->selection.box_start.y, s->selection.box_current.y), w = fabsf(s->selection.box_start.x - s->selection.box_current.x), h = fabsf(s->selection.box_start.y - s->selection.box_current.y); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 50); SDL_RenderFillRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 200); SDL_RenderRect(s->renderer, &(SDL_FRect){x1, y1, w, h}); }
