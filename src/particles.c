@@ -165,12 +165,12 @@ void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, SDL_Color colo
 }
 
 void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, float intensity) {
-    // Boosted intensity for visibility
-    float effective_intensity = intensity * 10.0f;
+    // Boosted intensity for high visibility
+    float effective_intensity = intensity * 25.0f;
     
     // 1. Impact Sparks
-    int spark_count = (int)(effective_intensity);
-    if (spark_count < 1) spark_count = 1; // Always at least one
+    int spark_count = (int)(effective_intensity * 1.5f);
+    if (spark_count < 3) spark_count = 3; 
     
     for (int i = 0; i < spark_count; i++) {
         int idx = s->world.particle_next_idx;
@@ -178,49 +178,48 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         s->world.particles.type[idx] = PARTICLE_SPARK;
         s->world.particles.pos[idx] = crystal_pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 200 + 100); // Slower sparks
+        float speed = (float)(rand() % 500 + 200);
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = 0.25f; // Shorter life
-        s->world.particles.size[idx] = (float)(rand() % 4 + 2); // Even smaller sparks
-        s->world.particles.color[idx] = (SDL_Color){25, 128, 100, 180}; // Dimmer, more transparent cyan
+        s->world.particles.life[idx] = 0.4f;
+        s->world.particles.size[idx] = (float)(rand() % 8 + 4);
+        s->world.particles.color[idx] = (SDL_Color){100, 255, 220, 255}; // Brighter cyan
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 
     // 2. Dust Puffs
-    int puff_count = (int)(effective_intensity * 0.5f);
-    if (puff_count < 1 && intensity > 0) puff_count = 1;
+    int puff_count = (int)(effective_intensity * 0.8f);
+    if (puff_count < 2) puff_count = 2;
     for (int i = 0; i < puff_count; i++) {
         int idx = s->world.particle_next_idx;
         s->world.particles.active[idx] = true;
         s->world.particles.type[idx] = PARTICLE_PUFF;
         s->world.particles.pos[idx] = crystal_pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 100 + 50);
+        float speed = (float)(rand() % 150 + 80);
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = 0.6f;
-        s->world.particles.size[idx] = (float)(rand() % 60 + 40); // Bigger dust puffs
-        s->world.particles.color[idx] = (SDL_Color){50, 200, 255, 100}; // Light blue/cyan dust
+        s->world.particles.life[idx] = 0.7f;
+        s->world.particles.size[idx] = (float)(rand() % 80 + 50); 
+        s->world.particles.color[idx] = (SDL_Color){80, 220, 255, 140}; // More opaque blue/cyan dust
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 
     // 3. Resource Stream (bits that flow toward the unit)
-    if (rand() % 100 < 40) { // More frequent bits
+    if (rand() % 100 < 60) { // Much more frequent
         int idx = s->world.particle_next_idx;
         s->world.particles.active[idx] = true;
         s->world.particles.type[idx] = PARTICLE_PUFF;
         s->world.particles.pos[idx] = crystal_pos;
         
-        // Target unit direction
         Vec2 dir = Vector_Normalize(Vector_Sub(unit_pos, crystal_pos));
-        float speed = (float)(rand() % 300 + 400);
+        float speed = (float)(rand() % 400 + 500);
         s->world.particles.velocity[idx] = Vector_Scale(dir, speed);
         s->world.particles.target_pos[idx] = unit_pos; 
         
         s->world.particles.life[idx] = 0.8f;
-        s->world.particles.size[idx] = (float)(rand() % 30 + 25); // Bigger resource bits
-        s->world.particles.color[idx] = (SDL_Color){255, 255, 100, 255}; // Bright yellow bits
+        s->world.particles.size[idx] = (float)(rand() % 40 + 30); 
+        s->world.particles.color[idx] = (SDL_Color){255, 255, 150, 255}; // Brighter yellow bits
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 }
