@@ -451,31 +451,50 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                   float ring_sz = (s->world.asteroids.radius[ti] * 0.4f) * s->camera.zoom;
                   DrawTargetRing(r, tsx.x, tsx.y, fmaxf(10.0f, ring_sz), col);
               }
-              if (s->textures.mothership_hull_texture) {
-                  float dr = rad * v_scale;
-                  SDL_RenderTextureRotated(r, s->textures.mothership_hull_texture, NULL, 
-                      &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
-                      s->world.units.rotation[i], NULL, SDL_FLIP_NONE);
-              }
-              if (s->selection.primary_unit_idx == i) {
-                  float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad * v_scale + 5.0f;
-                  SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                  SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.units.health[i] / s->world.units.stats[i]->max_health), bh});
-                  by += bh + 2.0f;
-                  SDL_SetRenderDrawColor(r, 0, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                  SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.energy / INITIAL_ENERGY), bh});
-                  by += bh + 2.0f;
-                  if (s->world.units.stats[i]->main_cannon_damage > 0) {
-                      SDL_SetRenderDrawColor(r, 40, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                      float cd_pct = s->world.units.large_cannon_cooldown[i] / s->world.units.stats[i]->main_cannon_cooldown;
-                      SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (1.0f - cd_pct), bh});
+                        if (s->textures.mothership_hull_texture) {
+                            float dr = rad * v_scale;
+                            SDL_RenderTextureRotated(r, s->textures.mothership_hull_texture, NULL, 
+                                &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
+                                s->world.units.rotation[i], NULL, SDL_FLIP_NONE);
+                        }
+                    }
                   }
-              }
-          }
-        }
-        if (s->selection.primary_unit_idx == i) {
-            if (s->world.units.has_target[i]) {
-                Vec2 lp = sx_y;
+                  
+                  // Draw status bars for selected units
+                  if (s->selection.primary_unit_idx == i || s->selection.unit_selected[i]) {
+                      float v_scale = s->world.units.stats[i]->visual_scale;
+                      float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad * v_scale + 5.0f;
+                      
+                      // 1. Health Bar
+                      SDL_SetRenderDrawColor(r, 20, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+                      SDL_SetRenderDrawColor(r, 100, 255, 100, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.units.health[i] / s->world.units.stats[i]->max_health), bh});
+                      by += bh + 2.0f;
+                      
+                      // 2. Energy Bar (Global if Mothership, local if unit has energy stats)
+                      if (s->world.units.type[i] == UNIT_MOTHERSHIP || s->world.units.stats[i]->max_energy > 0) {
+                          SDL_SetRenderDrawColor(r, 0, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+                          float ep = (s->world.units.type[i] == UNIT_MOTHERSHIP) ? (s->world.energy / INITIAL_ENERGY) : (s->world.units.energy[i] / s->world.units.stats[i]->max_energy);
+                          SDL_SetRenderDrawColor(r, 50, 150, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * fmaxf(0.0f, fminf(1.0f, ep)), bh});
+                          by += bh + 2.0f;
+                      }
+                      
+                      // 3. Cargo Bar
+                      if (s->world.units.stats[i]->max_cargo > 0) {
+                          SDL_SetRenderDrawColor(r, 40, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+                          SDL_SetRenderDrawColor(r, 200, 200, 50, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.units.current_cargo[i] / s->world.units.stats[i]->max_cargo), bh});
+                          by += bh + 2.0f;
+                      }
+              
+                      // 4. Main Cannon Cooldown (Mothership Only)
+                      if (s->world.units.type[i] == UNIT_MOTHERSHIP && s->world.units.stats[i]->main_cannon_damage > 0) {
+                          SDL_SetRenderDrawColor(r, 40, 0, 40, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
+                          float cd_pct = s->world.units.large_cannon_cooldown[i] / s->world.units.stats[i]->main_cannon_cooldown;
+                          SDL_SetRenderDrawColor(r, 200, 50, 255, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (1.0f - cd_pct), bh});
+                      }
+                  }
+              
+                  if (s->selection.primary_unit_idx == i) {
+                      if (s->world.units.has_target[i]) {                Vec2 lp = sx_y;
                 float v_scale = s->world.units.stats[i]->visual_scale;
                 float visual_rad_px = s->world.units.stats[i]->radius * v_scale * s->camera.zoom;
             for (int q = s->world.units.command_current_idx[i]; q < s->world.units.command_count[i]; q++) {
