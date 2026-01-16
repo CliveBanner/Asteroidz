@@ -51,6 +51,8 @@ void SpawnCrystal(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
                 ((float)(rand() % 100) / 50.0f - 1.0f) *
                 (ASTEROID_ROTATION_SPEED_FACTOR * 0.1f / radius); // Slow rotation
             s->world.resources.amount[i] = radius * CRYSTAL_VALUE_MULT;
+            s->world.resources.max_health[i] = radius * 5.0f; // 5 health per radius unit
+            s->world.resources.health[i] = s->world.resources.max_health[i];
             s->world.resources.tex_idx[i] = rand() % CRYSTAL_COUNT;
             s->world.resources.active[i] = true;
             s->world.resource_count++;
@@ -152,6 +154,7 @@ void Game_Init(AppState *s) {
   s->world.units.command_current_idx[idx] = 0;
   s->world.units.has_target[idx] = false;
   s->world.units.large_target_idx[idx] = -1;
+  s->world.units.mining_cooldown[idx] = 0.0f;
   for (int c = 0; c < 4; c++)
     s->world.units.small_target_idx[idx][c] = -1;
   s->world.unit_count = 1;
@@ -457,6 +460,20 @@ void Game_Update(AppState *s, float dt) {
           }
           cur_cmd->pos = s->world.asteroids.pos[ti];
       }
+      
+      if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
+          int ti = cur_cmd->target_idx;
+          if (!s->world.resources.active[ti]) {
+            s->world.units.command_current_idx[i]++;
+            if (s->world.units.command_current_idx[i] >= s->world.units.command_count[i]) {
+              s->world.units.has_target[i] = false;
+              s->world.units.command_count[i] = 0;
+              s->world.units.command_current_idx[i] = 0;
+            }
+            continue;
+          }
+          cur_cmd->pos = s->world.resources.pos[ti];
+      }
 
       if (s->world.units.has_target[i]) {
         float dsq = Vector_DistanceSq(cur_cmd->pos, s->world.units.pos[i]);
@@ -465,6 +482,12 @@ void Game_Update(AppState *s, float dt) {
         if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
             int ti = cur_cmd->target_idx;
             stop_dist = s->world.units.stats[i]->small_cannon_range + s->world.asteroids.radius[ti] * ASTEROID_HITBOX_MULT;
+            stop_dist *= 0.95f;
+        }
+        
+        if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
+            int ti = cur_cmd->target_idx;
+            stop_dist = (s->world.units.stats[i]->small_cannon_range * 0.8f) + s->world.resources.radius[ti] * CRYSTAL_VISUAL_SCALE * 0.5f;
             stop_dist *= 0.95f;
         }
 
@@ -483,6 +506,10 @@ void Game_Update(AppState *s, float dt) {
         } else {
           bool should_advance = true;
           if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
+              should_advance = false;
+              s->world.units.velocity[i] = (Vec2){0,0};
+          }
+          if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
               should_advance = false;
               s->world.units.velocity[i] = (Vec2){0,0};
           }

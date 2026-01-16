@@ -69,7 +69,8 @@ typedef enum {
     CMD_ATTACK_MOVE,
     CMD_PATROL,
     CMD_STOP,
-    CMD_MAIN_CANNON
+    CMD_MAIN_CANNON,
+    CMD_GATHER
 } CommandType;
 
 typedef struct {
@@ -89,6 +90,7 @@ typedef struct {
     bool active[MAX_UNITS];
     float large_cannon_cooldown[MAX_UNITS];
     float small_cannon_cooldown[MAX_UNITS][4];
+    float mining_cooldown[MAX_UNITS];
     int large_target_idx[MAX_UNITS];
     int small_target_idx[MAX_UNITS][4];
     Command command_queue[MAX_UNITS][MAX_COMMANDS];
@@ -188,6 +190,8 @@ typedef struct {
     float rotation[MAX_RESOURCES];
     float rot_speed[MAX_RESOURCES];
     float amount[MAX_RESOURCES];
+    float health[MAX_RESOURCES];
+    float max_health[MAX_RESOURCES];
     int tex_idx[MAX_RESOURCES];
     bool active[MAX_RESOURCES];
 } ResourcePool;

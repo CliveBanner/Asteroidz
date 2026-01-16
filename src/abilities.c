@@ -9,6 +9,8 @@ static void UpdateCooldowns(AppState *s, int idx, float dt) {
     for (int c = 0; c < 4; c++)
         if (s->world.units.small_cannon_cooldown[idx][c] > 0)
             s->world.units.small_cannon_cooldown[idx][c] -= dt;
+    if (s->world.units.mining_cooldown[idx] > 0)
+        s->world.units.mining_cooldown[idx] -= dt;
 }
 
 static void HandleManualMainCannon(AppState *s, int idx) {
@@ -41,14 +43,16 @@ static void HandleManualMainCannon(AppState *s, int idx) {
 static void HandleAutoAttacks(AppState *s, int idx) {
     bool is_moving_normally = false;
     bool is_aggressive_cmd = false;
+    bool is_gathering = false;
     
     if (s->world.units.has_target[idx]) {
         Command *cmd = &s->world.units.command_queue[idx][s->world.units.command_current_idx[idx]];
         if (cmd->type == CMD_MOVE) is_moving_normally = true;
         if (cmd->type == CMD_ATTACK_MOVE || cmd->type == CMD_PATROL) is_aggressive_cmd = true;
+        if (cmd->type == CMD_GATHER) is_gathering = true;
     }
 
-    if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE || is_moving_normally) return;
+    if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE || is_moving_normally || is_gathering) return;
 
     SDL_LockMutex(s->threads.unit_fx_mutex);
     int s_targets[4];
@@ -85,8 +89,31 @@ static void HandleAutoAttacks(AppState *s, int idx) {
     }
 }
 
+void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
+    if (!s->world.resources.active[resource_idx]) return;
+
+    if (s->world.units.mining_cooldown[idx] <= 0) {
+        float damage_per_tick = 50.0f; // Mining rate
+        Weapons_MineCrystal(s, idx, resource_idx, damage_per_tick);
+        s->world.units.mining_cooldown[idx] = 0.1f; // Fast tick rate
+    }
+}
+
 void Abilities_Update(AppState *s, int idx, float dt) {
     UpdateCooldowns(s, idx, dt);
     HandleManualMainCannon(s, idx);
     HandleAutoAttacks(s, idx);
+    
+    // Check for active gather command
+    if (s->world.units.has_target[idx]) {
+        Command *cmd = &s->world.units.command_queue[idx][s->world.units.command_current_idx[idx]];
+        if (cmd->type == CMD_GATHER && cmd->target_idx != -1) {
+            // Range check
+            float dsq = Vector_DistanceSq(s->world.resources.pos[cmd->target_idx], s->world.units.pos[idx]);
+            float range = s->world.units.stats[idx]->small_cannon_range * 0.8f; // Mining range slightly shorter
+            if (dsq <= range * range) {
+                Abilities_Mine(s, idx, cmd->target_idx, dt);
+            }
+        }
+    }
 }

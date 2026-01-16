@@ -56,3 +56,43 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
     // Impact flash
     Particles_SpawnLaserFlash(s, impact_pos, s->world.particles.size[p_idx], true);
 }
+
+void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float damage) {
+    s->world.resources.health[resource_idx] -= damage;
+    
+    if (s->world.resources.health[resource_idx] <= 0) {
+        s->world.energy += s->world.resources.amount[resource_idx]; // Collect resource
+        s->world.resources.active[resource_idx] = false;
+        s->world.resource_count--;
+        Particles_SpawnExplosion(s, s->world.resources.pos[resource_idx], 20, s->world.resources.radius[resource_idx] / 200.0f, EXPLOSION_COLLISION, s->world.resources.tex_idx[resource_idx]);
+    }
+
+    float dx = s->world.resources.pos[resource_idx].x - s->world.units.pos[u_idx].x;
+    float dy = s->world.resources.pos[resource_idx].y - s->world.units.pos[u_idx].y;
+    float dist = sqrtf(dx * dx + dy * dy);
+    Vec2 start_pos = s->world.units.pos[u_idx];
+    Vec2 impact_pos = s->world.resources.pos[resource_idx];
+
+    if (dist > 0.1f) {
+        float unit_r = s->world.units.stats[u_idx]->radius * s->world.units.stats[u_idx]->visual_scale * (s->world.units.stats[u_idx]->laser_start_offset_mult * 0.1f);
+        float res_r = s->world.resources.radius[resource_idx] * 0.5f; // Visual radius roughly
+        start_pos.x += (dx / dist) * unit_r;
+        start_pos.y += (dy / dist) * unit_r;
+        impact_pos.x -= (dx / dist) * res_r;
+        impact_pos.y -= (dy / dist) * res_r;
+    }
+
+    int p_idx = s->world.particle_next_idx;
+    s->world.particles.active[p_idx] = true;
+    s->world.particles.type[p_idx] = PARTICLE_TRACER;
+    s->world.particles.pos[p_idx] = start_pos;
+    s->world.particles.target_pos[p_idx] = impact_pos;
+    s->world.particles.unit_idx[p_idx] = u_idx;
+    s->world.particles.life[p_idx] = 0.5f; // Shorter life for continuous beam look
+    s->world.particles.size[p_idx] = 2.0f;
+    s->world.particles.color[p_idx] = (SDL_Color){50, 255, 200, 255}; // Cyan mining laser
+    s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+
+    Particles_SpawnLaserFlash(s, start_pos, 2.0f, false);
+    Particles_SpawnLaserFlash(s, impact_pos, 3.0f, true);
+}

@@ -57,7 +57,9 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         else if (s->input.key_w_down) type = CMD_MOVE;
         else if (s->input.key_e_down) type = CMD_ATTACK_MOVE;
         else if (s->input.key_z_down) type = CMD_MAIN_CANNON;
+        else if (s->input.hover_resource_idx != -1) { type = CMD_GATHER; target_a = s->input.hover_resource_idx; }
         else type = (target_a != -1) ? CMD_ATTACK_MOVE : CMD_MOVE;
+        
         if (type == CMD_MAIN_CANNON && target_a == -1) { snprintf(s->ui.ui_error_msg, 128, "TARGET REQUIRED"); s->ui.ui_error_timer = 1.0f; return; }
         for (int i = 0; i < MAX_UNITS; i++) {
             if (!s->world.units.active[i] || !s->selection.unit_selected[i]) continue;
