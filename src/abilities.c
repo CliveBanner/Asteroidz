@@ -2,6 +2,7 @@
 #include "constants.h"
 #include "weapons.h"
 #include "utils.h"
+#include <math.h>
 
 static void UpdateCooldowns(AppState *s, int idx, float dt) {
     if (s->world.units.large_cannon_cooldown[idx] > 0)
@@ -49,7 +50,7 @@ static void HandleAutoAttacks(AppState *s, int idx) {
         Command *cmd = &s->world.units.command_queue[idx][s->world.units.command_current_idx[idx]];
         if (cmd->type == CMD_MOVE) is_moving_normally = true;
         if (cmd->type == CMD_ATTACK_MOVE || cmd->type == CMD_PATROL) is_aggressive_cmd = true;
-        if (cmd->type == CMD_GATHER) is_gathering = true;
+        if (cmd->type == CMD_GATHER || cmd->type == CMD_RETURN_CARGO) is_gathering = true;
     }
 
     if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE || is_moving_normally || is_gathering) return;
@@ -93,19 +94,14 @@ void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
     if (!s->world.resources.active[resource_idx]) return;
 
     if (s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
-        float mining_rate = 100.0f; // Amount per second
+        float mining_rate = 100.0f; 
         float amount = mining_rate * dt;
-        
-        // Don't overfill
         if (s->world.units.current_cargo[idx] + amount > s->world.units.stats[idx]->max_cargo) {
             amount = s->world.units.stats[idx]->max_cargo - s->world.units.current_cargo[idx];
         }
-        
-        // Don't overmine
         if (amount > s->world.resources.health[resource_idx]) {
             amount = s->world.resources.health[resource_idx];
         }
-
         if (amount > 0) {
             Weapons_MineCrystal(s, idx, resource_idx, amount);
             s->world.units.current_cargo[idx] += amount;
@@ -118,15 +114,42 @@ void Abilities_Update(AppState *s, int idx, float dt) {
     HandleManualMainCannon(s, idx);
     HandleAutoAttacks(s, idx);
     
-    // Check for active gather command
+    // Unload cargo if near Mothership
+    if (s->world.units.current_cargo[idx] > 0 && s->world.units.type[idx] != UNIT_MOTHERSHIP) {
+        int mothership_idx = -1;
+        for (int i = 0; i < MAX_UNITS; i++) {
+            if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { mothership_idx = i; break; }
+        }
+        if (mothership_idx != -1) {
+            float dsq = Vector_DistanceSq(s->world.units.pos[idx], s->world.units.pos[mothership_idx]);
+            float unload_range = s->world.unit_stats[UNIT_MOTHERSHIP].radius + s->world.units.stats[idx]->radius + 50.0f;
+            if (dsq <= unload_range * unload_range) {
+                float unload_rate = 500.0f; 
+                float amount = fminf(unload_rate * dt, s->world.units.current_cargo[idx]);
+                s->world.units.current_cargo[idx] -= amount;
+                s->world.energy += amount;
+            }
+        }
+    }
+
     if (s->world.units.has_target[idx]) {
         Command *cmd = &s->world.units.command_queue[idx][s->world.units.command_current_idx[idx]];
         if (cmd->type == CMD_GATHER && cmd->target_idx != -1) {
-            // Range check
-            float dsq = Vector_DistanceSq(s->world.resources.pos[cmd->target_idx], s->world.units.pos[idx]);
-            float range = s->world.units.stats[idx]->small_cannon_range * 0.8f; // Mining range slightly shorter
-            if (dsq <= range * range) {
-                Abilities_Mine(s, idx, cmd->target_idx, dt);
+            if (s->world.units.current_cargo[idx] >= s->world.units.stats[idx]->max_cargo) {
+                cmd->type = CMD_RETURN_CARGO;
+            } else {
+                float dsq = Vector_DistanceSq(s->world.resources.pos[cmd->target_idx], s->world.units.pos[idx]);
+                float range = s->world.units.stats[idx]->small_cannon_range * 0.8f; 
+                if (dsq <= range * range) Abilities_Mine(s, idx, cmd->target_idx, dt);
+            }
+        } else if (cmd->type == CMD_RETURN_CARGO) {
+            if (s->world.units.current_cargo[idx] <= 0) {
+                if (cmd->target_idx != -1 && s->world.resources.active[cmd->target_idx]) {
+                    cmd->type = CMD_GATHER;
+                } else {
+                    // Resource gone, just stop
+                    s->world.units.has_target[idx] = false;
+                }
             }
         }
     }

@@ -477,6 +477,19 @@ void Game_Update(AppState *s, float dt) {
           }
           cur_cmd->pos = s->world.resources.pos[ti];
       }
+      
+      if (cur_cmd->type == CMD_RETURN_CARGO) {
+          // Find Mothership
+          int m_idx = -1;
+          for (int u = 0; u < MAX_UNITS; u++) {
+              if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MOTHERSHIP) { m_idx = u; break; }
+          }
+          if (m_idx != -1) cur_cmd->pos = s->world.units.pos[m_idx];
+          else {
+              // No mothership? cancel
+              s->world.units.has_target[i] = false; continue;
+          }
+      }
 
       if (s->world.units.has_target[i]) {
         float dsq = Vector_DistanceSq(cur_cmd->pos, s->world.units.pos[i]);
@@ -492,6 +505,10 @@ void Game_Update(AppState *s, float dt) {
             int ti = cur_cmd->target_idx;
             stop_dist = (s->world.units.stats[i]->small_cannon_range * 0.8f) + s->world.resources.radius[ti] * CRYSTAL_VISUAL_SCALE * 0.5f;
             stop_dist *= 0.95f;
+        }
+        
+        if (cur_cmd->type == CMD_RETURN_CARGO) {
+            stop_dist = s->world.unit_stats[UNIT_MOTHERSHIP].radius + s->world.units.stats[i]->radius + 20.0f;
         }
 
         if (dsq > stop_dist * stop_dist) {
@@ -515,6 +532,15 @@ void Game_Update(AppState *s, float dt) {
           if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
               should_advance = false;
               s->world.units.velocity[i] = (Vec2){0,0};
+          }
+          if (cur_cmd->type == CMD_RETURN_CARGO) {
+              // Wait until empty
+              if (s->world.units.current_cargo[i] <= 0) {
+                  should_advance = true;
+              } else {
+                  should_advance = false;
+                  s->world.units.velocity[i] = (Vec2){0,0};
+              }
           }
 
           if (should_advance) {

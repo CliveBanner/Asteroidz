@@ -71,7 +71,8 @@ typedef enum {
     CMD_PATROL,
     CMD_STOP,
     CMD_MAIN_CANNON,
-    CMD_GATHER
+    CMD_GATHER,
+    CMD_RETURN_CARGO
 } CommandType;
 
 typedef struct {
