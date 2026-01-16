@@ -92,10 +92,24 @@ static void HandleAutoAttacks(AppState *s, int idx) {
 void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
     if (!s->world.resources.active[resource_idx]) return;
 
-    if (s->world.units.mining_cooldown[idx] <= 0) {
-        float damage_per_tick = 50.0f; // Mining rate
-        Weapons_MineCrystal(s, idx, resource_idx, damage_per_tick);
-        s->world.units.mining_cooldown[idx] = 0.1f; // Fast tick rate
+    if (s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
+        float mining_rate = 100.0f; // Amount per second
+        float amount = mining_rate * dt;
+        
+        // Don't overfill
+        if (s->world.units.current_cargo[idx] + amount > s->world.units.stats[idx]->max_cargo) {
+            amount = s->world.units.stats[idx]->max_cargo - s->world.units.current_cargo[idx];
+        }
+        
+        // Don't overmine
+        if (amount > s->world.resources.health[resource_idx]) {
+            amount = s->world.resources.health[resource_idx];
+        }
+
+        if (amount > 0) {
+            Weapons_MineCrystal(s, idx, resource_idx, amount);
+            s->world.units.current_cargo[idx] += amount;
+        }
     }
 }
 

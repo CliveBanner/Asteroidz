@@ -89,6 +89,7 @@ void Game_Init(AppState *s) {
   s->world.unit_stats[UNIT_MOTHERSHIP] =
       (UnitStats){.max_health = 1000.0f,
                   .max_energy = 500.0f,
+                  .max_cargo = 2000.0f,
                   .speed = MOTHERSHIP_SPEED,
                   .friction = MOTHERSHIP_FRICTION,
                   .radius = MOTHERSHIP_RADIUS,
@@ -110,6 +111,7 @@ void Game_Init(AppState *s) {
   s->world.unit_stats[UNIT_SCOUT] =
       (UnitStats){.max_health = 200.0f,
                   .max_energy = 100.0f,
+                  .max_cargo = 500.0f,
                   .speed = 1800.0f,
                   .friction = 3.0f,
                   .radius = 60.0f,
@@ -149,6 +151,7 @@ void Game_Init(AppState *s) {
   s->world.units.rotation[idx] = 0;
   s->world.units.health[idx] = s->world.units.stats[idx]->max_health;
   s->world.units.energy[idx] = s->world.units.stats[idx]->max_energy;
+  s->world.units.current_cargo[idx] = 0.0f;
   s->world.units.behavior[idx] = BEHAVIOR_DEFENSIVE;
   s->world.units.command_count[idx] = 0;
   s->world.units.command_current_idx[idx] = 0;

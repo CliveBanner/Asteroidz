@@ -26,6 +26,7 @@ typedef enum {
 typedef struct {
     float max_health;
     float max_energy;
+    float max_cargo;
     float speed;
     float friction;
     float radius;
@@ -85,6 +86,7 @@ typedef struct {
     float rotation[MAX_UNITS];
     float health[MAX_UNITS];
     float energy[MAX_UNITS];
+    float current_cargo[MAX_UNITS];
     UnitType type[MAX_UNITS];
     const UnitStats *stats[MAX_UNITS];
     bool active[MAX_UNITS];

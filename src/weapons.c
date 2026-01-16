@@ -57,11 +57,11 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
     Particles_SpawnLaserFlash(s, impact_pos, s->world.particles.size[p_idx], true);
 }
 
-void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float damage) {
-    s->world.resources.health[resource_idx] -= damage;
+void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount) {
+    s->world.resources.health[resource_idx] -= amount;
     
     if (s->world.resources.health[resource_idx] <= 0) {
-        s->world.energy += s->world.resources.amount[resource_idx]; // Collect resource
+        // Resource depleted
         s->world.resources.active[resource_idx] = false;
         s->world.resource_count--;
         Particles_SpawnExplosion(s, s->world.resources.pos[resource_idx], 20, s->world.resources.radius[resource_idx] / 200.0f, EXPLOSION_COLLISION, s->world.resources.tex_idx[resource_idx]);
@@ -89,10 +89,10 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float damage)
     s->world.particles.target_pos[p_idx] = impact_pos;
     s->world.particles.unit_idx[p_idx] = u_idx;
     s->world.particles.life[p_idx] = 0.5f; // Shorter life for continuous beam look
-    s->world.particles.size[p_idx] = 2.0f;
+    s->world.particles.size[p_idx] = 6.0f; // Increased width
     s->world.particles.color[p_idx] = (SDL_Color){50, 255, 200, 255}; // Cyan mining laser
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
-    Particles_SpawnLaserFlash(s, start_pos, 2.0f, false);
-    Particles_SpawnLaserFlash(s, impact_pos, 3.0f, true);
+    Particles_SpawnLaserFlash(s, start_pos, 4.0f, false);
+    Particles_SpawnLaserFlash(s, impact_pos, 6.0f, true);
 }
