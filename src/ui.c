@@ -27,13 +27,13 @@ void UI_DrawHUD(AppState *s) {
     TacticalBehavior primary_behavior = BEHAVIOR_OFFENSIVE;
 
     for (int i = 0; i < MAX_UNITS; i++) {
-        if (s->world.units[i].active && s->selection.unit_selected[i]) {
+        if (s->world.units.active[i] && s->selection.unit_selected[i]) {
             if (!any_selected) {
-                primary_behavior = s->world.units[i].behavior;
+                primary_behavior = s->world.units.behavior[i];
                 any_selected = true;
             }
-            if (s->world.units[i].type == UNIT_MOTHERSHIP) {
-                hp = s->world.units[i].health; max_hp = s->world.units[i].stats->max_health;
+            if (s->world.units.type[i] == UNIT_MOTHERSHIP) {
+                hp = s->world.units.health[i]; max_hp = s->world.units.stats[i]->max_health;
                 found = true;
                 has_mothership = true;
             }
@@ -47,11 +47,6 @@ void UI_DrawHUD(AppState *s) {
     float card_h = (csz * 3) + (pad * 2);
     float gx = 20.0f;
     float gy = wh - card_h - 20.0f;
-
-    // Grid Mapping:
-    // [Q] [W] [E] [R] [ ]
-    // [A] [S] [D] [ ] [ ]
-    // [Z] [ ] [ ] [ ] [ ]
 
     struct {
         const char *hotkey;
@@ -79,13 +74,13 @@ void UI_DrawHUD(AppState *s) {
     if (has_mothership) {
         float cd_pct = 0, cd_val = 0;
         for (int i = 0; i < MAX_UNITS; i++) {
-            if (s->world.units[i].active && s->world.units[i].type == UNIT_MOTHERSHIP) {
-                cd_pct = s->world.units[i].large_cannon_cooldown / s->world.units[i].stats->main_cannon_cooldown;
-                cd_val = s->world.units[i].large_cannon_cooldown;
+            if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+                cd_pct = s->world.units.large_cannon_cooldown[i] / s->world.units.stats[i]->main_cannon_cooldown;
+                cd_val = s->world.units.large_cannon_cooldown[i];
                 break;
             }
         }
-        buttons[10] = (typeof(buttons[0])){ "Z", "MAIN C", false, false, 2, 0, cd_pct, cd_val };
+        buttons[10] = (typeof(buttons[0])){ "Z", "MAIN C", false, s->input.key_z_down, 2, 0, cd_pct, cd_val };
     }
 
     for (int i = 0; i < 15; i++) {

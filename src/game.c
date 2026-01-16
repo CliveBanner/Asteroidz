@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static void UpdateRadar(AppState *s);
+static void UpdateSpawning(AppState *s, Vec2 cam_center);
+
 void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
   if (s->world.asteroid_count >= MAX_ASTEROIDS)
     return;
@@ -38,14 +41,14 @@ static void UpdateSimAnchors(AppState *s, Vec2 cam_center) {
   s->world.sim_anchor_count = 0;
   s->world.sim_anchors[s->world.sim_anchor_count++].pos = cam_center;
   for (int i = 0; i < MAX_UNITS; i++) {
-    if (!s->world.units[i].active)
+    if (!s->world.units.active[i])
       continue;
     if (s->world.sim_anchor_count >= MAX_SIM_ANCHORS)
       break;
     bool covered = false;
     for (int a = 0; a < s->world.sim_anchor_count; a++) {
-      float dx = s->world.units[i].pos.x - s->world.sim_anchors[a].pos.x;
-      float dy = s->world.units[i].pos.y - s->world.sim_anchors[a].pos.y;
+      float dx = s->world.units.pos[i].x - s->world.sim_anchors[a].pos.x;
+      float dy = s->world.units.pos[i].y - s->world.sim_anchors[a].pos.y;
       if (dx * dx + dy * dy < (DESPAWN_RANGE * 0.5f) * (DESPAWN_RANGE * 0.5f)) {
         covered = true;
         break;
@@ -53,7 +56,7 @@ static void UpdateSimAnchors(AppState *s, Vec2 cam_center) {
     }
     if (!covered)
       s->world.sim_anchors[s->world.sim_anchor_count++].pos =
-          s->world.units[i].pos;
+          s->world.units.pos[i];
   }
 }
 
@@ -89,8 +92,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_cooldown = 0.5f,
                   .small_cannon_energy_cost = 5.0f};
 
-  for (int i = 0; i < MAX_UNITS; i++)
-    s->world.units[i].active = false;
+  SDL_memset(&s->world.units, 0, sizeof(UnitPool));
   s->world.unit_count = 0;
   s->world.energy = INITIAL_ENERGY;
 
@@ -99,23 +101,23 @@ void Game_Init(AppState *s) {
   s->world.asteroid_count = 0;
 
   // Spawn Initial Mothership
-  int idx = s->world.unit_count++;
-  Unit *u = &s->world.units[idx];
-  u->active = true;
-  u->type = UNIT_MOTHERSHIP;
-  u->stats = &s->world.unit_stats[UNIT_MOTHERSHIP];
-  u->pos = (Vec2){0, 0};
-  u->velocity = (Vec2){0, 0};
-  u->rotation = 0;
-  u->health = u->stats->max_health;
-  u->energy = u->stats->max_energy;
-  u->behavior = BEHAVIOR_DEFENSIVE;
-  u->command_count = 0;
-  u->command_current_idx = 0;
-  u->has_target = false;
-  u->large_target_idx = -1;
+  int idx = 0;
+  s->world.units.active[idx] = true;
+  s->world.units.type[idx] = UNIT_MOTHERSHIP;
+  s->world.units.stats[idx] = &s->world.unit_stats[UNIT_MOTHERSHIP];
+  s->world.units.pos[idx] = (Vec2){0, 0};
+  s->world.units.velocity[idx] = (Vec2){0, 0};
+  s->world.units.rotation[idx] = 0;
+  s->world.units.health[idx] = s->world.units.stats[idx]->max_health;
+  s->world.units.energy[idx] = s->world.units.stats[idx]->max_energy;
+  s->world.units.behavior[idx] = BEHAVIOR_DEFENSIVE;
+  s->world.units.command_count[idx] = 0;
+  s->world.units.command_current_idx[idx] = 0;
+  s->world.units.has_target[idx] = false;
+  s->world.units.large_target_idx[idx] = -1;
   for (int c = 0; c < 4; c++)
-    u->small_target_idx[c] = -1;
+    s->world.units.small_target_idx[idx][c] = -1;
+  s->world.unit_count = 1;
 
   s->selection.primary_unit_idx = 0;
   SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
@@ -125,8 +127,8 @@ void Game_Init(AppState *s) {
   int win_w, win_h;
   SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
   s->camera.zoom = MIN_ZOOM;
-  s->camera.pos.x = u->pos.x - (win_w / 2.0f) / s->camera.zoom;
-  s->camera.pos.y = u->pos.y - (win_h / 2.0f) / s->camera.zoom;
+  s->camera.pos.x = s->world.units.pos[idx].x - (win_w / 2.0f) / s->camera.zoom;
+  s->camera.pos.y = s->world.units.pos[idx].y - (win_h / 2.0f) / s->camera.zoom;
 }
 
 static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
@@ -139,15 +141,13 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
 
   if (s->ui.respawn_timer <= 0) {
     for (int i = 0; i < MAX_UNITS; i++) {
-      if (s->world.units[i].type == UNIT_MOTHERSHIP) {
-        Unit *u = &s->world.units[i];
-        u->active = true;
-        u->health = u->stats->max_health;
-        u->energy = u->stats->max_energy;
-        u->velocity = (Vec2){0, 0};
-        u->command_count = 0;
-        u->command_current_idx = 0;
-        u->has_target = false;
+      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+        s->world.units.health[i] = s->world.units.stats[i]->max_health;
+        s->world.units.energy[i] = s->world.units.stats[i]->max_energy;
+        s->world.units.velocity[i] = (Vec2){0, 0};
+        s->world.units.command_count[i] = 0;
+        s->world.units.command_current_idx[i] = 0;
+        s->world.units.has_target[i] = false;
 
         int attempts = 0;
         while (attempts < RESPAWN_ATTEMPTS) {
@@ -158,7 +158,7 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
             if (!s->world.asteroids.active[j])
               continue;
             if (Vector_DistanceSq((Vec2){rx, ry}, s->world.asteroids.pos[j]) <
-                powf(s->world.asteroids.radius[j] + u->stats->radius +
+                powf(s->world.asteroids.radius[j] + s->world.units.stats[i]->radius +
                          RESPAWN_BUFFER,
                      2)) {
               safe = false;
@@ -166,13 +166,13 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
             }
           }
           if (safe) {
-            u->pos = (Vec2){rx, ry};
+            s->world.units.pos[i] = (Vec2){rx, ry};
             break;
           }
           attempts++;
         }
-        s->camera.pos.x = u->pos.x - (win_w / 2.0f) / s->camera.zoom;
-        s->camera.pos.y = u->pos.y - (win_h / 2.0f) / s->camera.zoom;
+        s->camera.pos.x = s->world.units.pos[i].x - (win_w / 2.0f) / s->camera.zoom;
+        s->camera.pos.y = s->world.units.pos[i].y - (win_h / 2.0f) / s->camera.zoom;
         break;
       }
     }
@@ -244,8 +244,8 @@ static void UpdateRadar(AppState *s) {
   Vec2 m_pos = {0, 0};
   bool found = false;
   for (int i = 0; i < MAX_UNITS; i++)
-    if (s->world.units[i].active && s->world.units[i].type == UNIT_MOTHERSHIP) {
-      m_pos = s->world.units[i].pos;
+    if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+      m_pos = s->world.units.pos[i];
       found = true;
       break;
     }
@@ -313,107 +313,95 @@ void Game_Update(AppState *s, float dt) {
   Physics_HandleCollisions(s, dt);
 
   for (int i = 0; i < MAX_UNITS; i++) {
-    if (!s->world.units[i].active)
+    if (!s->world.units.active[i])
       continue;
-    Unit *u = &s->world.units[i];
-    if (u->has_target) {
-      Command *cur_cmd = &u->command_queue[u->command_current_idx];
+    
+    if (s->world.units.has_target[i]) {
+      Command *cur_cmd = &s->world.units.command_queue[i][s->world.units.command_current_idx[i]];
 
       // Auto-advance if target-based command target is dead
       if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
           int ti = cur_cmd->target_idx;
           if (!s->world.asteroids.active[ti]) {
-            u->command_current_idx++;
-            if (u->command_current_idx >= u->command_count) {
-              u->has_target = false;
-              u->command_count = 0;
-              u->command_current_idx = 0;
+            s->world.units.command_current_idx[i]++;
+            if (s->world.units.command_current_idx[i] >= s->world.units.command_count[i]) {
+              s->world.units.has_target[i] = false;
+              s->world.units.command_count[i] = 0;
+              s->world.units.command_current_idx[i] = 0;
             }
             continue;
           }
-          // Update command position to track moving target
           cur_cmd->pos = s->world.asteroids.pos[ti];
       }
 
-      if (u->has_target) {
-        float dsq = Vector_DistanceSq(cur_cmd->pos, u->pos);
+      if (s->world.units.has_target[i]) {
+        float dsq = Vector_DistanceSq(cur_cmd->pos, s->world.units.pos[i]);
         float stop_dist = UNIT_STOP_DIST;
         
-        // If attack move with target, stop at firing range
         if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
             int ti = cur_cmd->target_idx;
-            // Use full range for direct attack
-            stop_dist = u->stats->small_cannon_range + s->world.asteroids.radius[ti] * ASTEROID_HITBOX_MULT;
-            stop_dist *= 0.95f; // Slight buffer to ensure firing
+            stop_dist = s->world.units.stats[i]->small_cannon_range + s->world.asteroids.radius[ti] * ASTEROID_HITBOX_MULT;
+            stop_dist *= 0.95f;
         }
 
         if (dsq > stop_dist * stop_dist) {
-          float dist = sqrtf(dsq), speed = u->stats->speed;
-          // Only brake if it's the final command and NOT a patrol command
-          // (which loops)
+          float dist = sqrtf(dsq), speed = s->world.units.stats[i]->speed;
           if (cur_cmd->type != CMD_PATROL &&
-              (u->command_current_idx == u->command_count - 1) &&
+              (s->world.units.command_current_idx[i] == s->world.units.command_count[i] - 1) &&
               dist < UNIT_BRAKING_DIST)
             speed *= (dist / UNIT_BRAKING_DIST);
           Vec2 target_v = Vector_Scale(
-              Vector_Normalize(Vector_Sub(cur_cmd->pos, u->pos)), speed);
-          u->velocity.x +=
-              (target_v.x - u->velocity.x) * UNIT_STEERING_FORCE * dt;
-          u->velocity.y +=
-              (target_v.y - u->velocity.y) * UNIT_STEERING_FORCE * dt;
+              Vector_Normalize(Vector_Sub(cur_cmd->pos, s->world.units.pos[i])), speed);
+          s->world.units.velocity[i].x +=
+              (target_v.x - s->world.units.velocity[i].x) * UNIT_STEERING_FORCE * dt;
+          s->world.units.velocity[i].y +=
+              (target_v.y - s->world.units.velocity[i].y) * UNIT_STEERING_FORCE * dt;
         } else {
-          // Reached waypoint
           bool should_advance = true;
           if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
-              // If we have a specific target, we only "reach" the waypoint if the target is dead.
-              // Since we already handled dead targets at the top of the loop,
-              // being here means the target is alive and we are simply in range.
               should_advance = false;
-              u->velocity = (Vec2){0,0}; // Stay put
+              s->world.units.velocity[i] = (Vec2){0,0};
           }
 
           if (should_advance) {
               if (cur_cmd->type == CMD_PATROL) {
-                // If we are at the last point, loop back to the FIRST consecutive
-                // patrol point
-                if (u->command_current_idx == u->command_count - 1) {
-                  int first_patrol = u->command_current_idx;
+                if (s->world.units.command_current_idx[i] == s->world.units.command_count[i] - 1) {
+                  int first_patrol = s->world.units.command_current_idx[i];
                   while (first_patrol > 0 &&
-                         u->command_queue[first_patrol - 1].type == CMD_PATROL) {
+                         s->world.units.command_queue[i][first_patrol - 1].type == CMD_PATROL) {
                     first_patrol--;
                   }
-                  u->command_current_idx = first_patrol;
+                  s->world.units.command_current_idx[i] = first_patrol;
                 } else {
-                  u->command_current_idx++;
+                  s->world.units.command_current_idx[i]++;
                 }
               } else {
-                u->command_current_idx++;
-                if (u->command_current_idx >= u->command_count) {
-                  u->has_target = false;
-                  u->command_count = 0;
-                  u->command_current_idx = 0;
+                s->world.units.command_current_idx[i]++;
+                if (s->world.units.command_current_idx[i] >= s->world.units.command_count[i]) {
+                  s->world.units.has_target[i] = false;
+                  s->world.units.command_count[i] = 0;
+                  s->world.units.command_current_idx[i] = 0;
                 }
               }
           }
         }
       }
     }
-    u->velocity = Vector_Sub(
-        u->velocity, Vector_Scale(u->velocity, u->stats->friction * dt));
-    u->pos = Vector_Add(u->pos, Vector_Scale(u->velocity, dt));
+    s->world.units.velocity[i] = Vector_Sub(
+        s->world.units.velocity[i], Vector_Scale(s->world.units.velocity[i], s->world.units.stats[i]->friction * dt));
+    s->world.units.pos[i] = Vector_Add(s->world.units.pos[i], Vector_Scale(s->world.units.velocity[i], dt));
 
-    // Rotate to face movement direction or target
     float speed_sq =
-        u->velocity.x * u->velocity.x + u->velocity.y * u->velocity.y;
+        s->world.units.velocity[i].x * s->world.units.velocity[i].x + s->world.units.velocity[i].y * s->world.units.velocity[i].y;
     bool should_rotate = false;
     float target_rot = 0.0f;
 
     if (speed_sq > 100.0f) {
-      target_rot = atan2f(u->velocity.y, u->velocity.x) * (180.0f / SDL_PI_F) + 90.0f;
+      target_rot = atan2f(s->world.units.velocity[i].y, s->world.units.velocity[i].x) * (180.0f / SDL_PI_F) + 90.0f;
       should_rotate = true;
-    } else if (u->has_target) {
-      Command *cur_cmd = &u->command_queue[u->command_current_idx];
-      Vec2 dir = Vector_Sub(cur_cmd->pos, u->pos);
+    } else if (s->world.units.has_target[i]) {
+      Command *cur_cmd = &s->world.units.command_queue[i][s->world.units.command_current_idx[i]];
+      Vec2 dir = Vector_Sub(cur_cmd->pos, s->world.units.pos[i]);
       if (Vector_Length(dir) > 0.1f) {
           target_rot = atan2f(dir.y, dir.x) * (180.0f / SDL_PI_F) + 90.0f;
           should_rotate = true;
@@ -421,16 +409,13 @@ void Game_Update(AppState *s, float dt) {
     }
 
     if (should_rotate) {
-      // Smooth rotation (LerpAngle equivalent)
-      float diff = target_rot - u->rotation;
-      while (diff < -180.0f)
-        diff += 360.0f;
-      while (diff > 180.0f)
-        diff -= 360.0f;
-      u->rotation += diff * UNIT_STEERING_FORCE * dt;
+      float diff = target_rot - s->world.units.rotation[i];
+      while (diff < -180.0f) diff += 360.0f;
+      while (diff > 180.0f) diff -= 360.0f;
+      s->world.units.rotation[i] += diff * UNIT_STEERING_FORCE * dt;
     }
 
-    Abilities_Update(s, u, dt);
+    Abilities_Update(s, i, dt);
   }
 
   Particles_Update(s, dt);

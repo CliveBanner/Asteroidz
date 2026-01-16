@@ -74,34 +74,26 @@ typedef struct {
 } Command;
 
 typedef struct {
-    Vec2 pos;
-    Vec2 velocity;
-    float rotation;
-    float health;
-    float energy;
-    
-    UnitType type;
-    const UnitStats *stats;
-    bool active;
-
-    // Weapons state
-    float large_cannon_cooldown;
-    float small_cannon_cooldown[4];
-    int large_target_idx;
-    int small_target_idx[4];
-
-    // Movement/Commands
-    Command command_queue[MAX_COMMANDS];
-    int command_count;
-    int command_current_idx;
-    bool has_target;
-    
-    // AI State
-    Vec2 patrol_start;
-    bool patrolling_back;
-
-    TacticalBehavior behavior;
-} Unit;
+    Vec2 pos[MAX_UNITS];
+    Vec2 velocity[MAX_UNITS];
+    float rotation[MAX_UNITS];
+    float health[MAX_UNITS];
+    float energy[MAX_UNITS];
+    UnitType type[MAX_UNITS];
+    const UnitStats *stats[MAX_UNITS];
+    bool active[MAX_UNITS];
+    float large_cannon_cooldown[MAX_UNITS];
+    float small_cannon_cooldown[MAX_UNITS][4];
+    int large_target_idx[MAX_UNITS];
+    int small_target_idx[MAX_UNITS][4];
+    Command command_queue[MAX_UNITS][MAX_COMMANDS];
+    int command_count[MAX_UNITS];
+    int command_current_idx[MAX_UNITS];
+    bool has_target[MAX_UNITS];
+    Vec2 patrol_start[MAX_UNITS];
+    bool patrolling_back[MAX_UNITS];
+    TacticalBehavior behavior[MAX_UNITS];
+} UnitPool;
 
 typedef struct {
     int selected_res_index; // 0: 1280x720, 1: 1920x1080
@@ -185,7 +177,7 @@ typedef struct {
 typedef struct {
     AsteroidPool asteroids;
     int asteroid_count;
-    Unit units[MAX_UNITS];
+    UnitPool units;
     UnitStats unit_stats[UNIT_TYPE_COUNT];
     int unit_count;
     ParticlePool particles;

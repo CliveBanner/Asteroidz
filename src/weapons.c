@@ -4,7 +4,7 @@
 #include "utils.h"
 #include <math.h>
 
-void Weapons_Fire(AppState *s, Unit *u, int asteroid_idx, float damage, float energy_cost, bool is_main_cannon) {
+void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float energy_cost, bool is_main_cannon) {
     if (is_main_cannon) {
         // Main cannon is free (uses cooldown)
     } else {
@@ -20,14 +20,14 @@ void Weapons_Fire(AppState *s, Unit *u, int asteroid_idx, float damage, float en
         Particles_SpawnExplosion(s, s->world.asteroids.pos[asteroid_idx], 40, s->world.asteroids.max_health[asteroid_idx] / 1000.0f, EXPLOSION_COLLISION, s->world.asteroids.tex_idx[asteroid_idx]);
     }
     
-    float dx = s->world.asteroids.pos[asteroid_idx].x - u->pos.x;
-    float dy = s->world.asteroids.pos[asteroid_idx].y - u->pos.y;
+    float dx = s->world.asteroids.pos[asteroid_idx].x - s->world.units.pos[u_idx].x;
+    float dy = s->world.asteroids.pos[asteroid_idx].y - s->world.units.pos[u_idx].y;
     float dist = sqrtf(dx * dx + dy * dy);
-    Vec2 start_pos = u->pos;
+    Vec2 start_pos = s->world.units.pos[u_idx];
     Vec2 impact_pos = s->world.asteroids.pos[asteroid_idx];
 
     if (dist > 0.1f) {
-        float unit_r = u->stats->radius * MOTHERSHIP_VISUAL_SCALE * (LASER_START_OFFSET_MULT * 0.1f); 
+        float unit_r = s->world.units.stats[u_idx]->radius * MOTHERSHIP_VISUAL_SCALE * (LASER_START_OFFSET_MULT * 0.1f); 
         float ast_r = s->world.asteroids.radius[asteroid_idx] * ASTEROID_CORE_SCALE * 0.5f;
         start_pos.x += (dx / dist) * unit_r;
         start_pos.y += (dy / dist) * unit_r;
