@@ -181,12 +181,14 @@ typedef struct {
 } InputControlState;
 
 typedef struct {
-    Vec2 pos[MAX_ASTEROIDS]; // Reusing MAX_ASTEROIDS for resource limit for now
-    float radius[MAX_ASTEROIDS];
-    float rotation[MAX_ASTEROIDS];
-    float amount[MAX_ASTEROIDS];
-    int tex_idx[MAX_ASTEROIDS];
-    bool active[MAX_ASTEROIDS];
+    Vec2 pos[MAX_RESOURCES];
+    Vec2 velocity[MAX_RESOURCES];
+    float radius[MAX_RESOURCES];
+    float rotation[MAX_RESOURCES];
+    float rot_speed[MAX_RESOURCES];
+    float amount[MAX_RESOURCES];
+    int tex_idx[MAX_RESOURCES];
+    bool active[MAX_RESOURCES];
 } ResourcePool;
 
 typedef struct {

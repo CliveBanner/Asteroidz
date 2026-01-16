@@ -37,13 +37,19 @@ void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
   }
 }
 
-void SpawnCrystal(AppState *s, Vec2 pos, float radius) {
+void SpawnCrystal(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
     if (s->world.resource_count >= MAX_RESOURCES) return;
     for (int i = 0; i < MAX_RESOURCES; i++) {
         if (!s->world.resources.active[i]) {
             s->world.resources.pos[i] = pos;
+            float speed = (ASTEROID_SPEED_FACTOR * 0.8f) / radius; // Crystals slightly slower
+            s->world.resources.velocity[i].x = vel_dir.x * speed;
+            s->world.resources.velocity[i].y = vel_dir.y * speed;
             s->world.resources.radius[i] = radius;
             s->world.resources.rotation[i] = (float)(rand() % 360);
+            s->world.resources.rot_speed[i] =
+                ((float)(rand() % 100) / 50.0f - 1.0f) *
+                (ASTEROID_ROTATION_SPEED_FACTOR / radius);
             s->world.resources.amount[i] = radius * CRYSTAL_VALUE_MULT;
             s->world.resources.tex_idx[i] = rand() % CRYSTAL_COUNT;
             s->world.resources.active[i] = true;
@@ -270,7 +276,8 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
         
         if (((float)rand() / (float)RAND_MAX) < crystal_prob) {
             float c_rad = CRYSTAL_RADIUS_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_VARIANCE;
-            SpawnCrystal(s, spawn_pos, c_rad);
+            float move_angle = (float)(rand() % 360) * 0.0174533f;
+            SpawnCrystal(s, spawn_pos, (Vec2){cosf(move_angle), sinf(move_angle)}, c_rad);
             continue; // Successfully spawned crystal, skip asteroid for this attempt
         }
     }
@@ -368,6 +375,7 @@ void Game_Update(AppState *s, float dt) {
   UpdateSpawning(s, cam_center);
 
   Physics_UpdateAsteroids(s, dt);
+  Physics_UpdateResources(s, dt);
   Physics_HandleCollisions(s, dt);
 
   for (int i = 0; i < MAX_UNITS; i++) {
