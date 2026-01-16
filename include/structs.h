@@ -30,6 +30,7 @@ typedef struct {
     float friction;
     float radius;
     float radar_range;
+    float visual_scale;
     
     // Weapon stats
     float main_cannon_damage;
@@ -40,6 +41,7 @@ typedef struct {
     float small_cannon_range;
     float small_cannon_cooldown;
     float small_cannon_energy_cost;
+    float laser_thickness;
 } UnitStats;
 
 typedef struct {
@@ -129,6 +131,7 @@ typedef struct {
     ParticleType type[MAX_PARTICLES];
     bool active[MAX_PARTICLES];
     Vec2 target_pos[MAX_PARTICLES];
+    int unit_idx[MAX_PARTICLES];
 } ParticlePool;
 
 typedef struct {

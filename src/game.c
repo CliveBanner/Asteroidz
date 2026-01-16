@@ -69,13 +69,15 @@ void Game_Init(AppState *s) {
                   .friction = MOTHERSHIP_FRICTION,
                   .radius = MOTHERSHIP_RADIUS,
                   .radar_range = MOTHERSHIP_RADAR_RANGE,
+                  .visual_scale = MOTHERSHIP_VISUAL_SCALE,
                   .main_cannon_damage = LARGE_CANNON_DAMAGE,
                   .main_cannon_range = LARGE_CANNON_RANGE,
                   .main_cannon_cooldown = LARGE_CANNON_COOLDOWN,
                   .small_cannon_damage = SMALL_CANNON_DAMAGE,
                   .small_cannon_range = SMALL_CANNON_RANGE,
                   .small_cannon_cooldown = SMALL_CANNON_COOLDOWN,
-                  .small_cannon_energy_cost = SMALL_CANNON_ENERGY_COST};
+                  .small_cannon_energy_cost = SMALL_CANNON_ENERGY_COST,
+                  .laser_thickness = LASER_THICKNESS_MULT};
 
   // Scout Stats
   s->world.unit_stats[UNIT_SCOUT] =
@@ -85,12 +87,15 @@ void Game_Init(AppState *s) {
                   .friction = 3.0f,
                   .radius = 60.0f,
                   .radar_range = 4000.0f,
+                  .visual_scale = 1.2f,
                   .main_cannon_damage = 0,
                   .main_cannon_range = 0,
+                  .main_cannon_cooldown = 0,
                   .small_cannon_damage = 200.0f,
                   .small_cannon_range = 1500.0f,
                   .small_cannon_cooldown = 0.5f,
-                  .small_cannon_energy_cost = 5.0f};
+                  .small_cannon_energy_cost = 5.0f,
+                  .laser_thickness = 0.1f};
 
   SDL_memset(&s->world.units, 0, sizeof(UnitPool));
   s->world.unit_count = 0;
