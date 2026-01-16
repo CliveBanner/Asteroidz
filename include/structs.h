@@ -126,18 +126,18 @@ typedef enum {
 } ExplosionType;
 
 typedef struct {
-    Vec2 pos;
-    Vec2 velocity;
-    float life;       // 1.0 down to 0.0
-    float size;
-    float rotation;
-    int tex_idx;
-    int asteroid_tex_idx;
-    SDL_Color color;
-    ParticleType type;
-    bool active;
-    Vec2 target_pos; // For tracers
-} Particle;
+    Vec2 pos[MAX_PARTICLES];
+    Vec2 velocity[MAX_PARTICLES];
+    float life[MAX_PARTICLES];
+    float size[MAX_PARTICLES];
+    float rotation[MAX_PARTICLES];
+    int tex_idx[MAX_PARTICLES];
+    int asteroid_tex_idx[MAX_PARTICLES];
+    SDL_Color color[MAX_PARTICLES];
+    ParticleType type[MAX_PARTICLES];
+    bool active[MAX_PARTICLES];
+    Vec2 target_pos[MAX_PARTICLES];
+} ParticlePool;
 
 typedef struct {
     Vec2 pos[MAX_ASTEROIDS];
@@ -188,7 +188,7 @@ typedef struct {
     Unit units[MAX_UNITS];
     UnitStats unit_stats[UNIT_TYPE_COUNT];
     int unit_count;
-    Particle particles[MAX_PARTICLES];
+    ParticlePool particles;
     int particle_next_idx;
     SimAnchor sim_anchors[MAX_SIM_ANCHORS];
     int sim_anchor_count;

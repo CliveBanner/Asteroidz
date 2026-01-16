@@ -36,22 +36,22 @@ void Weapons_Fire(AppState *s, Unit *u, int asteroid_idx, float damage, float en
     }
 
     int p_idx = s->world.particle_next_idx;
-    s->world.particles[p_idx].active = true;
-    s->world.particles[p_idx].type = PARTICLE_TRACER;
-    s->world.particles[p_idx].pos = start_pos;
-    s->world.particles[p_idx].target_pos = impact_pos;
-    s->world.particles[p_idx].life = 1.0f; 
-    s->world.particles[p_idx].size = 1.0f + (damage / 50.0f);
-    s->world.particles[p_idx].color = (SDL_Color)COLOR_LASER_RED; 
+    s->world.particles.active[p_idx] = true;
+    s->world.particles.type[p_idx] = PARTICLE_TRACER;
+    s->world.particles.pos[p_idx] = start_pos;
+    s->world.particles.target_pos[p_idx] = impact_pos;
+    s->world.particles.life[p_idx] = 1.0f; 
+    s->world.particles.size[p_idx] = 1.0f + (damage / 50.0f);
+    s->world.particles.color[p_idx] = (SDL_Color)COLOR_LASER_RED; 
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
     // Muzzle flash
-    Particles_SpawnLaserFlash(s, start_pos, s->world.particles[p_idx].size, false);
+    Particles_SpawnLaserFlash(s, start_pos, s->world.particles.size[p_idx], false);
 
     // Impact Effect
     float impact_scale = 0.5f + (damage / 2000.0f);
     Particles_SpawnExplosion(s, impact_pos, 15, impact_scale, EXPLOSION_IMPACT, s->world.asteroids.tex_idx[asteroid_idx]); 
     
     // Impact flash
-    Particles_SpawnLaserFlash(s, impact_pos, s->world.particles[p_idx].size, true);
+    Particles_SpawnLaserFlash(s, impact_pos, s->world.particles.size[p_idx], true);
 }

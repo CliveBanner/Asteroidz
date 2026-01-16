@@ -189,42 +189,42 @@ static void DrawTargetCrosshair(SDL_Renderer *r, float x, float y, float size, S
 static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w, int win_h) {
   SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
   for (int i = 0; i < MAX_PARTICLES; i++) {
-    if (!s->world.particles[i].active) continue;
-    Vec2 sx_y = WorldToScreenParallax(s->world.particles[i].pos, 1.0f, s, win_w, win_h); float sz = s->world.particles[i].size * s->camera.zoom;
+    if (!s->world.particles.active[i]) continue;
+    Vec2 sx_y = WorldToScreenParallax(s->world.particles.pos[i], 1.0f, s, win_w, win_h); float sz = s->world.particles.size[i] * s->camera.zoom;
     if (!IsVisible(sx_y.x, sx_y.y, sz, win_w, win_h)) continue;
     
-    if (s->world.particles[i].type == PARTICLE_DEBRIS) {
-        SDL_SetTextureColorMod(s->textures.debris_textures[s->world.particles[i].tex_idx], 255, 255, 255);
-        float alpha = s->world.particles[i].life * s->world.particles[i].life;
-        SDL_SetTextureAlphaMod(s->textures.debris_textures[s->world.particles[i].tex_idx], (Uint8)(alpha * 255));
-        SDL_RenderTextureRotated(r, s->textures.debris_textures[s->world.particles[i].tex_idx], NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}, s->world.particles[i].rotation, NULL, SDL_FLIP_NONE);
+    if (s->world.particles.type[i] == PARTICLE_DEBRIS) {
+        SDL_SetTextureColorMod(s->textures.debris_textures[s->world.particles.tex_idx[i]], 255, 255, 255);
+        float alpha = s->world.particles.life[i] * s->world.particles.life[i];
+        SDL_SetTextureAlphaMod(s->textures.debris_textures[s->world.particles.tex_idx[i]], (Uint8)(alpha * 255));
+        SDL_RenderTextureRotated(r, s->textures.debris_textures[s->world.particles.tex_idx[i]], NULL, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}, s->world.particles.rotation[i], NULL, SDL_FLIP_NONE);
     }
-    else if (s->world.particles[i].type == PARTICLE_SHOCKWAVE) {
+    else if (s->world.particles.type[i] == PARTICLE_SHOCKWAVE) {
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
-        float a_f = s->world.particles[i].life * s->world.particles[i].life;
+        float a_f = s->world.particles.life[i] * s->world.particles.life[i];
         SDL_FColor center = { 1.0f, 1.0f, 1.0f, 0.0f }; 
         SDL_FColor edge = { 1.0f, 1.0f, 1.0f, a_f * 0.5f };
         DrawGradientCircle(r, sx_y.x, sx_y.y, sz, center, edge);
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     }
-    else if (s->world.particles[i].type == PARTICLE_PUFF) {
-        float a_f = (s->world.particles[i].life * s->world.particles[i].life) * 0.10f; 
-        SDL_FColor center = { s->world.particles[i].color.r/255.0f, s->world.particles[i].color.g/255.0f, s->world.particles[i].color.b/255.0f, a_f };
+    else if (s->world.particles.type[i] == PARTICLE_PUFF) {
+        float a_f = (s->world.particles.life[i] * s->world.particles.life[i]) * 0.10f; 
+        SDL_FColor center = { s->world.particles.color[i].r/255.0f, s->world.particles.color[i].g/255.0f, s->world.particles.color[i].b/255.0f, a_f };
         SDL_FColor edge = { center.r * 0.1f, center.g * 0.1f, center.b * 0.1f, 0.0f };
         DrawGradientCircle(r, sx_y.x, sx_y.y, sz / 2, center, edge);
     }
-    else if (s->world.particles[i].type == PARTICLE_GLOW) {
+    else if (s->world.particles.type[i] == PARTICLE_GLOW) {
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
-        float a_f = fminf(1.0f, s->world.particles[i].life * 2.0f);
-        SDL_FColor center = { s->world.particles[i].color.r/255.0f, s->world.particles[i].color.g/255.0f, s->world.particles[i].color.b/255.0f, a_f };
+        float a_f = fminf(1.0f, s->world.particles.life[i] * 2.0f);
+        SDL_FColor center = { s->world.particles.color[i].r/255.0f, s->world.particles.color[i].g/255.0f, s->world.particles.color[i].b/255.0f, a_f };
         SDL_FColor edge = { center.r * 0.5f, center.g * 0.5f, center.b * 0.5f, 0.0f };
         DrawGradientCircle(r, sx_y.x, sx_y.y, sz / 2, center, edge);
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     }
-    else if (s->world.particles[i].type == PARTICLE_TRACER) {
-        Vec2 tsx_y = WorldToScreenParallax(s->world.particles[i].target_pos, 1.0f, s, win_w, win_h); 
-        float a_f = fminf(1.0f, s->world.particles[i].life); 
-        float th = s->world.particles[i].size * s->camera.zoom * LASER_THICKNESS_MULT;
+    else if (s->world.particles.type[i] == PARTICLE_TRACER) {
+        Vec2 tsx_y = WorldToScreenParallax(s->world.particles.target_pos[i], 1.0f, s, win_w, win_h); 
+        float a_f = fminf(1.0f, s->world.particles.life[i]); 
+        float th = s->world.particles.size[i] * s->camera.zoom * LASER_THICKNESS_MULT;
         float dx = tsx_y.x - sx_y.x, dy = tsx_y.y - sx_y.y;
         float len = sqrtf(dx * dx + dy * dy);
         if (len > 0.1f) {
@@ -232,7 +232,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
             SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
             float glow_th = th * LASER_GLOW_MULT;
             SDL_Vertex vg[4];
-            SDL_FColor glow_col = { s->world.particles[i].color.r / 255.0f * 0.3f, s->world.particles[i].color.g / 255.0f * 0.3f, s->world.particles[i].color.b / 255.0f * 0.3f, a_f * 0.4f };
+            SDL_FColor glow_col = { s->world.particles.color[i].r / 255.0f * 0.3f, s->world.particles.color[i].g / 255.0f * 0.3f, s->world.particles.color[i].b / 255.0f * 0.3f, a_f * 0.4f };
             vg[0].position = (SDL_FPoint){ sx_y.x + nx * glow_th, sx_y.y + ny * glow_th }; vg[0].color = glow_col;
             vg[1].position = (SDL_FPoint){ sx_y.x - nx * glow_th, sx_y.y - ny * glow_th }; vg[1].color = glow_col;
             vg[2].position = (SDL_FPoint){ tsx_y.x + nx * glow_th, tsx_y.y + ny * glow_th }; vg[2].color = glow_col;
@@ -243,7 +243,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
             float pulse = 1.0f + 0.1f * sinf(s->current_time * 25.0f);
             float cur_th = th * pulse;
             SDL_Vertex vb[6]; 
-            SDL_FColor edge_col = { s->world.particles[i].color.r / 255.0f, s->world.particles[i].color.g / 255.0f, s->world.particles[i].color.b / 255.0f, a_f };
+            SDL_FColor edge_col = { s->world.particles.color[i].r / 255.0f, s->world.particles.color[i].g / 255.0f, s->world.particles.color[i].b / 255.0f, a_f };
             SDL_FColor core_col = { 1.0f, 1.0f, 1.0f, a_f }; 
             float core_th = cur_th * LASER_CORE_THICKNESS_MULT;
             vb[0].position = (SDL_FPoint){ sx_y.x + nx * cur_th, sx_y.y + ny * cur_th }; vb[0].color = edge_col;
@@ -262,7 +262,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
             }
         }
     } else { 
-        SDL_SetRenderDrawColor(r, s->world.particles[i].color.r, s->world.particles[i].color.g, s->world.particles[i].color.b, (Uint8)(s->world.particles[i].life * 255)); 
+        SDL_SetRenderDrawColor(r, s->world.particles.color[i].r, s->world.particles.color[i].g, s->world.particles.color[i].b, (Uint8)(s->world.particles.life[i] * 255)); 
         SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - sz / 2, sx_y.y - sz / 2, sz, sz}); 
     }
   }

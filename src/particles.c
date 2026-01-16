@@ -6,192 +6,177 @@
 #include <stdlib.h>
 
 void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult, ExplosionType type, int asteroid_tex_idx) {
-  // Balanced scaling
   float capped_mult = powf(size_mult, 0.6f); 
-  float count_mult = powf(size_mult, 0.35f);   // Fewer pieces for large asteroids
-  float chunky_mult = powf(size_mult, 0.75f);  // Reduced from 0.95f
+  float count_mult = powf(size_mult, 0.35f);
+  float chunky_mult = powf(size_mult, 0.75f);
   
-  // Theme color lookup - Even darker for a solid rocky look
   float a_theme = DeterministicHash(asteroid_tex_idx * 789, 123);
   SDL_Color base_col;
-  if (a_theme > 0.7f) base_col = (SDL_Color){30, 18, 12, 255};      // Deep Red
-  else if (a_theme > 0.4f) base_col = (SDL_Color){15, 20, 35, 255}; // Deep Blue
-  else base_col = (SDL_Color){18, 18, 22, 255};                      // Deep Grey
+  if (a_theme > 0.7f) base_col = (SDL_Color){30, 18, 12, 255};
+  else if (a_theme > 0.4f) base_col = (SDL_Color){15, 20, 35, 255};
+  else base_col = (SDL_Color){18, 18, 22, 255};
 
   if (type == EXPLOSION_IMPACT) {
-      // Fast, sharp sparks
       int spark_count = (int)(count * 2.5f * count_mult); 
       for (int i = 0; i < spark_count; i++) {
         int idx = s->world.particle_next_idx;
-        s->world.particles[idx].active = true;
-        s->world.particles[idx].type = PARTICLE_SPARK;
-        s->world.particles[idx].pos = pos;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_SPARK;
+        s->world.particles.pos[idx] = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
         float speed = (float)(rand() % 800 + 400) * capped_mult; 
-        s->world.particles[idx].velocity.x = cosf(angle) * speed;
-        s->world.particles[idx].velocity.y = sinf(angle) * speed;
-        s->world.particles[idx].life = PARTICLE_LIFE_BASE * 0.5f;
-        s->world.particles[idx].size = (float)(rand() % 12 + 6) * capped_mult; // Increased from 8+4
-        s->world.particles[idx].color = (SDL_Color){(Uint8)((base_col.r + 255)/2), (Uint8)((base_col.g + 220)/2), (Uint8)((base_col.b + 150)/2), 255};
+        s->world.particles.velocity[idx].x = cosf(angle) * speed;
+        s->world.particles.velocity[idx].y = sinf(angle) * speed;
+        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.5f;
+        s->world.particles.size[idx] = (float)(rand() % 12 + 6) * capped_mult;
+        s->world.particles.color[idx] = (SDL_Color){(Uint8)((base_col.r + 255)/2), (Uint8)((base_col.g + 220)/2), (Uint8)((base_col.b + 150)/2), 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
       }
-      // Small puffs
       int puff_count = (int)(count * 1.2f * count_mult); 
       for (int i = 0; i < puff_count; i++) {
         int idx = s->world.particle_next_idx;
-        s->world.particles[idx].active = true;
-        s->world.particles[idx].type = PARTICLE_PUFF;
-        s->world.particles[idx].pos = pos;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_PUFF;
+        s->world.particles.pos[idx] = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
         float speed = (float)(rand() % 200 + 80) * capped_mult; 
-        s->world.particles[idx].velocity.x = cosf(angle) * speed;
-        s->world.particles[idx].velocity.y = sinf(angle) * speed;
-        s->world.particles[idx].life = PARTICLE_LIFE_BASE * 0.5f; 
-        s->world.particles[idx].size = (float)(rand() % 120 + 60) * capped_mult; // Increased from 80+40
+        s->world.particles.velocity[idx].x = cosf(angle) * speed;
+        s->world.particles.velocity[idx].y = sinf(angle) * speed;
+        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.5f; 
+        s->world.particles.size[idx] = (float)(rand() % 120 + 60) * capped_mult;
         Uint8 v = (Uint8)(rand() % 40 + 80); 
-        s->world.particles[idx].color = (SDL_Color){v, (Uint8)(v * 0.8f), (Uint8)(v * 0.6f), 255};
+        s->world.particles.color[idx] = (SDL_Color){v, (Uint8)(v * 0.8f), (Uint8)(v * 0.6f), 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
       }
-      
-      // Fine Debris
       int fine_debris_count = (int)(10 * count_mult); 
       for (int i = 0; i < fine_debris_count; i++) {
           int idx = s->world.particle_next_idx;
-          s->world.particles[idx].active = true;
-          s->world.particles[idx].type = PARTICLE_DEBRIS;
-          s->world.particles[idx].asteroid_tex_idx = asteroid_tex_idx;
-          s->world.particles[idx].pos = pos;
-          s->world.particles[idx].tex_idx = rand() % DEBRIS_COUNT;
+          s->world.particles.active[idx] = true;
+          s->world.particles.type[idx] = PARTICLE_DEBRIS;
+          s->world.particles.asteroid_tex_idx[idx] = asteroid_tex_idx;
+          s->world.particles.pos[idx] = pos;
+          s->world.particles.tex_idx[idx] = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
           float speed = (float)(rand() % 300 + 100) * capped_mult; 
-          s->world.particles[idx].velocity.x = cosf(angle) * speed;
-          s->world.particles[idx].velocity.y = sinf(angle) * speed;
-          s->world.particles[idx].life = PARTICLE_LIFE_BASE * 0.35f; 
-          s->world.particles[idx].size = (float)(rand() % 18 + 12) * chunky_mult; // Increased from 12+8
-          s->world.particles[idx].rotation = (float)(rand() % 360);
-          s->world.particles[idx].color = base_col;
+          s->world.particles.velocity[idx].x = cosf(angle) * speed;
+          s->world.particles.velocity[idx].y = sinf(angle) * speed;
+          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.35f; 
+          s->world.particles.size[idx] = (float)(rand() % 18 + 12) * chunky_mult;
+          s->world.particles.rotation[idx] = (float)(rand() % 360);
+          s->world.particles.color[idx] = base_col;
           s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
       }
-
-      // Main Debris
       int debris_count = (int)(3 * count_mult); 
       for (int i = 0; i < debris_count; i++) {
           int idx = s->world.particle_next_idx;
-          s->world.particles[idx].active = true;
-          s->world.particles[idx].type = PARTICLE_DEBRIS;
-          s->world.particles[idx].asteroid_tex_idx = asteroid_tex_idx;
-          s->world.particles[idx].pos = pos;
-          s->world.particles[idx].tex_idx = rand() % DEBRIS_COUNT;
+          s->world.particles.active[idx] = true;
+          s->world.particles.type[idx] = PARTICLE_DEBRIS;
+          s->world.particles.asteroid_tex_idx[idx] = asteroid_tex_idx;
+          s->world.particles.pos[idx] = pos;
+          s->world.particles.tex_idx[idx] = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
           float speed = (float)(rand() % 150 + 60) * capped_mult; 
-          s->world.particles[idx].velocity.x = cosf(angle) * speed;
-          s->world.particles[idx].velocity.y = sinf(angle) * speed;
-          s->world.particles[idx].life = PARTICLE_LIFE_BASE * 0.45f; 
-          s->world.particles[idx].size = (float)(rand() % 45 + 35) * chunky_mult; // Increased from 30+20
-          s->world.particles[idx].rotation = (float)(rand() % 360);
-          s->world.particles[idx].color = base_col;
+          s->world.particles.velocity[idx].x = cosf(angle) * speed;
+          s->world.particles.velocity[idx].y = sinf(angle) * speed;
+          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.45f; 
+          s->world.particles.size[idx] = (float)(rand() % 45 + 35) * chunky_mult;
+          s->world.particles.rotation[idx] = (float)(rand() % 360);
+          s->world.particles.color[idx] = base_col;
           s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
       }
-
-      // Energetic shockwave for impact
       int sw_idx = s->world.particle_next_idx;
-      s->world.particles[sw_idx].active = true;
-      s->world.particles[sw_idx].type = PARTICLE_SHOCKWAVE;
-      s->world.particles[sw_idx].pos = pos;
-      s->world.particles[sw_idx].velocity = (Vec2){0,0};
-      s->world.particles[sw_idx].life = 0.3f; 
-      s->world.particles[sw_idx].size = 55.0f * capped_mult; // Increased from 40
-      s->world.particles[sw_idx].color = (SDL_Color){255, 255, 255, 200}; 
+      s->world.particles.active[sw_idx] = true;
+      s->world.particles.type[sw_idx] = PARTICLE_SHOCKWAVE;
+      s->world.particles.pos[sw_idx] = pos;
+      s->world.particles.velocity[sw_idx] = (Vec2){0,0};
+      s->world.particles.life[sw_idx] = 0.3f; 
+      s->world.particles.size[sw_idx] = 55.0f * capped_mult;
+      s->world.particles.color[sw_idx] = (SDL_Color){255, 255, 255, 200}; 
       s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
-
-
   } else {
-      // EXPLOSION_COLLISION
       int puff_count = (int)(count * 0.5f * count_mult); 
       for (int i = 0; i < puff_count; i++) {
         int idx = s->world.particle_next_idx;
-        s->world.particles[idx].active = true;
-        s->world.particles[idx].type = PARTICLE_PUFF;
-        s->world.particles[idx].pos = pos;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_PUFF;
+        s->world.particles.pos[idx] = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
         float speed = (float)(rand() % 150 + 20) * capped_mult; 
-        s->world.particles[idx].velocity.x = cosf(angle) * speed;
-        s->world.particles[idx].velocity.y = sinf(angle) * speed;
-        s->world.particles[idx].life = PARTICLE_LIFE_BASE * (0.8f + 0.4f * (float)rand()/(float)RAND_MAX); // Middle ground
-        s->world.particles[idx].size = (float)(rand() % 120 + 60) * capped_mult; // Slightly smaller
-        Uint8 v = (Uint8)(rand() % 30 + 40); // Dark smoke
-        s->world.particles[idx].color = (SDL_Color){v, (Uint8)(v * 0.95f), (Uint8)(v * 0.9f), 255};
+        s->world.particles.velocity[idx].x = cosf(angle) * speed;
+        s->world.particles.velocity[idx].y = sinf(angle) * speed;
+        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * (0.8f + 0.4f * (float)rand()/(float)RAND_MAX);
+        s->world.particles.size[idx] = (float)(rand() % 120 + 60) * capped_mult;
+        Uint8 v = (Uint8)(rand() % 30 + 40); 
+        s->world.particles.color[idx] = (SDL_Color){v, (Uint8)(v * 0.95f), (Uint8)(v * 0.9f), 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
       }
-
-      int debris_count = (int)(5 * count_mult); // Reduced from 10
+      int debris_count = (int)(5 * count_mult);
       for (int i = 0; i < debris_count; i++) {
           int idx = s->world.particle_next_idx;
-          s->world.particles[idx].active = true;
-          s->world.particles[idx].type = PARTICLE_DEBRIS;
-          s->world.particles[idx].asteroid_tex_idx = asteroid_tex_idx;
-          s->world.particles[idx].pos = pos;
-          s->world.particles[idx].tex_idx = rand() % DEBRIS_COUNT;
+          s->world.particles.active[idx] = true;
+          s->world.particles.type[idx] = PARTICLE_DEBRIS;
+          s->world.particles.asteroid_tex_idx[idx] = asteroid_tex_idx;
+          s->world.particles.pos[idx] = pos;
+          s->world.particles.tex_idx[idx] = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
           float speed = (float)(rand() % 100 + 40) * capped_mult; 
-          s->world.particles[idx].velocity.x = cosf(angle) * speed;
-          s->world.particles[idx].velocity.y = sinf(angle) * speed;
-          s->world.particles[idx].life = PARTICLE_LIFE_BASE * 0.7f; 
-          s->world.particles[idx].size = (float)(rand() % 40 + 20) * chunky_mult; // Toned down
-          s->world.particles[idx].rotation = (float)(rand() % 360);
-          s->world.particles[idx].color = base_col;
+          s->world.particles.velocity[idx].x = cosf(angle) * speed;
+          s->world.particles.velocity[idx].y = sinf(angle) * speed;
+          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.7f; 
+          s->world.particles.size[idx] = (float)(rand() % 40 + 20) * chunky_mult;
+          s->world.particles.rotation[idx] = (float)(rand() % 360);
+          s->world.particles.color[idx] = base_col;
           s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
       }
-      
-      // Shockwave (Toned down size)
       int sw_idx = s->world.particle_next_idx;
-      s->world.particles[sw_idx].active = true;
-      s->world.particles[sw_idx].type = PARTICLE_SHOCKWAVE;
-      s->world.particles[sw_idx].pos = pos;
-      s->world.particles[sw_idx].velocity = (Vec2){0,0};
-      s->world.particles[sw_idx].life = 0.5f;
-      // Reduced initial size from 60.0f
-      s->world.particles[sw_idx].size = (float)(40.0f * capped_mult); 
-      s->world.particles[sw_idx].color = (SDL_Color){255, 255, 255, 100};
+      s->world.particles.active[sw_idx] = true;
+      s->world.particles.type[sw_idx] = PARTICLE_SHOCKWAVE;
+      s->world.particles.pos[sw_idx] = pos;
+      s->world.particles.velocity[sw_idx] = (Vec2){0,0};
+      s->world.particles.life[sw_idx] = 0.5f;
+      s->world.particles.size[sw_idx] = (float)(40.0f * capped_mult); 
+      s->world.particles.color[sw_idx] = (SDL_Color){255, 255, 255, 100};
       s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
   }
 }
 
 void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, bool is_impact) {
-    // 1. Primary Energy Flash
     int m_idx = s->world.particle_next_idx;
-    s->world.particles[m_idx].active = true;
-    s->world.particles[m_idx].type = PARTICLE_GLOW; 
-    s->world.particles[m_idx].pos = pos;
-    s->world.particles[m_idx].velocity = (Vec2){0, 0};
-    s->world.particles[m_idx].life = MUZZLE_FLASH_LIFE;
-    s->world.particles[m_idx].size = size * MUZZLE_FLASH_SIZE_MULT;
-    s->world.particles[m_idx].color = (SDL_Color)COLOR_MUZZLE_FLASH;
+    s->world.particles.active[m_idx] = true;
+    s->world.particles.type[m_idx] = PARTICLE_GLOW; 
+    s->world.particles.pos[m_idx] = pos;
+    s->world.particles.velocity[m_idx] = (Vec2){0, 0};
+    s->world.particles.life[m_idx] = MUZZLE_FLASH_LIFE;
+    s->world.particles.size[m_idx] = size * MUZZLE_FLASH_SIZE_MULT;
+    s->world.particles.color[m_idx] = (SDL_Color)COLOR_MUZZLE_FLASH;
     s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
 
     if (is_impact) {
-        // 2. Extra Bright Intense Core for Impacts
         int i_g_idx = s->world.particle_next_idx;
-        s->world.particles[i_g_idx].active = true;
-        s->world.particles[i_g_idx].type = PARTICLE_GLOW;
-        s->world.particles[i_g_idx].pos = pos;
-        s->world.particles[i_g_idx].velocity = (Vec2){0, 0};
-        s->world.particles[i_g_idx].life = 0.25f;
-        s->world.particles[i_g_idx].size = size * 12.0f; // Boosted core
-        s->world.particles[i_g_idx].color = (SDL_Color){255, 255, 255, 255}; // White hot
+        s->world.particles.active[i_g_idx] = true;
+        s->world.particles.type[i_g_idx] = PARTICLE_GLOW;
+        s->world.particles.pos[i_g_idx] = pos;
+        s->world.particles.velocity[i_g_idx] = (Vec2){0, 0};
+        s->world.particles.life[i_g_idx] = 0.25f;
+        s->world.particles.size[i_g_idx] = size * 12.0f;
+        s->world.particles.color[i_g_idx] = (SDL_Color){255, 255, 255, 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 }
 
 void Particles_Update(AppState *s, float dt) {
   for (int i = 0; i < MAX_PARTICLES; i++) {
-    if (!s->world.particles[i].active) continue;
-    if (s->world.particles[i].type == PARTICLE_TRACER) s->world.particles[i].life -= dt * 2.0f;
-    else if (s->world.particles[i].type == PARTICLE_SHOCKWAVE) {
-        s->world.particles[i].life -= dt * 2.0f;
-        s->world.particles[i].size += dt * 1200.0f; // Slower expansion
+    if (!s->world.particles.active[i]) continue;
+    if (s->world.particles.type[i] == PARTICLE_TRACER) s->world.particles.life[i] -= dt * 2.0f;
+    else if (s->world.particles.type[i] == PARTICLE_SHOCKWAVE) {
+        s->world.particles.life[i] -= dt * 2.0f;
+        s->world.particles.size[i] += dt * 1200.0f;
     }
-    else { s->world.particles[i].pos = Vector_Add(s->world.particles[i].pos, Vector_Scale(s->world.particles[i].velocity, dt)); s->world.particles[i].life -= dt * PARTICLE_LIFE_DECAY; }
-    if (s->world.particles[i].life <= 0) s->world.particles[i].active = false;
+    else { 
+        s->world.particles.pos[i].x += s->world.particles.velocity[i].x * dt;
+        s->world.particles.pos[i].y += s->world.particles.velocity[i].y * dt;
+        s->world.particles.life[i] -= dt * PARTICLE_LIFE_DECAY; 
+    }
+    if (s->world.particles.life[i] <= 0) s->world.particles.active[i] = false;
   }
 }
