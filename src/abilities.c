@@ -139,7 +139,8 @@ void Abilities_Update(AppState *s, int idx, float dt) {
                 cmd->type = CMD_RETURN_CARGO;
             } else {
                 float dsq = Vector_DistanceSq(s->world.resources.pos[cmd->target_idx], s->world.units.pos[idx]);
-                float range = s->world.units.stats[idx]->small_cannon_range * 0.8f; 
+                // Must match stop_dist logic in game.c: (range * 0.8) + crystal_radius
+                float range = (s->world.units.stats[idx]->small_cannon_range * 0.8f) + s->world.resources.radius[cmd->target_idx] * CRYSTAL_VISUAL_SCALE * 0.5f;
                 if (dsq <= range * range) Abilities_Mine(s, idx, cmd->target_idx, dt);
             }
         } else if (cmd->type == CMD_RETURN_CARGO) {
