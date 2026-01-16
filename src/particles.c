@@ -187,7 +187,25 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 
-    // 2. Resource Stream (bits that flow toward the unit)
+    // 2. Dust Puffs
+    int puff_count = (int)(effective_intensity * 0.5f);
+    if (puff_count < 1 && intensity > 0) puff_count = 1;
+    for (int i = 0; i < puff_count; i++) {
+        int idx = s->world.particle_next_idx;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_PUFF;
+        s->world.particles.pos[idx] = crystal_pos;
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        float speed = (float)(rand() % 100 + 50);
+        s->world.particles.velocity[idx].x = cosf(angle) * speed;
+        s->world.particles.velocity[idx].y = sinf(angle) * speed;
+        s->world.particles.life[idx] = 0.6f;
+        s->world.particles.size[idx] = (float)(rand() % 40 + 20);
+        s->world.particles.color[idx] = (SDL_Color){50, 200, 255, 100}; // Light blue/cyan dust
+        s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+    }
+
+    // 3. Resource Stream (bits that flow toward the unit)
     if (rand() % 100 < 40) { // More frequent bits
         int idx = s->world.particle_next_idx;
         s->world.particles.active[idx] = true;
