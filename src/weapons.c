@@ -60,10 +60,10 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
 void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount) {
     s->world.resources.health[resource_idx] -= amount;
     
-    // Shrink crystal radius based on health lost
-    float health_ratio = s->world.resources.health[resource_idx] / s->world.resources.max_health[resource_idx];
-    // Don't shrink to zero immediately, keep some visual presence until explosion
-    s->world.resources.radius[resource_idx] *= (0.99f); 
+    // Scale down slower, proportional to health lost
+    // Similar to asteroid logic: radius -= (damage / MULT) * 0.2
+    s->world.resources.radius[resource_idx] -= (amount / 5.0f) * 0.15f; 
+    if (s->world.resources.radius[resource_idx] < 20.0f) s->world.resources.radius[resource_idx] = 20.0f;
     
     if (s->world.resources.health[resource_idx] <= 0) {
         // Resource depleted
