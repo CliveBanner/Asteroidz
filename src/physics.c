@@ -59,25 +59,9 @@ void Physics_HandleCollisions(AppState *s, float dt) {
     }
   }
 
-  // 2. Resource vs Resource
-  for (int i = 0; i < MAX_RESOURCES; i++) {
-    if (!s->world.resources.active[i]) continue;
-    for (int j = i + 1; j < MAX_RESOURCES; j++) {
-      if (!s->world.resources.active[j]) continue;
-      SolveCollision(&s->world.resources.pos[i], &s->world.resources.velocity[i], s->world.resources.radius[i],
-                     &s->world.resources.pos[j], &s->world.resources.velocity[j], s->world.resources.radius[j]);
-    }
-  }
+  // 2. (Removed) Resource vs Resource
 
-  // 3. Asteroid vs Resource
-  for (int i = 0; i < MAX_ASTEROIDS; i++) {
-    if (!s->world.asteroids.active[i]) continue;
-    for (int j = 0; j < MAX_RESOURCES; j++) {
-      if (!s->world.resources.active[j]) continue;
-      SolveCollision(&s->world.asteroids.pos[i], &s->world.asteroids.velocity[i], s->world.asteroids.radius[i],
-                     &s->world.resources.pos[j], &s->world.resources.velocity[j], s->world.resources.radius[j]);
-    }
-  }
+  // 3. (Removed) Asteroid vs Resource - Crystals don't collide with asteroids
 
   // 4. Unit vs Asteroid/Resource
   for (int i = 0; i < MAX_UNITS; i++) {

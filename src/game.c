@@ -42,14 +42,14 @@ void SpawnCrystal(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
     for (int i = 0; i < MAX_RESOURCES; i++) {
         if (!s->world.resources.active[i]) {
             s->world.resources.pos[i] = pos;
-            float speed = (ASTEROID_SPEED_FACTOR * 0.8f) / radius; // Crystals slightly slower
+            float speed = (ASTEROID_SPEED_FACTOR * 0.1f) / radius; // Crystals drift very slowly
             s->world.resources.velocity[i].x = vel_dir.x * speed;
             s->world.resources.velocity[i].y = vel_dir.y * speed;
             s->world.resources.radius[i] = radius;
             s->world.resources.rotation[i] = (float)(rand() % 360);
             s->world.resources.rot_speed[i] =
                 ((float)(rand() % 100) / 50.0f - 1.0f) *
-                (ASTEROID_ROTATION_SPEED_FACTOR / radius);
+                (ASTEROID_ROTATION_SPEED_FACTOR * 0.1f / radius); // Slow rotation
             s->world.resources.amount[i] = radius * CRYSTAL_VALUE_MULT;
             s->world.resources.tex_idx[i] = rand() % CRYSTAL_COUNT;
             s->world.resources.active[i] = true;
