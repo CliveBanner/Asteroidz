@@ -279,7 +279,7 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
             float move_angle = (float)(rand() % 360) * 0.0174533f;
             
             // Spread crystals out further
-            float spread_dist = 500.0f + ((float)rand() / (float)RAND_MAX) * 2000.0f;
+            float spread_dist = 1500.0f + ((float)rand() / (float)RAND_MAX) * 4000.0f;
             float spread_angle = (float)(rand() % 360) * 0.0174533f;
             Vec2 crystal_pos = {
                 spawn_pos.x + cosf(spread_angle) * spread_dist,

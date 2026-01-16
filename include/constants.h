@@ -58,7 +58,7 @@
 #define CRYSTAL_RADIUS_VARIANCE 400.0f
 #define CRYSTAL_VALUE_MULT 5.0f // Resource per unit of radius
 #define CRYSTAL_VISUAL_SCALE 1.5f
-#define MAX_RESOURCES 512
+#define MAX_RESOURCES 128
 
 // Game Logic
 #define ASTEROID_SPEED_FACTOR 150000.0f
