@@ -174,6 +174,7 @@ typedef struct {
     AbilityInputType pending_input_type;
     Vec2 mouse_pos;
     int hover_asteroid_idx;
+    int hover_resource_idx;
     bool show_grid;
     bool show_density;
     bool shift_down;

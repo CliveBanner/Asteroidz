@@ -502,7 +502,12 @@ void Renderer_Draw(AppState *s) {
   if (s->input.hover_asteroid_idx != -1 && s->input.pending_input_type == INPUT_NONE) {
       Vec2 as = WorldToScreenParallax(s->world.asteroids.pos[s->input.hover_asteroid_idx], 1.0f, s, ww, wh);
       float cross_sz = (s->world.asteroids.radius[s->input.hover_asteroid_idx] * ASTEROID_HITBOX_MULT * 2.1f) * s->camera.zoom;
-      DrawTargetCrosshair(s->renderer, as.x, as.y, cross_sz, (SDL_Color){255, 255, 255, 100});
+      DrawTargetCrosshair(s->renderer, as.x, as.y, cross_sz, (SDL_Color){255, 50, 50, 180}); // Red for asteroids
+  }
+  if (s->input.hover_resource_idx != -1 && s->input.pending_input_type == INPUT_NONE) {
+      Vec2 rs = WorldToScreenParallax(s->world.resources.pos[s->input.hover_resource_idx], 1.0f, s, ww, wh);
+      float cross_sz = (s->world.resources.radius[s->input.hover_resource_idx] * CRYSTAL_VISUAL_SCALE * 1.5f) * s->camera.zoom;
+      DrawTargetCrosshair(s->renderer, rs.x, rs.y, cross_sz, (SDL_Color){50, 255, 50, 180}); // Green for resources
   }
   Renderer_DrawAsteroids(s->renderer, s, ww, wh);
   Renderer_DrawCrystals(s->renderer, s, ww, wh);

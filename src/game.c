@@ -394,6 +394,20 @@ void Game_Update(AppState *s, float dt) {
     }
   }
 
+  // Update Mouse Over Resource
+  s->input.hover_resource_idx = -1;
+  for (int i = 0; i < MAX_RESOURCES; i++) {
+      if (!s->world.resources.active[i]) continue;
+      float dx = s->world.resources.pos[i].x - wx, dy = s->world.resources.pos[i].y - wy;
+      // Crystals are visually larger than their physics radius might imply, especially with glow.
+      // Using visual scale for hit detection feels better for UI interaction.
+      float r = s->world.resources.radius[i] * CRYSTAL_VISUAL_SCALE * 0.5f; 
+      if (dx*dx + dy*dy < r*r) {
+          s->input.hover_resource_idx = i;
+          break;
+      }
+  }
+
   UpdateSpawning(s, cam_center);
 
   Physics_UpdateAsteroids(s, dt);
