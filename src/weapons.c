@@ -60,11 +60,29 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
 void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount) {
     s->world.resources.health[resource_idx] -= amount;
     
+    // Shrink crystal radius based on health lost
+    float health_ratio = s->world.resources.health[resource_idx] / s->world.resources.max_health[resource_idx];
+    // Don't shrink to zero immediately, keep some visual presence until explosion
+    s->world.resources.radius[resource_idx] *= (0.99f); 
+    
     if (s->world.resources.health[resource_idx] <= 0) {
         // Resource depleted
+        Vec2 pos = s->world.resources.pos[resource_idx];
         s->world.resources.active[resource_idx] = false;
         s->world.resource_count--;
-        Particles_SpawnExplosion(s, s->world.resources.pos[resource_idx], 20, s->world.resources.radius[resource_idx] / 200.0f, EXPLOSION_COLLISION, s->world.resources.tex_idx[resource_idx]);
+        
+        // Final big explosion
+        Particles_SpawnExplosion(s, pos, 30, 1.5f, EXPLOSION_COLLISION, 0); 
+        // Use a bright cyan/white shockwave for crystals
+        int sw_idx = s->world.particle_next_idx;
+        s->world.particles.active[sw_idx] = true;
+        s->world.particles.type[sw_idx] = PARTICLE_SHOCKWAVE;
+        s->world.particles.pos[sw_idx] = pos;
+        s->world.particles.velocity[sw_idx] = (Vec2){0,0};
+        s->world.particles.life[sw_idx] = 0.6f;
+        s->world.particles.size[sw_idx] = 100.0f;
+        s->world.particles.color[sw_idx] = (SDL_Color){100, 255, 255, 255};
+        s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
     }
 
     float dx = s->world.resources.pos[resource_idx].x - s->world.units.pos[u_idx].x;
