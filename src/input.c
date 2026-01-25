@@ -289,9 +289,14 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
         s->input.key_q_down = true;
         if (s->ui.menu_state == 1) {
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
-                if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
-                    s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_MINER;
+                if (s->world.units.production_mode[i] == UNIT_MINER) {
+                    s->world.units.production_mode[i] = UNIT_TYPE_COUNT;
+                    UI_SetError(s, "MINER PRODUCTION OFF");
+                } else {
+                    s->world.units.production_mode[i] = UNIT_MINER;
+                    UI_SetError(s, "MINER PRODUCTION ON");
                 }
+                s->world.units.production_timer[i] = 0.0f;
             }
         } else {
             s->input.pending_cmd_type = CMD_PATROL;
@@ -301,9 +306,14 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
         s->input.key_w_down = true;
         if (s->ui.menu_state == 1) {
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
-                if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
-                    s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_FIGHTER;
+                if (s->world.units.production_mode[i] == UNIT_FIGHTER) {
+                    s->world.units.production_mode[i] = UNIT_TYPE_COUNT;
+                    UI_SetError(s, "FIGHTER PRODUCTION OFF");
+                } else {
+                    s->world.units.production_mode[i] = UNIT_FIGHTER;
+                    UI_SetError(s, "FIGHTER PRODUCTION ON");
                 }
+                s->world.units.production_timer[i] = 0.0f;
             }
         } else {
             s->input.pending_cmd_type = CMD_MOVE;
@@ -347,6 +357,17 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
         }
         if (m_idx != -1) s->selection.primary_unit_idx = m_idx;
         s->ui.menu_state = 0;
+    }
+
+    if (key == SDLK_F) {
+        int m_idx = -1;
+        for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { m_idx = i; break; }
+        if (m_idx != -1) {
+            if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
+            s->selection.unit_selected[m_idx] = true;
+            s->selection.primary_unit_idx = m_idx;
+            s->ui.menu_state = 0;
+        }
     }
 
     if (key == SDLK_X) {

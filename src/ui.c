@@ -158,38 +158,29 @@ void UI_DrawHUD(AppState *s) {
     float gx = 20.0f;
     float gy = wh - card_h - 20.0f;
 
-    // --- Production Queue Display ---
-    if (mothership_idx != -1 && s->world.units.production_count[mothership_idx] > 0) {
+    // --- Production Queue / Toggle Display ---
+    if (mothership_idx != -1 && s->world.units.production_mode[mothership_idx] != UNIT_TYPE_COUNT) {
         float queue_x = 20.0f;
         float unit_icon_sz_q = 40.0f;
-        float unit_pad_q = 5.0f;
         float queue_y = gy - 30.0f - unit_icon_sz_q; // Above command card
         
         SDL_SetRenderDrawColor(s->renderer, 200, 200, 200, 255);
-        SDL_RenderDebugText(s->renderer, queue_x, queue_y - 15.0f, "PRODUCTION QUEUE");
+        SDL_RenderDebugText(s->renderer, queue_x, queue_y - 15.0f, "AUTO PRODUCTION ACTIVE");
 
-        for (int q = 0; q < s->world.units.production_count[mothership_idx]; q++) {
-            UnitType ut = s->world.units.production_queue[mothership_idx][q];
-            SDL_Texture *tex = NULL;
-            if (ut == UNIT_MINER) tex = s->textures.miner_texture;
-            else if (ut == UNIT_FIGHTER) tex = s->textures.fighter_texture;
-            
-            float qx = queue_x + q * (unit_icon_sz_q + unit_pad_q);
-            SDL_FRect r = {qx, queue_y, unit_icon_sz_q, unit_icon_sz_q};
-            
-            SDL_SetRenderDrawColor(s->renderer, 40, 40, 40, 200);
-            SDL_RenderFillRect(s->renderer, &r);
-            if (tex) SDL_RenderTexture(s->renderer, tex, NULL, &r);
-            
-            if (q == 0) {
-                float total = s->world.unit_stats[ut].production_time;
-                float current = s->world.units.production_timer[mothership_idx];
-                float pct = current / total;
-                SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 150);
-                SDL_FRect pr = {qx, queue_y + unit_icon_sz_q, unit_icon_sz_q * pct, 4};
-                SDL_RenderFillRect(s->renderer, &pr);
-            }
-        }
+        UnitType ut = s->world.units.production_mode[mothership_idx];
+        SDL_Texture *tex = (ut == UNIT_MINER) ? s->textures.miner_texture : s->textures.fighter_texture;
+        
+        SDL_FRect r = {queue_x, queue_y, unit_icon_sz_q, unit_icon_sz_q};
+        SDL_SetRenderDrawColor(s->renderer, 40, 40, 40, 200);
+        SDL_RenderFillRect(s->renderer, &r);
+        if (tex) SDL_RenderTexture(s->renderer, tex, NULL, &r);
+        
+        float total = s->world.unit_stats[ut].production_time;
+        float current = s->world.units.production_timer[mothership_idx];
+        float pct = current / total;
+        SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 150);
+        SDL_FRect pr = {queue_x, queue_y + unit_icon_sz_q, unit_icon_sz_q * pct, 4};
+        SDL_RenderFillRect(s->renderer, &pr);
     }
 
     struct {
@@ -227,8 +218,10 @@ void UI_DrawHUD(AppState *s) {
         }
     } else if (s->ui.menu_state == 1) {
         if (has_mothership) {
-            buttons[0] = (typeof(buttons[0])){ "Q", "BUILD MINER", s->textures.miner_texture, false, s->input.key_q_down, 0, 0 };
-            buttons[1] = (typeof(buttons[0])){ "W", "BUILD FGHT", s->textures.fighter_texture, false, s->input.key_w_down, 0, 1 };
+            UnitType active_mode = UNIT_TYPE_COUNT;
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) { active_mode = s->world.units.production_mode[i]; break; }
+            buttons[0] = (typeof(buttons[0])){ "Q", "TGL MINR", s->textures.miner_texture, active_mode == UNIT_MINER, s->input.key_q_down, 0, 0 };
+            buttons[1] = (typeof(buttons[0])){ "W", "TGL FGHT", s->textures.fighter_texture, active_mode == UNIT_FIGHTER, s->input.key_w_down, 0, 1 };
             buttons[10] = (typeof(buttons[0])){ "Z", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_z_down, 2, 0 };
         }
     }

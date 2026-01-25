@@ -239,45 +239,67 @@ static void HandleRespawn(AppState *s, float dt, int win_w, int win_h) {
     return;
 
   s->ui.respawn_timer -= dt;
+  // During countdown, keep camera near respawn point or death point
   s->camera.pos.x = s->ui.respawn_pos.x - (win_w / 2.0f) / s->camera.zoom;
   s->camera.pos.y = s->ui.respawn_pos.y - (win_h / 2.0f) / s->camera.zoom;
 
   if (s->ui.respawn_timer <= 0) {
+    int m_idx = -1;
     for (int i = 0; i < MAX_UNITS; i++) {
-      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+        if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+            m_idx = i; break;
+        }
+    }
+    
+    // If no mothership, find a free slot
+    if (m_idx == -1) {
+        for (int i = 0; i < MAX_UNITS; i++) {
+            if (!s->world.units.active[i]) {
+                m_idx = i;
+                s->world.units.active[m_idx] = true;
+                s->world.units.type[m_idx] = UNIT_MOTHERSHIP;
+                s->world.units.stats[m_idx] = &s->world.unit_stats[UNIT_MOTHERSHIP];
+                s->world.unit_count++;
+                break;
+            }
+        }
+    }
+
+    if (m_idx != -1) {
+        int i = m_idx;
         s->world.units.health[i] = s->world.units.stats[i]->max_health;
         s->world.units.energy[i] = s->world.units.stats[i]->max_energy;
         s->world.units.velocity[i] = (Vec2){0, 0};
         s->world.units.command_count[i] = 0;
         s->world.units.command_current_idx[i] = 0;
         s->world.units.has_target[i] = false;
+        s->world.units.production_timer[i] = 0.0f;
+        s->world.units.production_count[i] = 0;
 
         int attempts = 0;
+        Vec2 spawn_p = s->ui.respawn_pos;
         while (attempts < RESPAWN_ATTEMPTS) {
-          float rx = (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE),
-                ry = (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE);
+          float rx = s->ui.respawn_pos.x + (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE),
+                ry = s->ui.respawn_pos.y + (float)(rand() % (int)(RESPAWN_RANGE * 2) - RESPAWN_RANGE);
           bool safe = true;
           for (int j = 0; j < MAX_ASTEROIDS; j++) {
-            if (!s->world.asteroids.active[j])
-              continue;
-            if (Vector_DistanceSq((Vec2){rx, ry}, s->world.asteroids.pos[j]) <
-                powf(s->world.asteroids.radius[j] + s->world.units.stats[i]->radius +
-                         RESPAWN_BUFFER,
-                     2)) {
-              safe = false;
-              break;
+            if (!s->world.asteroids.active[j]) continue;
+            if (Vector_DistanceSq((Vec2){rx, ry}, s->world.asteroids.pos[j]) < 
+                powf(s->world.asteroids.radius[j] + s->world.units.stats[i]->radius + RESPAWN_BUFFER, 2)) {
+              safe = false; break;
             }
           }
-          if (safe) {
-            s->world.units.pos[i] = (Vec2){rx, ry};
-            break;
-          }
+          if (safe) { spawn_p = (Vec2){rx, ry}; break; }
           attempts++;
         }
-        s->camera.pos.x = s->world.units.pos[i].x - (win_w / 2.0f) / s->camera.zoom;
-        s->camera.pos.y = s->world.units.pos[i].y - (win_h / 2.0f) / s->camera.zoom;
-        break;
-      }
+        s->world.units.pos[i] = spawn_p;
+        Particles_SpawnTeleport(s, spawn_p, s->world.units.stats[i]->radius * 2.5f);
+        UI_SetError(s, "MOTHERSHIP ONLINE");
+        
+        // Select it
+        SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
+        s->selection.unit_selected[i] = true;
+        s->selection.primary_unit_idx = i;
     }
   }
 }
@@ -488,10 +510,10 @@ void Game_Update(AppState *s, float dt) {
 
   UpdateRadar(s);
 
-  // Update Production Logic (Process Queue)
+  // Update Production Logic (Continuous Toggle)
   for (int i = 0; i < MAX_UNITS; i++) {
-      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->world.units.production_count[i] > 0) {
-          UnitType target_type = s->world.units.production_queue[i][0];
+      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->world.units.production_mode[i] != UNIT_TYPE_COUNT) {
+          UnitType target_type = s->world.units.production_mode[i];
           float cost = s->world.unit_stats[target_type].production_cost;
           float build_time = s->world.unit_stats[target_type].production_time;
 
@@ -546,14 +568,7 @@ void Game_Update(AppState *s, float dt) {
                   
                   Particles_SpawnTeleport(s, spawn_pos, s->world.units.stats[new_idx]->radius * 2.0f);
                   
-                  s->world.units.production_timer[i] = 0.0f; // Reset for next loop
-                  
-                  // Shift Queue
-                  for (int q = 0; q < s->world.units.production_count[i] - 1; q++) {
-                      s->world.units.production_queue[i][q] = s->world.units.production_queue[i][q+1];
-                  }
-                  s->world.units.production_count[i]--;
-
+                  s->world.units.production_timer[i] = 0.0f; // Reset for next loop and continue producing the same type
                   UI_SetError(s, "UNIT READY");
               }
           }
@@ -620,8 +635,9 @@ void Game_Update(AppState *s, float dt) {
         Physics_AreaDamage(s, s->world.units.pos[i], s->world.units.stats[i]->radius * 5.0f, s->world.units.stats[i]->max_health * 0.5f, i);
         
         if (s->world.units.type[i] == UNIT_MOTHERSHIP) {
-            UI_SetError(s, "MOTHERSHIP DESTROYED!");
-            // Potential Game Over logic here
+            UI_SetError(s, "MOTHERSHIP DESTROYED! RESPAWNING...");
+            s->ui.respawn_timer = RESPAWN_TIME;
+            s->ui.respawn_pos = s->world.units.pos[i];
         } else {
             char kill_msg[64];
             snprintf(kill_msg, 64, "UNIT LOST");
