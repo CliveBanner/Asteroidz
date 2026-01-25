@@ -1,8 +1,10 @@
 #include "weapons.h"
+#include "game.h"
 #include "constants.h"
 #include "particles.h"
 #include "utils.h"
 #include <math.h>
+#include <stdlib.h>
 
 void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float energy_cost, bool is_main_cannon) {
     if (is_main_cannon) {
@@ -15,9 +17,20 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
     s->world.asteroids.health[asteroid_idx] -= damage;
     s->world.asteroids.radius[asteroid_idx] -= (damage / ASTEROID_HEALTH_MULT) * 0.2f;
     if (s->world.asteroids.health[asteroid_idx] <= 0 || s->world.asteroids.radius[asteroid_idx] < ASTEROID_MIN_RADIUS) {
+        Vec2 pos = s->world.asteroids.pos[asteroid_idx];
+        float rad = s->world.asteroids.radius[asteroid_idx];
+        int tex = s->world.asteroids.tex_idx[asteroid_idx];
+        
         s->world.asteroids.active[asteroid_idx] = false;
         s->world.asteroid_count--;
-        Particles_SpawnExplosion(s, s->world.asteroids.pos[asteroid_idx], 40, s->world.asteroids.max_health[asteroid_idx] / 1000.0f, EXPLOSION_COLLISION, s->world.asteroids.tex_idx[asteroid_idx]);
+        Particles_SpawnExplosion(s, pos, 40, s->world.asteroids.max_health[asteroid_idx] / 1000.0f, EXPLOSION_COLLISION, tex);
+
+        // Spawn Crystal on destruction
+        if (((float)rand() / (float)RAND_MAX) < 0.3f) { // 30% chance
+            float c_rad = CRYSTAL_RADIUS_MIN + ((float)rand() / (float)RAND_MAX) * 100.0f;
+            float angle = ((float)rand() / (float)RAND_MAX) * 2.0f * 3.14159f;
+            SpawnCrystal(s, pos, (Vec2){cosf(angle), sinf(angle)}, c_rad);
+        }
     }
     
     float dx = s->world.asteroids.pos[asteroid_idx].x - s->world.units.pos[u_idx].x;

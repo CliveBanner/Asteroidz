@@ -53,8 +53,8 @@
 #define MAX_COMMANDS 16
 
 // Crystal Resources
-#define CRYSTAL_PROB_PLANET 0.005f
-#define CRYSTAL_PROB_GALAXY 0.02f
+#define CRYSTAL_PROB_PLANET 0.001f
+#define CRYSTAL_PROB_GALAXY 0.005f
 #define CRYSTAL_RADIUS_MIN 80.0f
 #define CRYSTAL_RADIUS_VARIANCE 200.0f
 #define CRYSTAL_VALUE_MULT 5.0f // Resource per unit of radius
