@@ -98,6 +98,7 @@ typedef struct {
     float large_cannon_cooldown[MAX_UNITS];
     float small_cannon_cooldown[MAX_UNITS][4];
     float mining_cooldown[MAX_UNITS];
+    float repair_vfx_timer[MAX_UNITS];
     int large_target_idx[MAX_UNITS];
     int small_target_idx[MAX_UNITS][4];
     Command command_queue[MAX_UNITS][MAX_COMMANDS];

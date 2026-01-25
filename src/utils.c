@@ -1,6 +1,8 @@
 #include "constants.h"
 #include "game.h"
 #include <math.h>
+#include <string.h>
+#include <stdio.h>
 
 Vec2 Vector_Add(Vec2 a, Vec2 b) { return (Vec2){a.x + b.x, a.y + b.y}; }
 Vec2 Vector_Sub(Vec2 a, Vec2 b) { return (Vec2){a.x - b.x, a.y - b.y}; }
@@ -233,4 +235,22 @@ float GetAsteroidDensity(Vec2 p) {
   norm += norm * (noise_val - 1.0f) * 0.5f; // -0.5 to 0.0 contribution
 
   return fmaxf(0.0f, fminf(1.0f, norm));
+}
+
+void LogTransaction(AppState *s, float val, const char *label) {
+    for (int i = MAX_LOGS - 1; i > 0; i--) {
+        s->ui.transaction_log[i] = s->ui.transaction_log[i - 1];
+    }
+    s->ui.transaction_log[0].val = val;
+    SDL_strlcpy(s->ui.transaction_log[0].label, label, 32);
+    s->ui.transaction_log[0].life = 5.0f;
+}
+
+void Utils_DrawCircle(SDL_Renderer *r, float cx, float cy, float radius, int segments) {
+    float angle_step = (2.0f * 3.14159f) / (float)segments;
+    for (int i = 0; i < segments; i++) {
+        float a1 = (float)i * angle_step;
+        float a2 = (float)(i + 1) * angle_step;
+        SDL_RenderLine(r, cx + cosf(a1) * radius, cy + sinf(a1) * radius, cx + cosf(a2) * radius, cy + sinf(a2) * radius);
+    }
 }

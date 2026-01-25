@@ -12,6 +12,8 @@ static void UpdateCooldowns(AppState *s, int idx, float dt) {
             s->world.units.small_cannon_cooldown[idx][c] -= dt;
     if (s->world.units.mining_cooldown[idx] > 0)
         s->world.units.mining_cooldown[idx] -= dt;
+    if (s->world.units.repair_vfx_timer[idx] > 0)
+        s->world.units.repair_vfx_timer[idx] -= dt;
 }
 
 static void HandleManualMainCannon(AppState *s, int idx) {
@@ -147,6 +149,21 @@ void Abilities_Repair(AppState *s, int idx, int target_idx, float dt) {
             s->world.particles.size[p_idx] = 4.0f;
             s->world.particles.color[p_idx] = (SDL_Color){100, 255, 100, 255}; // Green
             s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+        }
+
+        // Periodic Healing Wave VFX
+        if (s->world.units.repair_vfx_timer[idx] <= 0) {
+            int sw_idx = s->world.particle_next_idx;
+            s->world.particles.active[sw_idx] = true;
+            s->world.particles.type[sw_idx] = PARTICLE_SHOCKWAVE;
+            s->world.particles.pos[sw_idx] = s->world.units.pos[idx];
+            s->world.particles.velocity[sw_idx] = (Vec2){0,0};
+            s->world.particles.life[sw_idx] = 0.8f;
+            s->world.particles.size[sw_idx] = 800.0f; // Matches repair range
+            s->world.particles.color[sw_idx] = (SDL_Color){50, 255, 50, 100}; // Faint green
+            s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+            
+            s->world.units.repair_vfx_timer[idx] = 0.5f;
         }
     }
 }

@@ -523,6 +523,13 @@ void Game_Update(AppState *s, float dt) {
       }
   }
 
+  // Clear HUD-triggered flags if they weren't consumed
+  s->input.key_z_down = false; // Main cannon / Gather usually doesn't need to persist across frames
+  // Note: key_q, key_w, key_e are used for right-click modifiers, we shouldn't auto-clear them 
+  // if we want the user to hold them while clicking. But for UI clicks, we might need a better system.
+  // For now, let's clear the ones that act as toggles/immediate triggers.
+
+
   // Update Production Queues
   for (int i = 0; i < MAX_UNITS; i++) {
       if (s->world.units.active[i] && s->world.units.production_count[i] > 0) {

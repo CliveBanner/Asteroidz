@@ -23,4 +23,7 @@ bool GetCelestialBodyInfo(int gx, int gy, Vec2 *out_pos, float *out_type_seed, f
 float GetAsteroidDensity(Vec2 p);
 Vec2 WorldToParallax(Vec2 world_pos, float parallax);
 
+void LogTransaction(AppState *s, float val, const char *label);
+void Utils_DrawCircle(SDL_Renderer *r, float cx, float cy, float radius, int segments);
+
 #endif

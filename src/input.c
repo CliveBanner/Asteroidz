@@ -62,15 +62,22 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
           }
           
           if (mock_key != 0) {
-              SDL_Event mock_event;
-              mock_event.type = SDL_EVENT_KEY_DOWN;
-              mock_event.key.key = mock_key;
-              mock_event.key.down = true;
-              Input_ProcessEvent(s, &mock_event);
-              
-              mock_event.type = SDL_EVENT_KEY_UP;
-              mock_event.key.down = false;
-              Input_ProcessEvent(s, &mock_event);
+              if (mock_key == SDLK_Q) s->input.key_q_down = true;
+              else if (mock_key == SDLK_W) s->input.key_w_down = true;
+              else if (mock_key == SDLK_E) s->input.key_e_down = true;
+              else if (mock_key == SDLK_R) {
+                  // Direct trigger for Stop since it has immediate effect in input.c normally
+                  for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) { 
+                      s->world.units.velocity[i] = (Vec2){0,0}; s->world.units.has_target[i] = false; 
+                      s->world.units.command_count[i] = 0; s->world.units.command_current_idx[i] = 0; 
+                  }
+                  s->ui.hold_flash_timer = 0.2f;
+              }
+              else if (mock_key == SDLK_A) { for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_OFFENSIVE; s->ui.tactical_flash_timer = 0.2f; }
+              else if (mock_key == SDLK_S) { for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_DEFENSIVE; s->ui.tactical_flash_timer = 0.2f; }
+              else if (mock_key == SDLK_D) { for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_HOLD_GROUND; s->ui.tactical_flash_timer = 0.2f; }
+              else if (mock_key == SDLK_Z) s->input.key_z_down = true;
+              else if (mock_key == SDLK_X) s->input.key_x_down = true;
           }
       } else {
           bool clicked_unit = false;

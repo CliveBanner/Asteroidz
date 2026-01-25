@@ -4,6 +4,7 @@
 #include "assets.h"
 #include "ui.h"
 #include "workers.h"
+#include "utils.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -344,9 +345,12 @@ static void DrawGrid(SDL_Renderer *renderer, const AppState *s, int win_w, int w
 }
 
 static void DrawDebugInfo(SDL_Renderer *renderer, const AppState *s, int win_w) {
-  char ct[64]; snprintf(ct, 64, "Cam: %.1f, %.1f (x%.4f)", s->camera.pos.x, s->camera.pos.y, s->camera.zoom);
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); SDL_RenderDebugText(renderer, (float)win_w - (SDL_strlen(ct) * 8) - 20, 20, ct);
+  SDL_SetRenderScale(renderer, 0.8f, 0.8f);
+  SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
   char ft[32]; snprintf(ft, 32, "FPS: %.0f", s->current_fps); SDL_RenderDebugText(renderer, 20, 20, ft);
+  char ct[64]; snprintf(ct, 64, "Cam: %.1f, %.1f (x%.4f)", s->camera.pos.x, s->camera.pos.y, s->camera.zoom);
+  SDL_RenderDebugText(renderer, 20, 40, ct);
+  SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 }
 
 static bool IsInRangeOfAnyUnit(const AppState *s, Vec2 world_pos) {
@@ -458,9 +462,52 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                                 s->world.units.rotation[i], NULL, SDL_FLIP_NONE);
                         }
                     }
+                  } else {
+                      // Generic Unit Drawing
+                      float v_scale = s->world.units.stats[i]->visual_scale;
+                      bool unit_visible = IsVisible(sx_y.x, sx_y.y, rad * v_scale, win_w, win_h);
+                      if (unit_visible) {
+                          if (s->world.units.type[i] == UNIT_MINER && s->textures.miner_texture) {
+                              float dr = rad * v_scale;
+                              SDL_RenderTextureRotated(r, s->textures.miner_texture, NULL, 
+                                  &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
+                                  s->world.units.rotation[i], NULL, SDL_FLIP_NONE);
+                          } else if (s->world.units.type[i] == UNIT_FIGHTER && s->textures.fighter_texture) {
+                              float dr = rad * v_scale;
+                              SDL_RenderTextureRotated(r, s->textures.fighter_texture, NULL, 
+                                  &(SDL_FRect){sx_y.x - dr, sx_y.y - dr, dr * 2, dr * 2},
+                                  s->world.units.rotation[i], NULL, SDL_FLIP_NONE);
+                          } else {
+                              SDL_Color col = {150, 150, 255, 255};
+                              if (s->world.units.type[i] == UNIT_MINER) col = (SDL_Color){200, 200, 50, 255};
+                              else if (s->world.units.type[i] == UNIT_FIGHTER) col = (SDL_Color){255, 100, 100, 255};
+                              else if (s->world.units.type[i] == UNIT_SCOUT) col = (SDL_Color){100, 255, 255, 255};
+
+                              float ang = s->world.units.rotation[i] * (SDL_PI_F / 180.0f);
+                              float r_vis = rad * v_scale;
+                              // Simple Triangle
+                              float p1x = sx_y.x + cosf(ang) * r_vis;
+                              float p1y = sx_y.y + sinf(ang) * r_vis;
+                              float p2x = sx_y.x + cosf(ang + 2.3f) * r_vis;
+                              float p2y = sx_y.y + sinf(ang + 2.3f) * r_vis;
+                              float p3x = sx_y.x + cosf(ang - 2.3f) * r_vis;
+                              float p3y = sx_y.y + sinf(ang - 2.3f) * r_vis;
+
+                              SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a);
+                              SDL_RenderLine(r, p1x, p1y, p2x, p2y);
+                              SDL_RenderLine(r, p2x, p2y, p3x, p3y);
+                              SDL_RenderLine(r, p3x, p3y, p1x, p1y);
+                          }
+                      }
                   }
                   
-                  // Draw status bars for selected units
+                  // 1. Repair Range Indicator (Miners)
+                  if (s->world.units.type[i] == UNIT_MINER) {
+                      SDL_SetRenderDrawColor(r, 0, 255, 0, 40);
+                      Utils_DrawCircle(r, sx_y.x, sx_y.y, 800.0f * s->camera.zoom, 32);
+                  }
+
+                  // 2. Status Bars for selected units
                   if (s->selection.primary_unit_idx == i || s->selection.unit_selected[i]) {
                       float v_scale = s->world.units.stats[i]->visual_scale;
                       float bw = rad * 1.5f, bh = 4.0f, by = sx_y.y + rad * v_scale + 5.0f;
@@ -472,8 +519,13 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                               
                               // 2. Cargo Bar
                               if (s->world.units.stats[i]->max_cargo > 0) {
+                                  float cargo_pct = (s->world.units.type[i] == UNIT_MOTHERSHIP) ? 
+                                      (s->world.stored_resources / s->world.units.stats[i]->max_cargo) :
+                                      (s->world.units.current_cargo[i] / s->world.units.stats[i]->max_cargo);
+                                  cargo_pct = fminf(1.0f, fmaxf(0.0f, cargo_pct));
+
                                   SDL_SetRenderDrawColor(r, 40, 40, 20, 200); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw, bh});
-                                  SDL_SetRenderDrawColor(r, 200, 200, 50, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * (s->world.units.current_cargo[i] / s->world.units.stats[i]->max_cargo), bh});
+                                  SDL_SetRenderDrawColor(r, 200, 200, 50, 255); SDL_RenderFillRect(r, &(SDL_FRect){sx_y.x - bw/2, by, bw * cargo_pct, bh});
                                   by += bh + 2.0f;
                               }
                       
