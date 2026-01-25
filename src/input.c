@@ -285,8 +285,30 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
     }
 
     // Command Keys
-    if (key == SDLK_Q) { s->input.key_q_down = true; s->input.pending_cmd_type = CMD_PATROL; }
-    if (key == SDLK_W) { s->input.key_w_down = true; s->input.pending_cmd_type = CMD_MOVE; }
+    if (key == SDLK_Q) {
+        s->input.key_q_down = true;
+        if (s->ui.menu_state == 1) {
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+                if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
+                    s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_MINER;
+                }
+            }
+        } else {
+            s->input.pending_cmd_type = CMD_PATROL;
+        }
+    }
+    if (key == SDLK_W) {
+        s->input.key_w_down = true;
+        if (s->ui.menu_state == 1) {
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) {
+                if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
+                    s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_FIGHTER;
+                }
+            }
+        } else {
+            s->input.pending_cmd_type = CMD_MOVE;
+        }
+    }
     if (key == SDLK_E) { s->input.key_e_down = true; s->input.pending_cmd_type = CMD_ATTACK_MOVE; }
     if (key == SDLK_Z) { s->input.key_z_down = true; s->input.pending_cmd_type = CMD_MAIN_CANNON; }
     

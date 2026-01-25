@@ -488,61 +488,10 @@ void Game_Update(AppState *s, float dt) {
 
   UpdateRadar(s);
 
-  // Menu Navigation & Production
-  if (s->input.key_x_down && s->ui.ui_error_timer <= 0) {
-      s->input.key_x_down = false; // Consume input
-      bool has_mothership = false;
-      for (int i = 0; i < MAX_UNITS; i++) {
-          if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
-              has_mothership = true; break;
-          }
-      }
-      
-      if (has_mothership) {
-          if (s->ui.menu_state == 0) s->ui.menu_state = 1; // Open Build Menu
-          else s->ui.menu_state = 0; // Close Build Menu
-      }
-  }
-
-  if (s->ui.menu_state == 1) {
-      // Production Toggle: Q for Miner
-      if (s->input.key_q_down && s->ui.ui_error_timer <= 0) {
-          s->input.key_q_down = false;
-          for (int i = 0; i < MAX_UNITS; i++) {
-              if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
-                  if (s->world.units.production_mode[i] == UNIT_MINER) {
-                      s->world.units.production_mode[i] = UNIT_TYPE_COUNT; // Toggle Off
-                      UI_SetError(s, "PRODUCTION STOPPED");
-                  } else {
-                      s->world.units.production_mode[i] = UNIT_MINER;
-                      UI_SetError(s, "MINER PRODUCTION ON");
-                  }
-                  break;
-              }
-          }
-      }
-      // Production Toggle: W for Fighter
-      if (s->input.key_w_down && s->ui.ui_error_timer <= 0) {
-          s->input.key_w_down = false;
-          for (int i = 0; i < MAX_UNITS; i++) {
-              if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
-                  if (s->world.units.production_mode[i] == UNIT_FIGHTER) {
-                      s->world.units.production_mode[i] = UNIT_TYPE_COUNT; // Toggle Off
-                      UI_SetError(s, "PRODUCTION STOPPED");
-                  } else {
-                      s->world.units.production_mode[i] = UNIT_FIGHTER;
-                      UI_SetError(s, "FIGHTER PRODUCTION ON");
-                  }
-                  break;
-              }
-          }
-      }
-  }
-
-  // Update Production Mode
+  // Update Production Logic (Process Queue)
   for (int i = 0; i < MAX_UNITS; i++) {
-      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->world.units.production_mode[i] != UNIT_TYPE_COUNT) {
-          UnitType target_type = s->world.units.production_mode[i];
+      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->world.units.production_count[i] > 0) {
+          UnitType target_type = s->world.units.production_queue[i][0];
           float cost = s->world.unit_stats[target_type].production_cost;
           float build_time = s->world.unit_stats[target_type].production_time;
 
@@ -598,6 +547,13 @@ void Game_Update(AppState *s, float dt) {
                   Particles_SpawnTeleport(s, spawn_pos, s->world.units.stats[new_idx]->radius * 2.0f);
                   
                   s->world.units.production_timer[i] = 0.0f; // Reset for next loop
+                  
+                  // Shift Queue
+                  for (int q = 0; q < s->world.units.production_count[i] - 1; q++) {
+                      s->world.units.production_queue[i][q] = s->world.units.production_queue[i][q+1];
+                  }
+                  s->world.units.production_count[i]--;
+
                   UI_SetError(s, "UNIT READY");
               }
           }

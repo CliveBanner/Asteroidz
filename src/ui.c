@@ -227,8 +227,8 @@ void UI_DrawHUD(AppState *s) {
         }
     } else if (s->ui.menu_state == 1) {
         if (has_mothership) {
-            buttons[0] = (typeof(buttons[0])){ "Q", "MINER", s->textures.miner_texture, false, s->input.key_q_down, 0, 0 };
-            buttons[1] = (typeof(buttons[0])){ "W", "FIGHTER", s->textures.fighter_texture, false, s->input.key_w_down, 0, 1 };
+            buttons[0] = (typeof(buttons[0])){ "Q", "BUILD MINER", s->textures.miner_texture, false, s->input.key_q_down, 0, 0 };
+            buttons[1] = (typeof(buttons[0])){ "W", "BUILD FGHT", s->textures.fighter_texture, false, s->input.key_w_down, 0, 1 };
             buttons[10] = (typeof(buttons[0])){ "Z", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_z_down, 2, 0 };
         }
     }
