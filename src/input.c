@@ -319,7 +319,14 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
         }
     }
     if (key == SDLK_E) { s->input.key_e_down = true; s->input.pending_cmd_type = CMD_ATTACK_MOVE; }
-    if (key == SDLK_Y) { s->input.key_y_down = true; s->input.pending_cmd_type = CMD_MAIN_CANNON; }
+    if (key == SDLK_Y) {
+        s->input.key_y_down = true;
+        if (s->ui.menu_state == 1) {
+            s->ui.menu_state = 0;
+        } else {
+            s->input.pending_cmd_type = CMD_MAIN_CANNON;
+        }
+    }
     
     if (key == SDLK_R) {
         s->input.key_r_down = true;
@@ -375,8 +382,6 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
             bool has_mothership = false;
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { has_mothership = true; break; }
             if (has_mothership) s->ui.menu_state = 1;
-        } else if (s->ui.menu_state == 1) {
-            s->ui.menu_state = 0;
         }
     }
     
