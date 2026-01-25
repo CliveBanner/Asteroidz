@@ -618,6 +618,28 @@ void Game_Update(AppState *s, float dt) {
     AI_UpdateUnitMovement(s, i, dt);
 
     Abilities_Update(s, i, dt);
+
+    // Unit Destruction Logic
+    if (s->world.units.health[i] <= 0) {
+        s->world.units.active[i] = false;
+        s->world.unit_count--;
+        
+        // Remove from selection and groups
+        s->selection.unit_selected[i] = false;
+        for (int g = 0; g < 10; g++) s->selection.group_members[g][i] = false;
+        if (s->selection.primary_unit_idx == i) s->selection.primary_unit_idx = -1;
+
+        Particles_SpawnExplosion(s, s->world.units.pos[i], 50, s->world.units.stats[i]->visual_scale * 2.0f, EXPLOSION_COLLISION, 0);
+        
+        if (s->world.units.type[i] == UNIT_MOTHERSHIP) {
+            UI_SetError(s, "MOTHERSHIP DESTROYED!");
+            // Potential Game Over logic here
+        } else {
+            char kill_msg[64];
+            snprintf(kill_msg, 64, "UNIT LOST");
+            UI_SetError(s, kill_msg);
+        }
+    }
   }
 
   Particles_Update(s, dt);
