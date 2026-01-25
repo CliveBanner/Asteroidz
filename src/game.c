@@ -140,7 +140,7 @@ void Game_Init(AppState *s) {
   // Miner Stats
   s->world.unit_stats[UNIT_MINER] =
       (UnitStats){.max_health = 150.0f,
-                  .max_energy = 80.0f,
+                  .max_energy = 0.0f, // No energy needed
                   .max_cargo = 1000.0f, // Miners keep cargo
                   .speed = 1200.0f,
                   .friction = 3.0f,
