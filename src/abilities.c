@@ -114,6 +114,37 @@ void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
     }
 }
 
+void Abilities_Repair(AppState *s, int idx, int target_idx, float dt) {
+    if (!s->world.units.active[target_idx]) return;
+    
+    float repair_rate = 50.0f; // 50 HP per second
+    float amount = repair_rate * dt;
+    
+    if (s->world.units.health[target_idx] < s->world.units.stats[target_idx]->max_health) {
+        s->world.units.health[target_idx] += amount;
+        if (s->world.units.health[target_idx] > s->world.units.stats[target_idx]->max_health) {
+            s->world.units.health[target_idx] = s->world.units.stats[target_idx]->max_health;
+        }
+        
+        // VFX: Green beam
+        float dx = s->world.units.pos[target_idx].x - s->world.units.pos[idx].x;
+        float dy = s->world.units.pos[target_idx].y - s->world.units.pos[idx].y;
+        float dist = sqrtf(dx*dx + dy*dy);
+        if (dist > 0.1f) {
+            int p_idx = s->world.particle_next_idx;
+            s->world.particles.active[p_idx] = true;
+            s->world.particles.type[p_idx] = PARTICLE_TRACER;
+            s->world.particles.pos[p_idx] = s->world.units.pos[idx];
+            s->world.particles.target_pos[p_idx] = s->world.units.pos[target_idx];
+            s->world.particles.unit_idx[p_idx] = idx;
+            s->world.particles.life[p_idx] = 0.3f;
+            s->world.particles.size[p_idx] = 4.0f;
+            s->world.particles.color[p_idx] = (SDL_Color){100, 255, 100, 255}; // Green
+            s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+        }
+    }
+}
+
 void Abilities_Update(AppState *s, int idx, float dt) {
     UpdateCooldowns(s, idx, dt);
     HandleManualMainCannon(s, idx);
