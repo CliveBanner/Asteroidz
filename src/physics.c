@@ -1,7 +1,9 @@
 #include "physics.h"
 #include "constants.h"
+#include "game.h"
 #include "utils.h"
 #include <math.h>
+#include <stdlib.h>
 
 void Physics_UpdateAsteroids(AppState *s, float dt) {
   for (int i = 0; i < MAX_ASTEROIDS; i++) {
@@ -23,11 +25,16 @@ void Physics_UpdateResources(AppState *s, float dt) {
   }
 }
 
-static float SolveCollision(Vec2 *p1, Vec2 *v1, float r1, Vec2 *p2, Vec2 *v2, float r2) {
+static float SolveCollision(Vec2 *p1, Vec2 *v1, float r1, Vec2 *p2, Vec2 *v2, float r2, bool is_unit1, bool is_unit2) {
     float dx = p2->x - p1->x;
     float dy = p2->y - p1->y;
     float dist_sq = dx * dx + dy * dy;
-    float r_sum = (r1 + r2) * ASTEROID_HITBOX_MULT;
+    
+    // Units use full radius for hitbox, asteroids use ASTEROID_HITBOX_MULT
+    float effective_r1 = is_unit1 ? r1 : (r1 * ASTEROID_HITBOX_MULT);
+    float effective_r2 = is_unit2 ? r2 : (r2 * ASTEROID_HITBOX_MULT);
+    float r_sum = effective_r1 + effective_r2;
+
     if (dist_sq < r_sum * r_sum) {
         float dist = sqrtf(dist_sq);
         if (dist < 0.001f) return 0;
@@ -37,14 +44,21 @@ static float SolveCollision(Vec2 *p1, Vec2 *v1, float r1, Vec2 *p2, Vec2 *v2, fl
         p1->y -= ny * overlap * 0.5f;
         p2->x += nx * overlap * 0.5f;
         p2->y += ny * overlap * 0.5f;
+        
         float v1n = v1->x * nx + v1->y * ny;
         float v2n = v2->x * nx + v2->y * ny;
-        float impulse = 2.0f * (v1n - v2n) / (r1 + r2);
-        v1->x -= impulse * r2 * nx;
-        v1->y -= impulse * r2 * ny;
-        v2->x += impulse * r1 * nx;
-        v2->y += impulse * r1 * ny;
-        return fabsf(impulse);
+        
+        // Elastic collision impulse
+        float m1 = r1; // Mass proportional to radius
+        float m2 = r2;
+        float impulse = 2.0f * (v1n - v2n) / (m1 + m2);
+        
+        v1->x -= impulse * m2 * nx;
+        v1->y -= impulse * m2 * ny;
+        v2->x += impulse * m1 * nx;
+        v2->y += impulse * m1 * ny;
+        
+        return fabsf(impulse * (m1 + m2)); // Return force-like value for damage
     }
     return 0;
 }
@@ -56,8 +70,39 @@ void Physics_HandleCollisions(AppState *s, float dt) {
     if (!s->world.asteroids.active[i]) continue;
     for (int j = i + 1; j < MAX_ASTEROIDS; j++) {
       if (!s->world.asteroids.active[j]) continue;
-      SolveCollision(&s->world.asteroids.pos[i], &s->world.asteroids.velocity[i], s->world.asteroids.radius[i],
-                     &s->world.asteroids.pos[j], &s->world.asteroids.velocity[j], s->world.asteroids.radius[j]);
+      float imp = SolveCollision(&s->world.asteroids.pos[i], &s->world.asteroids.velocity[i], s->world.asteroids.radius[i],
+                     &s->world.asteroids.pos[j], &s->world.asteroids.velocity[j], s->world.asteroids.radius[j], false, false);
+      
+      if (imp > ASTEROID_COLLISION_SPLIT_THRESHOLD) {
+          // Both asteroids take damage
+          s->world.asteroids.health[i] -= imp * 0.1f;
+          s->world.asteroids.health[j] -= imp * 0.1f;
+          
+          // Check for splitting
+          int targets[2] = {i, j};
+          for(int k=0; k<2; k++) {
+              int idx = targets[k];
+              if (s->world.asteroids.radius[idx] > ASTEROID_SPLIT_MIN_RADIUS) {
+                  float old_rad = s->world.asteroids.radius[idx];
+                  float new_rad = old_rad * ASTEROID_SPLIT_EXPONENT;
+                  Vec2 pos = s->world.asteroids.pos[idx];
+                  Vec2 vel = s->world.asteroids.velocity[idx];
+                  
+                  // Deactivate old
+                  s->world.asteroids.active[idx] = false;
+                  s->world.asteroid_count--;
+                  
+                  // Spawn two smaller fragments
+                  for(int f=0; f<2; f++) {
+                      float angle = ((float)rand()/(float)RAND_MAX) * 2.0f * 3.14159f;
+                      Vec2 off = {cosf(angle) * new_rad, sinf(angle) * new_rad};
+                      Vec2 f_pos = {pos.x + off.x, pos.y + off.y};
+                      Vec2 f_vel = {vel.x + off.x * 0.5f, vel.y + off.y * 0.5f};
+                      SpawnAsteroid(s, f_pos, Vector_Normalize(f_vel), new_rad);
+                  }
+              }
+          }
+      }
     }
   }
 
@@ -67,19 +112,19 @@ void Physics_HandleCollisions(AppState *s, float dt) {
       // vs Asteroids
       for (int j = 0; j < MAX_ASTEROIDS; j++) {
           if (!s->world.asteroids.active[j]) continue;
-          float imp = SolveCollision(&s->world.units.pos[i], &s->world.units.velocity[i], s->world.units.stats[i]->radius / ASTEROID_HITBOX_MULT,
-                         &s->world.asteroids.pos[j], &s->world.asteroids.velocity[j], s->world.asteroids.radius[j]);
-          if (imp > 10.0f) {
-              s->world.units.health[i] -= imp * 0.5f; // Tweakable damage factor
+          float imp = SolveCollision(&s->world.units.pos[i], &s->world.units.velocity[i], s->world.units.stats[i]->radius,
+                         &s->world.asteroids.pos[j], &s->world.asteroids.velocity[j], s->world.asteroids.radius[j], true, false);
+          if (imp > 50.0f) {
+              s->world.units.health[i] -= imp * 0.05f; 
           }
       }
       // vs Resources
       for (int j = 0; j < MAX_RESOURCES; j++) {
           if (!s->world.resources.active[j]) continue;
-          float imp = SolveCollision(&s->world.units.pos[i], &s->world.units.velocity[i], s->world.units.stats[i]->radius / ASTEROID_HITBOX_MULT,
-                         &s->world.resources.pos[j], &s->world.resources.velocity[j], s->world.resources.radius[j]);
-          if (imp > 10.0f) {
-              s->world.units.health[i] -= imp * 0.2f; // Crystals are softer?
+          float imp = SolveCollision(&s->world.units.pos[i], &s->world.units.velocity[i], s->world.units.stats[i]->radius,
+                         &s->world.resources.pos[j], &s->world.resources.velocity[j], s->world.resources.radius[j], true, false);
+          if (imp > 50.0f) {
+              s->world.units.health[i] -= imp * 0.02f;
           }
       }
   }
