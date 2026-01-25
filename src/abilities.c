@@ -76,8 +76,11 @@ static void HandleAutoAttacks(AppState *s, int idx) {
         }
 
         if (!is_command_target && !is_aggressive_cmd) {
-            if (s->world.units.behavior[idx] == BEHAVIOR_HOLD_GROUND) continue;
-            if (s->world.units.behavior[idx] == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / s->world.units.stats[idx]->small_cannon_range;
+            if (s->world.units.behavior[idx] == BEHAVIOR_HOLD_GROUND) {
+                if (s->world.units.type[idx] == UNIT_MINER) continue; // Miners focus on mining
+                range_mult = 1.0f; // Others act as turrets
+            }
+            else if (s->world.units.behavior[idx] == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / s->world.units.stats[idx]->small_cannon_range;
         }
 
         float dsq = Vector_DistanceSq(s->world.asteroids.pos[t_idx], s->world.units.pos[idx]);
