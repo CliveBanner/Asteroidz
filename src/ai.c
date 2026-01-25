@@ -17,12 +17,13 @@ int AI_UnitTargetingThread(void *data) {
         float behavior_search_range = s->world.units.stats[i]->small_cannon_range;
         
         if (s->world.units.type[i] == UNIT_FIGHTER) {
+            float fighter_range = s->world.units.stats[i]->small_cannon_range;
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE) {
                 // Protect Mothership: search near mothership
                 for (int u = 0; u < MAX_UNITS; u++) {
                     if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MOTHERSHIP) {
                         search_origin = s->world.units.pos[u];
-                        behavior_search_range = 3000.0f;
+                        behavior_search_range = fighter_range;
                         break;
                     }
                 }
@@ -37,7 +38,7 @@ int AI_UnitTargetingThread(void *data) {
                 }
                 if (best_miner != -1) {
                     search_origin = s->world.units.pos[best_miner];
-                    behavior_search_range = 2500.0f;
+                    behavior_search_range = fighter_range;
                 }
             }
         }

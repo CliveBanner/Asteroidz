@@ -55,7 +55,11 @@ static void HandleAutoAttacks(AppState *s, int idx) {
         if (cmd->type == CMD_GATHER || cmd->type == CMD_RETURN_CARGO) is_gathering = true;
     }
 
-    if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE || is_moving_normally) return;
+    if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE) return;
+    
+    // Units can fire while moving if they are in an aggressive behavior (Offensive/Defensive)
+    // but not if it's a pure "Move" command.
+    if (is_moving_normally) return;
     
     // Most units stop firing while gathering/returning to focus energy, but Mothership can do both.
     if (is_gathering && s->world.units.type[idx] != UNIT_MOTHERSHIP) return;
