@@ -17,7 +17,7 @@
 ### ⚖️ Balance Adjustments
 - **Mothership Mining:** When the Mothership mines crystals directly, the gathered energy now prioritizes replenishing its internal battery/shield (Energy) before being converted into stored resources.
 - **Fighter Overhaul:** Reduced maximum firing energy, but significantly increased energy regeneration rate (25% per second), encouraging burst-fire tactics.
-- **Miner Role:** Miners are now strictly non-combat drones. Their weapon systems have been removed, and they will no longer attempt to target asteroids.
+- **Miner Role:** Miners are now strictly non-combat drones. Their weapon systems have been removed, and they will no longer attempt to target asteroids. They can now repair allies and mine crystals simultaneously at a range of 1000 units.
 - **Crystal Rarity:** Decreased the base probability of crystal spawning by ~60% and tied it directly to the continuous density field for more natural distribution.
 - **Asteroid Balance:** Reduced the probability of asteroid splitting upon collision by doubling the impulse threshold. Small asteroids are now exponentially weaker in terms of health, making them much easier to clear.
 
