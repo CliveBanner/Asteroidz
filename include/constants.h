@@ -99,6 +99,13 @@
 #define UNIT_ROTATION_SPEED 0.1f
 #define RESPAWN_TIME 3.0f
 
+// Production
+#define MAX_PRODUCTION_QUEUE 5
+#define MINER_COST 100.0f
+#define MINER_BUILD_TIME 5.0f
+#define FIGHTER_COST 150.0f
+#define FIGHTER_BUILD_TIME 8.0f
+
 // Weapons
 #define WEAPON_FIRING_RANGE_MULT 0.66f
 #define LASER_START_OFFSET_MULT 10.5f
@@ -139,9 +146,23 @@
 #define INITIAL_ENERGY 1000.0f
 #define ENERGY_REGEN_RATE 100.0f
 
-// UI
-#define COMMAND_ICON_SIZE 60.0f
-#define COMMAND_GRID_X 400.0f
+// UI Icons
+#define ICON_MOVE 0
+#define ICON_ATTACK 1
+#define ICON_PATROL 2
+#define ICON_STOP 3
+#define ICON_OFFENSIVE 4
+#define ICON_DEFENSIVE 5
+#define ICON_HOLD 6
+#define ICON_MAIN_CANNON 7
+#define ICON_BACK 8
+#define ICON_GATHER 9
+#define ICON_RETURN 10
+#define ICON_COUNT 11
+
+#define CMD_ICON_SIZE 60.0f
+
+#define MAX_LOGS 8
 
 #define EXPLOSION_PARTICLE_COUNT 40
 #define EXPLOSION_PUFF_DIVISOR 4

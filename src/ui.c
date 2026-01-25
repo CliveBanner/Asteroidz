@@ -57,6 +57,8 @@ void UI_DrawHUD(AppState *s) {
 
     float hp = 0, max_hp = 1; bool found = false;
     bool has_mothership = false;
+    bool has_miner = false;
+    bool has_fighter = false;
     bool any_selected = false;
     TacticalBehavior primary_behavior = BEHAVIOR_OFFENSIVE;
 
@@ -73,6 +75,8 @@ void UI_DrawHUD(AppState *s) {
                 has_mothership = true;
                 mothership_idx = i;
             }
+            if (s->world.units.type[i] == UNIT_MINER) has_miner = true;
+            if (s->world.units.type[i] == UNIT_FIGHTER) has_fighter = true;
         }
     }
     
@@ -257,6 +261,10 @@ void UI_DrawHUD(AppState *s) {
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { m_cd_pct = s->world.units.large_cannon_cooldown[i] / s->world.units.stats[i]->main_cannon_cooldown; m_cd_val = s->world.units.large_cannon_cooldown[i]; break; }
             buttons[10] = (typeof(buttons[0])){ "Z", "MAIN C", s->textures.icon_textures[ICON_MAIN_CANNON], false, s->input.key_z_down, 2, 0, m_cd_pct, m_cd_val };
             buttons[11] = (typeof(buttons[0])){ "X", "BUILD", s->textures.miner_texture, false, s->input.key_x_down, 2, 1 };
+        }
+        if (has_miner) {
+            buttons[10] = (typeof(buttons[0])){ "Z", "GATHER", s->textures.icon_textures[ICON_GATHER], false, s->input.key_z_down, 2, 0 };
+            buttons[11] = (typeof(buttons[0])){ "X", "RETURN", s->textures.icon_textures[ICON_RETURN], false, s->input.key_x_down, 2, 1 };
         }
     } else if (s->ui.menu_state == 1) {
         if (has_mothership) {

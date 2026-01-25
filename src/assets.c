@@ -228,6 +228,83 @@ void DrawMothershipToBuffer(Uint32 *pixels, int size, float seed) {
     }
 }
 
+void DrawMinerToBuffer(Uint32 *pixels, int size, float seed) {
+    int center = size / 2;
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            float dx = (float)(x - center) / (size/2.0f);
+            float dy = (float)(y - center) / (size/2.0f);
+            float adx = fabsf(dx), ady = fabsf(dy);
+            
+            // Industrial/Boxy shape
+            bool body = (adx < 0.6f && ady < 0.8f) || (adx < 0.8f && ady < 0.4f);
+            // Cockpit
+            bool cockpit = (dy < -0.4f && dy > -0.7f && adx < 0.3f);
+            // Engines
+            bool engine = (dy > 0.6f && dy < 0.9f && adx > 0.3f && adx < 0.6f);
+            // Drill bits (front)
+            bool drill = (dy < -0.7f && dy > -0.95f && adx < 0.2f && fmodf(dy * 20.0f, 1.0f) > 0.5f);
+
+            if (body || cockpit || engine || drill) {
+                Uint8 r = 0, g = 0, b = 0;
+                float shade = 1.0f - (adx * 0.5f + ady * 0.2f);
+                
+                if (drill) { r = 200; g = 200; b = 200; shade *= 1.2f; }
+                else if (cockpit) { r = 50; g = 200; b = 255; shade = 1.0f; }
+                else if (engine) { r = 100; g = 100; b = 100; }
+                else { // Main Body - Yellow/Orange industrial
+                    r = 220; g = 180; b = 50; 
+                    if (adx < 0.1f || ady < 0.1f) { r -= 30; g -= 30; b -= 30; } // Panel lines
+                }
+
+                r = QUANTIZE((Uint8)(r * shade));
+                g = QUANTIZE((Uint8)(g * shade));
+                b = QUANTIZE((Uint8)(b * shade));
+                pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+            }
+        }
+    }
+}
+
+void DrawFighterToBuffer(Uint32 *pixels, int size, float seed) {
+    int center = size / 2;
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            float dx = (float)(x - center) / (size/2.0f);
+            float dy = (float)(y - center) / (size/2.0f);
+            float adx = fabsf(dx);
+            
+            // Triangular/Sleek shape
+            // Main fuselage
+            bool body = (adx < (0.8f - (dy + 1.0f) * 0.4f) && dy > -0.8f && dy < 0.8f);
+            // Wings
+            bool wings = (dy > 0.2f && dy < 0.7f && adx < (0.9f - (dy - 0.2f)));
+            // Cockpit
+            bool cockpit = (dy > -0.2f && dy < 0.1f && adx < 0.15f);
+            // Engine glow
+            bool engine = (dy > 0.8f && dy < 0.95f && adx < 0.2f);
+
+            if (body || wings || cockpit || engine) {
+                Uint8 r = 0, g = 0, b = 0;
+                float shade = 1.0f - (adx + (dy + 1.0f) * 0.2f) * 0.5f;
+
+                if (engine) { r = 255; g = 100; b = 50; shade = 1.2f; }
+                else if (cockpit) { r = 100; g = 255; b = 255; shade = 1.0f; }
+                else { // Hull - Red/Grey
+                    r = 180; g = 60; b = 60;
+                    if (wings) { r = 140; g = 50; b = 50; }
+                    if (adx < 0.05f) { r += 40; g += 40; b += 40; } // Spine
+                }
+
+                r = QUANTIZE((Uint8)fminf(255, r * shade));
+                g = QUANTIZE((Uint8)fminf(255, g * shade));
+                b = QUANTIZE((Uint8)fminf(255, b * shade));
+                pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+            }
+        }
+    }
+}
+
 void DrawExplosionPuffToBuffer(Uint32 *pixels, int size, float seed) {
   int center = size / 2; float max_rad = size * 0.45f;
   for (int y = 0; y < size; y++) {
@@ -272,8 +349,63 @@ void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
   }
 }
 
+void DrawIconToBuffer(Uint32 *pixels, int size, int type) {
+    int center = size / 2;
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            float dx = (float)(x - center) / (size/2.0f);
+            float dy = (float)(y - center) / (size/2.0f);
+            float adx = fabsf(dx), ady = fabsf(dy);
+            bool fill = false;
+            
+            if (type == ICON_MOVE) {
+                // Arrow
+                fill = (dy > -0.6f && dy < 0.6f && adx < 0.2f) || (dy < -0.4f && ady < 0.8f && adx < (0.8f - (1.0f + dy)));
+            } else if (type == ICON_ATTACK) {
+                // Crosshair
+                float dist = sqrtf(dx*dx + dy*dy);
+                fill = (dist > 0.6f && dist < 0.8f) || (adx < 0.1f && ady > 0.3f) || (ady < 0.1f && adx > 0.3f) || (dist < 0.1f);
+            } else if (type == ICON_PATROL) {
+                // Loop
+                float dist = sqrtf(dx*dx + dy*dy);
+                fill = (dist > 0.5f && dist < 0.7f && !(dx > 0.2f && dy < 0.2f && dy > -0.2f));
+                if (dx > 0.4f && dy < 0.1f && dy > -0.3f && adx < 0.2f) fill = true; // Arrowhead attempt
+            } else if (type == ICON_STOP) {
+                // Square
+                fill = (adx < 0.5f && ady < 0.5f);
+            } else if (type == ICON_OFFENSIVE) {
+                // Sword-like
+                fill = (adx < 0.1f && dy > -0.7f && dy < 0.7f) || (dy > 0.4f && dy < 0.5f && adx < 0.4f);
+            } else if (type == ICON_DEFENSIVE) {
+                // Shield
+                fill = (dy > -0.5f && dy < 0.2f && adx < 0.6f) || (dy >= 0.2f && dy < 0.8f && adx < (0.6f - (dy-0.2f)));
+            } else if (type == ICON_HOLD) {
+                // Hand / Palm
+                fill = (ady < 0.5f && adx < 0.4f);
+            } else if (type == ICON_MAIN_CANNON) {
+                // Big Circle
+                float dist = sqrtf(dx*dx + dy*dy);
+                fill = (dist < 0.8f);
+            } else if (type == ICON_BACK) {
+                // Back Arrow
+                fill = (adx < 0.6f && ady < 0.2f) || (dx < -0.4f && ady < 0.5f && adx > (0.4f + ady));
+            } else if (type == ICON_GATHER) {
+                // Crystal/Gem shape
+                fill = (ady + adx < 0.7f);
+            } else if (type == ICON_RETURN) {
+                // Upward arrow to "return"
+                fill = (adx < 0.2f && dy > -0.4f && dy < 0.6f) || (dy < -0.2f && adx < (0.6f - fabsf(dy + 0.5f)));
+            }
+
+            if (fill) {
+                pixels[y * size + x] = 0xFFFFFFFF; // White
+            }
+        }
+    }
+}
+
 void Asset_GenerateStep(AppState *s) {
-  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT + DEBRIS_COUNT + 2;
+  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT + DEBRIS_COUNT + 4 + ICON_COUNT;
   if (s->assets_generated >= total_assets) return;
   
   if (s->assets_generated < PLANET_COUNT) {
@@ -316,20 +448,42 @@ void Asset_GenerateStep(AppState *s) {
     SDL_SetTextureBlendMode(s->textures.debris_textures[i], SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(s->textures.debris_textures[i], SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.debris_textures[i], NULL, p, sz * 4); SDL_free(p);
-  } else if (s->assets_generated == total_assets - 2) {
+  } else if (s->assets_generated == total_assets - (4 + ICON_COUNT)) {
     int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawExplosionPuffToBuffer(p, sz, 777.7f);
     s->textures.explosion_puff_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.explosion_puff_texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(s->textures.explosion_puff_texture, SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.explosion_puff_texture, NULL, p, sz * 4); SDL_free(p);
-  } else if (s->assets_generated == total_assets - 1) {
+  } else if (s->assets_generated == total_assets - (3 + ICON_COUNT)) {
     int sz = 256; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
     DrawMothershipToBuffer(p, sz, 123.4f);
     s->textures.mothership_hull_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
     SDL_SetTextureBlendMode(s->textures.mothership_hull_texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(s->textures.mothership_hull_texture, SDL_SCALEMODE_NEAREST);
     SDL_UpdateTexture(s->textures.mothership_hull_texture, NULL, p, sz * 4); SDL_free(p);
+  } else if (s->assets_generated == total_assets - (2 + ICON_COUNT)) {
+    int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    DrawMinerToBuffer(p, sz, 555.5f);
+    s->textures.miner_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
+    SDL_SetTextureBlendMode(s->textures.miner_texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.miner_texture, SDL_SCALEMODE_NEAREST);
+    SDL_UpdateTexture(s->textures.miner_texture, NULL, p, sz * 4); SDL_free(p);
+  } else if (s->assets_generated == total_assets - (1 + ICON_COUNT)) {
+    int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+    DrawFighterToBuffer(p, sz, 888.8f);
+    s->textures.fighter_texture = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
+    SDL_SetTextureBlendMode(s->textures.fighter_texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(s->textures.fighter_texture, SDL_SCALEMODE_NEAREST);
+    SDL_UpdateTexture(s->textures.fighter_texture, NULL, p, sz * 4); SDL_free(p);
+  } else if (s->assets_generated >= total_assets - ICON_COUNT) {
+      int icon_idx = s->assets_generated - (total_assets - ICON_COUNT);
+      int sz = 128; Uint32 *p = SDL_malloc(sz * sz * 4); SDL_memset(p, 0, sz * sz * 4);
+      DrawIconToBuffer(p, sz, icon_idx);
+      s->textures.icon_textures[icon_idx] = SDL_CreateTexture(s->renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, sz, sz);
+      SDL_SetTextureBlendMode(s->textures.icon_textures[icon_idx], SDL_BLENDMODE_BLEND);
+      SDL_SetTextureScaleMode(s->textures.icon_textures[icon_idx], SDL_SCALEMODE_NEAREST);
+      SDL_UpdateTexture(s->textures.icon_textures[icon_idx], NULL, p, sz * 4); SDL_free(p);
   }
   
   s->assets_generated++;
@@ -340,7 +494,7 @@ void Asset_DrawLoading(AppState *s) {
   int win_w, win_h; SDL_GetRenderLogicalPresentation(s->renderer, &win_w, &win_h, NULL);
   if (win_w == 0 || win_h == 0) SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
   SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255); SDL_RenderClear(s->renderer);
-  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT + DEBRIS_COUNT + 2;
+  int total_assets = PLANET_COUNT + GALAXY_COUNT + ASTEROID_TYPE_COUNT + CRYSTAL_COUNT + DEBRIS_COUNT + 4 + ICON_COUNT;
   float progress = (float)s->assets_generated / (float)total_assets;
   float bar_w = 400.0f, bar_h = 20.0f, x = (win_w - bar_w) / 2.0f, y = (win_h - bar_h) / 2.0f;
   SDL_SetRenderScale(s->renderer, 4.0f, 4.0f);

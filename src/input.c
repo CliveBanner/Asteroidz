@@ -30,9 +30,47 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     float wy = s->camera.pos.y + (event->button.y) / s->camera.zoom;
     if (event->button.button == SDL_BUTTON_LEFT) {
       float mm_x = win_w - MINIMAP_SIZE - MINIMAP_MARGIN, mm_y = win_h - MINIMAP_SIZE - MINIMAP_MARGIN;
+      float csz = 60.0f, pad = 4.0f;
+      float card_h = (csz * 3) + (pad * 2);
+      float gx = 20.0f;
+      float gy = (float)win_h - card_h - 20.0f;
+      
       if (event->button.x >= mm_x && event->button.x <= mm_x + MINIMAP_SIZE && event->button.y >= mm_y && event->button.y <= mm_y + MINIMAP_SIZE) {
         float rel_x = (event->button.x - mm_x) / MINIMAP_SIZE - 0.5f, rel_y = (event->button.y - mm_y) / MINIMAP_SIZE - 0.5f;
         s->camera.pos.x += rel_x * MINIMAP_RANGE; s->camera.pos.y += rel_y * MINIMAP_RANGE;
+      } else if (event->button.x >= gx && event->button.x <= gx + (csz+pad)*5 && event->button.y >= gy && event->button.y <= gy + (csz+pad)*3) {
+          int col = (int)((event->button.x - gx) / (csz + pad));
+          int row = (int)((event->button.y - gy) / (csz + pad));
+          int btn_idx = row * 5 + col;
+          
+          SDL_Keycode mock_key = 0;
+          if (s->ui.menu_state == 0) {
+              if (btn_idx == 0) mock_key = SDLK_Q;
+              else if (btn_idx == 1) mock_key = SDLK_W;
+              else if (btn_idx == 2) mock_key = SDLK_E;
+              else if (btn_idx == 3) mock_key = SDLK_R;
+              else if (btn_idx == 5) mock_key = SDLK_A;
+              else if (btn_idx == 6) mock_key = SDLK_S;
+              else if (btn_idx == 7) mock_key = SDLK_D;
+              else if (btn_idx == 10) mock_key = SDLK_Z;
+              else if (btn_idx == 11) mock_key = SDLK_X;
+          } else if (s->ui.menu_state == 1) {
+              if (btn_idx == 0) mock_key = SDLK_Q;
+              else if (btn_idx == 1) mock_key = SDLK_W;
+              else if (btn_idx == 10) mock_key = SDLK_X;
+          }
+          
+          if (mock_key != 0) {
+              SDL_Event mock_event;
+              mock_event.type = SDL_EVENT_KEY_DOWN;
+              mock_event.key.key = mock_key;
+              mock_event.key.down = true;
+              Input_ProcessEvent(s, &mock_event);
+              
+              mock_event.type = SDL_EVENT_KEY_UP;
+              mock_event.key.down = false;
+              Input_ProcessEvent(s, &mock_event);
+          }
       } else {
           bool clicked_unit = false;
           for (int i = 0; i < MAX_UNITS; i++) {
@@ -125,7 +163,33 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_S) { s->input.key_s_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_DEFENSIVE; s->ui.tactical_flash_timer = 0.2f; }
     if (event->key.key == SDLK_D) { s->input.key_d_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_HOLD_GROUND; s->ui.tactical_flash_timer = 0.2f; }
     if (event->key.key == SDLK_Z) s->input.key_z_down = true;
-    if (event->key.key == SDLK_X) s->input.key_x_down = true;
+    if (event->key.key == SDLK_X) {
+        s->input.key_x_down = true;
+        // Logic for Return Cargo if any selected unit is a miner and NOT in a build menu
+        if (s->ui.menu_state == 0) {
+            bool has_miner_selected = false;
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MINER) { has_miner_selected = true; break; }
+            
+            if (has_miner_selected) {
+                // Find nearest mothership for each miner
+                for (int i = 0; i < MAX_UNITS; i++) {
+                    if (s->world.units.active[i] && s->selection.unit_selected[i] && s->world.units.type[i] == UNIT_MINER) {
+                        int m_idx = -1; float min_d = 1e18;
+                        for (int j = 0; j < MAX_UNITS; j++) {
+                            if (s->world.units.active[j] && s->world.units.type[j] == UNIT_MOTHERSHIP) {
+                                float d = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[j]);
+                                if (d < min_d) { min_d = d; m_idx = j; }
+                            }
+                        }
+                        if (m_idx != -1) {
+                            Command cmd = { .pos = s->world.units.pos[m_idx], .target_idx = m_idx, .type = CMD_RETURN_CARGO };
+                            s->world.units.command_queue[i][0] = cmd; s->world.units.command_count[i] = 1; s->world.units.command_current_idx[i] = 0; s->world.units.has_target[i] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
     if (event->key.key == SDLK_C) s->input.key_c_down = true;
     if (event->key.key == SDLK_G) s->input.show_grid = !s->input.show_grid;
     if (event->key.key == SDLK_D) s->input.show_density = !s->input.show_density;
