@@ -32,7 +32,7 @@ void SpawnAsteroid(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
       s->world.asteroids.active[i] = true;
       // Make smaller asteroids exponentially weaker
       float health_scale = powf(radius / 1000.0f, 1.5f) * 1000.0f;
-      s->world.asteroids.max_health[i] = health_scale * ASTEROID_HEALTH_MULT * 0.1f;
+      s->world.asteroids.max_health[i] = health_scale * ASTEROID_HEALTH_MULT * 0.2f; // Increased health
       s->world.asteroids.health[i] = s->world.asteroids.max_health[i];
       s->world.asteroids.targeted[i] = false;
       s->world.asteroid_count++;
