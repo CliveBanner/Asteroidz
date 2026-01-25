@@ -156,6 +156,48 @@ void Abilities_Update(AppState *s, int idx, float dt) {
     HandleManualMainCannon(s, idx);
     HandleAutoAttacks(s, idx);
     
+    // --- Miner Passive Abilities (Repair & Mine) ---
+    if (s->world.units.type[idx] == UNIT_MINER) {
+        // 1. Passive Repair: Find most damaged unit in range
+        float repair_range = 600.0f;
+        int best_repair_target = -1;
+        float lowest_hp_pct = 1.0f;
+
+        for (int u = 0; u < MAX_UNITS; u++) {
+            if (!s->world.units.active[u]) continue;
+            float dsq = Vector_DistanceSq(s->world.units.pos[idx], s->world.units.pos[u]);
+            if (dsq <= repair_range * repair_range) {
+                float hp_pct = s->world.units.health[u] / s->world.units.stats[u]->max_health;
+                if (hp_pct < lowest_hp_pct) {
+                    lowest_hp_pct = hp_pct;
+                    best_repair_target = u;
+                }
+            }
+        }
+        if (best_repair_target != -1) {
+            Abilities_Repair(s, idx, best_repair_target, dt);
+        }
+
+        // 2. Passive Mining: If has cargo space, mine nearest crystal in range
+        if (s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
+            float mine_range = s->world.units.stats[idx]->small_cannon_range;
+            int best_crystal = -1;
+            float min_dsq = mine_range * mine_range;
+
+            for (int r = 0; r < MAX_RESOURCES; r++) {
+                if (!s->world.resources.active[r]) continue;
+                float dsq = Vector_DistanceSq(s->world.units.pos[idx], s->world.resources.pos[r]);
+                if (dsq <= min_dsq) {
+                    min_dsq = dsq;
+                    best_crystal = r;
+                }
+            }
+            if (best_crystal != -1) {
+                Abilities_Mine(s, idx, best_crystal, dt);
+            }
+        }
+    }
+
     // Unload cargo if near Mothership
     if (s->world.units.current_cargo[idx] > 0 && s->world.units.type[idx] != UNIT_MOTHERSHIP) {
         int mothership_idx = -1;
@@ -181,10 +223,8 @@ void Abilities_Update(AppState *s, int idx, float dt) {
             if (s->world.units.current_cargo[idx] >= s->world.units.stats[idx]->max_cargo) {
                 cmd->type = CMD_RETURN_CARGO;
             } else {
-                float dsq = Vector_DistanceSq(s->world.resources.pos[cmd->target_idx], s->world.units.pos[idx]);
-                // Must match stop_dist logic in game.c: (range * 0.8) + crystal_radius
-                float range = (s->world.units.stats[idx]->small_cannon_range * 0.8f) + s->world.resources.radius[cmd->target_idx] * CRYSTAL_VISUAL_SCALE * 0.5f;
-                if (dsq <= range * range) Abilities_Mine(s, idx, cmd->target_idx, dt);
+                // Movement to crystal is handled by AI_UpdateUnitMovement.
+                // Mining is now handled passively in the loop above.
             }
         } else if (cmd->type == CMD_RETURN_CARGO) {
             if (s->world.units.current_cargo[idx] <= 0) {

@@ -109,7 +109,7 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
 
         if (s->world.units.type[i] == UNIT_MINER) {
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
-                // Stay close to Mothership and repair
+                // Stay close to Mothership (Passive repair is handled in Abilities_Update)
                 float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[m_idx]);
                 float tether_range = 600.0f;
                 if (dsq > tether_range * tether_range) {
@@ -117,9 +117,6 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
                     s->world.units.command_count[i] = 1;
                     s->world.units.command_current_idx[i] = 0;
                     s->world.units.has_target[i] = true;
-                } else {
-                    // Repair if close
-                    Abilities_Repair(s, i, m_idx, dt);
                 }
             } else if (s->world.units.behavior[i] == BEHAVIOR_HOLD_GROUND) {
                 // Spread out to mine (original logic)
@@ -188,8 +185,6 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
             }
         } else if (s->world.units.type[i] == UNIT_MINER && s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
             s->world.units.command_queue[i][0].pos = s->world.units.pos[m_idx];
-            // Repair check is in movement stop-dist logic? No, let's keep it in the move loop or separate.
-            Abilities_Repair(s, i, m_idx, dt);
         }
     }
     // ------------------------------------
