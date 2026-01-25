@@ -552,6 +552,8 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                 float v_scale = s->world.units.stats[i]->visual_scale;
                 float visual_rad_px = s->world.units.stats[i]->radius * v_scale * s->camera.zoom;
             for (int q = s->world.units.command_current_idx[i]; q < s->world.units.command_count[i]; q++) {
+                if (s->world.units.command_queue[i][q].type == CMD_RETURN_CARGO) continue; // Don't draw waypoint to mothership
+                
                 Vec2 wt = s->world.units.command_queue[i][q].pos;
                 Vec2 tsx = WorldToScreenParallax(wt, 1.0f, s, win_w, win_h);
                 if (s->world.units.command_queue[i][q].type == CMD_PATROL) SDL_SetRenderDrawColor(r, 100, 100, 255, 180);
