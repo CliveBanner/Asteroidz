@@ -220,9 +220,12 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
     }
     else if (s->world.particles.type[i] == PARTICLE_SHOCKWAVE) {
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_ADD);
-        float a_f = s->world.particles.life[i] * s->world.particles.life[i];
-        SDL_FColor center = { 1.0f, 1.0f, 1.0f, 0.0f }; 
-        SDL_FColor edge = { 1.0f, 1.0f, 1.0f, a_f * 0.5f };
+        float a_f = s->world.particles.life[i];
+        float r_f = s->world.particles.color[i].r / 255.0f;
+        float g_f = s->world.particles.color[i].g / 255.0f;
+        float b_f = s->world.particles.color[i].b / 255.0f;
+        SDL_FColor center = { r_f, g_f, b_f, 0.0f }; 
+        SDL_FColor edge = { r_f, g_f, b_f, a_f * 0.5f };
         DrawGradientCircle(r, sx_y.x, sx_y.y, sz, center, edge);
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     }

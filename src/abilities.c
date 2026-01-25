@@ -158,12 +158,12 @@ void Abilities_Repair(AppState *s, int idx, int target_idx, float dt) {
             s->world.particles.type[sw_idx] = PARTICLE_SHOCKWAVE;
             s->world.particles.pos[sw_idx] = s->world.units.pos[idx];
             s->world.particles.velocity[sw_idx] = (Vec2){0,0};
-            s->world.particles.life[sw_idx] = 0.8f;
-            s->world.particles.size[sw_idx] = 800.0f; // Matches repair range
-            s->world.particles.color[sw_idx] = (SDL_Color){50, 255, 50, 100}; // Faint green
+            s->world.particles.life[sw_idx] = 1.2f; // Longer life for slower wave
+            s->world.particles.size[sw_idx] = 100.0f; // Start small
+            s->world.particles.color[sw_idx] = (SDL_Color){0, 255, 0, 180}; // Solid green
             s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
             
-            s->world.units.repair_vfx_timer[idx] = 0.5f;
+            s->world.units.repair_vfx_timer[idx] = 1.5f; // More delayed
         }
     }
 }

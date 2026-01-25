@@ -229,8 +229,8 @@ void Particles_Update(AppState *s, float dt) {
     if (!s->world.particles.active[i]) continue;
     if (s->world.particles.type[i] == PARTICLE_TRACER) s->world.particles.life[i] -= dt * 2.0f;
     else if (s->world.particles.type[i] == PARTICLE_SHOCKWAVE) {
-        s->world.particles.life[i] -= dt * 2.0f;
-        s->world.particles.size[i] += dt * 1200.0f;
+        s->world.particles.life[i] -= dt * 0.8f; // Slower decay
+        s->world.particles.size[i] += dt * 600.0f; // Slower expansion
     }
     else { 
         s->world.particles.pos[i].x += s->world.particles.velocity[i].x * dt;

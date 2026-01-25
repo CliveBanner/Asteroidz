@@ -30,6 +30,27 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
             float c_rad = CRYSTAL_RADIUS_SMALL_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_SMALL_VARIANCE;
             float angle = ((float)rand() / (float)RAND_MAX) * 2.0f * 3.14159f;
             SpawnCrystal(s, pos, (Vec2){cosf(angle), sinf(angle)}, c_rad);
+
+            // Explosion damage area around crystal spawn
+            float blast_radius = c_rad * 2.0f;
+            float blast_damage = c_rad * 5.0f; // Scale damage with crystal size
+            
+            // Damage Units
+            for (int u = 0; u < MAX_UNITS; u++) {
+                if (!s->world.units.active[u]) continue;
+                float dsq = Vector_DistanceSq(pos, s->world.units.pos[u]);
+                if (dsq < blast_radius * blast_radius) {
+                    s->world.units.health[u] -= blast_damage * 0.5f; // Units take half damage
+                }
+            }
+            // Damage other Asteroids
+            for (int a = 0; a < MAX_ASTEROIDS; a++) {
+                if (!s->world.asteroids.active[a] || a == asteroid_idx) continue;
+                float dsq = Vector_DistanceSq(pos, s->world.asteroids.pos[a]);
+                if (dsq < blast_radius * blast_radius) {
+                    s->world.asteroids.health[a] -= blast_damage;
+                }
+            }
         }
     }
     
