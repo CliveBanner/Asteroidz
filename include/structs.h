@@ -110,6 +110,7 @@ typedef struct {
     TacticalBehavior behavior[MAX_UNITS];
     
     // Production
+    UnitType production_mode[MAX_UNITS]; // UNIT_TYPE_COUNT means "Off"
     UnitType production_queue[MAX_UNITS][MAX_PRODUCTION_QUEUE];
     int production_count[MAX_UNITS];
     float production_timer[MAX_UNITS];

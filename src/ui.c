@@ -285,12 +285,19 @@ void UI_DrawHUD(AppState *s) {
         }
     } else if (s->ui.menu_state == 1) {
         if (has_mothership) {
-            float prod_pct = 0; UnitType producing_type = UNIT_TYPE_COUNT;
-            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { if (s->world.units.production_count[i] > 0) { UnitType current = s->world.units.production_queue[i][0]; float total_time = s->world.unit_stats[current].production_time; prod_pct = s->world.units.production_timer[i] / total_time; producing_type = current; } break; }
-            float m_pct = (producing_type == UNIT_MINER) ? (1.0f - prod_pct) : 0.0f;
-            buttons[0] = (typeof(buttons[0])){ "Q", "MINER", s->textures.miner_texture, false, s->input.key_q_down, 0, 0, m_pct, 0.0f };
-            float f_pct = (producing_type == UNIT_FIGHTER) ? (1.0f - prod_pct) : 0.0f;
-            buttons[1] = (typeof(buttons[0])){ "W", "FIGHTER", s->textures.fighter_texture, false, s->input.key_w_down, 0, 1, f_pct, 0.0f };
+            float prod_pct = 0; UnitType active_mode = UNIT_TYPE_COUNT;
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { 
+                if (s->world.units.production_mode[i] != UNIT_TYPE_COUNT) { 
+                    active_mode = s->world.units.production_mode[i];
+                    float total_time = s->world.unit_stats[active_mode].production_time; 
+                    prod_pct = s->world.units.production_timer[i] / total_time; 
+                } 
+                break; 
+            }
+            float m_pct = (active_mode == UNIT_MINER) ? (1.0f - prod_pct) : 0.0f;
+            buttons[0] = (typeof(buttons[0])){ "Q", "TGL MINR", s->textures.miner_texture, active_mode == UNIT_MINER, s->input.key_q_down, 0, 0, m_pct, 0.0f };
+            float f_pct = (active_mode == UNIT_FIGHTER) ? (1.0f - prod_pct) : 0.0f;
+            buttons[1] = (typeof(buttons[0])){ "W", "TGL FGHT", s->textures.fighter_texture, active_mode == UNIT_FIGHTER, s->input.key_w_down, 0, 1, f_pct, 0.0f };
             buttons[10] = (typeof(buttons[0])){ "X", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_x_down, 2, 0 };
         }
     }

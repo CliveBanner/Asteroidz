@@ -487,94 +487,90 @@ void Game_Update(AppState *s, float dt) {
   }
 
   if (s->ui.menu_state == 1) {
-      // Production: Q for Miner
+      // Production Toggle: Q for Miner
       if (s->input.key_q_down && s->ui.ui_error_timer <= 0) {
           s->input.key_q_down = false;
           for (int i = 0; i < MAX_UNITS; i++) {
               if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
-                  if (s->world.stored_resources >= MINER_COST) {
-                      if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
-                          s->world.stored_resources -= MINER_COST;
-                          LogTransaction(s, -MINER_COST, "Miner Queued");
-                          s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_MINER;
-                          UI_SetError(s, "MINER QUEUED");
-                      } else { UI_SetError(s, "QUEUE FULL"); }
-                  } else { UI_SetError(s, "INSUFFICIENT RESOURCES"); }
+                  if (s->world.units.production_mode[i] == UNIT_MINER) {
+                      s->world.units.production_mode[i] = UNIT_TYPE_COUNT; // Toggle Off
+                      UI_SetError(s, "PRODUCTION STOPPED");
+                  } else {
+                      s->world.units.production_mode[i] = UNIT_MINER;
+                      UI_SetError(s, "MINER PRODUCTION ON");
+                  }
                   break;
               }
           }
       }
-      // Production: W for Fighter
+      // Production Toggle: W for Fighter
       if (s->input.key_w_down && s->ui.ui_error_timer <= 0) {
           s->input.key_w_down = false;
           for (int i = 0; i < MAX_UNITS; i++) {
               if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
-                  if (s->world.stored_resources >= FIGHTER_COST) {
-                      if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
-                          s->world.stored_resources -= FIGHTER_COST;
-                          LogTransaction(s, -FIGHTER_COST, "Fighter Queued");
-                          s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_FIGHTER;
-                          UI_SetError(s, "FIGHTER QUEUED");
-                      } else { UI_SetError(s, "QUEUE FULL"); }
-                  } else { UI_SetError(s, "INSUFFICIENT RESOURCES"); }
+                  if (s->world.units.production_mode[i] == UNIT_FIGHTER) {
+                      s->world.units.production_mode[i] = UNIT_TYPE_COUNT; // Toggle Off
+                      UI_SetError(s, "PRODUCTION STOPPED");
+                  } else {
+                      s->world.units.production_mode[i] = UNIT_FIGHTER;
+                      UI_SetError(s, "FIGHTER PRODUCTION ON");
+                  }
                   break;
               }
           }
       }
   }
 
-  // Clear HUD-triggered flags if they weren't consumed
-  s->input.key_z_down = false; // Main cannon / Gather usually doesn't need to persist across frames
-  // Note: key_q, key_w, key_e are used for right-click modifiers, we shouldn't auto-clear them 
-  // if we want the user to hold them while clicking. But for UI clicks, we might need a better system.
-  // For now, let's clear the ones that act as toggles/immediate triggers.
-
-
-  // Update Production Queues
+  // Update Production Mode
   for (int i = 0; i < MAX_UNITS; i++) {
-      if (s->world.units.active[i] && s->world.units.production_count[i] > 0) {
+      if (s->world.units.active[i] && s->world.units.production_mode[i] != UNIT_TYPE_COUNT) {
+          UnitType target_type = s->world.units.production_mode[i];
+          float cost = s->world.unit_stats[target_type].production_cost;
+          float build_time = s->world.unit_stats[target_type].production_time;
+
+          // Check for resources and unit cap at start of cycle or while waiting
+          if (s->world.units.production_timer[i] == 0.0f) {
+              if (s->world.stored_resources < cost) {
+                  // Wait for resources, don't advance timer
+                  continue;
+              }
+              if (s->world.unit_count >= MAX_UNITS) {
+                  // Unit cap reached, wait
+                  continue;
+              }
+              // Consume resources at start of build
+              s->world.stored_resources -= cost;
+              LogTransaction(s, -cost, target_type == UNIT_MINER ? "Miner Production" : "Fighter Production");
+          }
+
           s->world.units.production_timer[i] += dt;
-          UnitType current_prod = s->world.units.production_queue[i][0];
-          float build_time = s->world.unit_stats[current_prod].production_time;
           
           if (s->world.units.production_timer[i] >= build_time) {
               // Spawn Unit
-              if (s->world.unit_count < MAX_UNITS) {
-                  int new_idx = -1;
-                  for (int u = 0; u < MAX_UNITS; u++) { if (!s->world.units.active[u]) { new_idx = u; break; } }
+              int new_idx = -1;
+              for (int u = 0; u < MAX_UNITS; u++) { if (!s->world.units.active[u]) { new_idx = u; break; } }
+              
+              if (new_idx != -1) {
+                  s->world.units.active[new_idx] = true;
+                  s->world.units.type[new_idx] = target_type;
+                  s->world.units.stats[new_idx] = &s->world.unit_stats[target_type];
+                  s->world.units.pos[new_idx] = s->world.units.pos[i];
+                  s->world.units.velocity[new_idx] = (Vec2){0,0};
+                  s->world.units.rotation[new_idx] = s->world.units.rotation[i];
+                  s->world.units.health[new_idx] = s->world.units.stats[new_idx]->max_health;
+                  s->world.units.energy[new_idx] = s->world.units.stats[new_idx]->max_energy;
+                  s->world.units.current_cargo[new_idx] = 0.0f;
+                  s->world.units.behavior[new_idx] = BEHAVIOR_DEFENSIVE;
+                  s->world.units.command_count[new_idx] = 0;
+                  s->world.units.command_current_idx[new_idx] = 0;
+                  s->world.units.has_target[new_idx] = false;
+                  s->world.units.large_target_idx[new_idx] = -1;
+                  s->world.units.mining_cooldown[new_idx] = 0.0f;
+                  for(int c=0; c<4; c++) s->world.units.small_target_idx[new_idx][c] = -1;
+                  s->world.unit_count++;
                   
-                  if (new_idx != -1) {
-                      s->world.units.active[new_idx] = true;
-                      s->world.units.type[new_idx] = current_prod;
-                      s->world.units.stats[new_idx] = &s->world.unit_stats[current_prod];
-                      s->world.units.pos[new_idx] = s->world.units.pos[i]; // Spawn at factory pos
-                      s->world.units.velocity[new_idx] = (Vec2){0,0}; // Eject velocity?
-                      s->world.units.rotation[new_idx] = s->world.units.rotation[i];
-                      s->world.units.health[new_idx] = s->world.units.stats[new_idx]->max_health;
-                      s->world.units.energy[new_idx] = s->world.units.stats[new_idx]->max_energy;
-                      s->world.units.current_cargo[new_idx] = 0.0f;
-                      s->world.units.behavior[new_idx] = BEHAVIOR_DEFENSIVE;
-                      s->world.units.command_count[new_idx] = 0;
-                      s->world.units.command_current_idx[new_idx] = 0;
-                      s->world.units.has_target[new_idx] = false;
-                      s->world.units.large_target_idx[new_idx] = -1;
-                      s->world.units.mining_cooldown[new_idx] = 0.0f;
-                      for(int c=0; c<4; c++) s->world.units.small_target_idx[new_idx][c] = -1;
-                      s->world.unit_count++;
-                      
-                      // Shift Queue
-                      for(int q=0; q < s->world.units.production_count[i]-1; q++) {
-                          s->world.units.production_queue[i][q] = s->world.units.production_queue[i][q+1];
-                      }
-                      s->world.units.production_count[i]--;
-                      s->world.units.production_timer[i] = 0.0f;
-                      
-                      UI_SetError(s, "UNIT READY");
-                  }
-              } else {
-                  // Unit cap reached, refund? or pause?
-                  // For now, pause queue
-                  s->world.units.production_timer[i] = build_time;
+                  s->world.units.production_timer[i] = 0.0f; // Reset for next loop
+                  UI_SetError(s, "UNIT READY");
               }
           }
       } else {
