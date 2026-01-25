@@ -192,7 +192,12 @@ void Game_Init(AppState *s) {
   SDL_memset(&s->world.resources, 0, sizeof(ResourcePool));
   s->world.resource_count = 0;
 
-  // Spawn Initial Mothership
+  for (int i = 0; i < MAX_UNITS; i++) {
+    s->world.units.active[i] = false;
+    s->world.units.production_mode[i] = UNIT_TYPE_COUNT;
+  }
+
+  // Create starting Mothership
   int idx = 0;
   s->world.units.active[idx] = true;
   s->world.units.type[idx] = UNIT_MOTHERSHIP;
@@ -209,6 +214,7 @@ void Game_Init(AppState *s) {
   s->world.units.has_target[idx] = false;
   s->world.units.large_target_idx[idx] = -1;
   s->world.units.mining_cooldown[idx] = 0.0f;
+  s->world.units.production_mode[idx] = UNIT_TYPE_COUNT;
   for (int c = 0; c < 4; c++)
     s->world.units.small_target_idx[idx][c] = -1;
   s->world.unit_count = 1;
@@ -523,7 +529,7 @@ void Game_Update(AppState *s, float dt) {
 
   // Update Production Mode
   for (int i = 0; i < MAX_UNITS; i++) {
-      if (s->world.units.active[i] && s->world.units.production_mode[i] != UNIT_TYPE_COUNT) {
+      if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->world.units.production_mode[i] != UNIT_TYPE_COUNT) {
           UnitType target_type = s->world.units.production_mode[i];
           float cost = s->world.unit_stats[target_type].production_cost;
           float build_time = s->world.unit_stats[target_type].production_time;
@@ -566,6 +572,7 @@ void Game_Update(AppState *s, float dt) {
                   s->world.units.has_target[new_idx] = false;
                   s->world.units.large_target_idx[new_idx] = -1;
                   s->world.units.mining_cooldown[new_idx] = 0.0f;
+                  s->world.units.production_mode[new_idx] = UNIT_TYPE_COUNT;
                   for(int c=0; c<4; c++) s->world.units.small_target_idx[new_idx][c] = -1;
                   s->world.unit_count++;
                   
