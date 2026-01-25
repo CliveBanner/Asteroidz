@@ -1,6 +1,7 @@
 #include "physics.h"
 #include "constants.h"
 #include "game.h"
+#include "particles.h"
 #include "utils.h"
 #include <math.h>
 #include <stdlib.h>
@@ -92,6 +93,9 @@ void Physics_HandleCollisions(AppState *s, float dt) {
                   s->world.asteroids.active[idx] = false;
                   s->world.asteroid_count--;
                   
+                  // Explosion VFX for splitting
+                  Particles_SpawnExplosion(s, pos, 20, old_rad / 500.0f, EXPLOSION_COLLISION, s->world.asteroids.tex_idx[idx]);
+
                   // Spawn two smaller fragments
                   for(int f=0; f<2; f++) {
                       float angle = ((float)rand()/(float)RAND_MAX) * 2.0f * 3.14159f;
