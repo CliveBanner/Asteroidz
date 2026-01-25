@@ -380,20 +380,21 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
         int gx_center = (int)floorf(spawn_pos.x / CELESTIAL_GRID_SIZE_F);
         int gy_center = (int)floorf(spawn_pos.y / CELESTIAL_GRID_SIZE_F);
         
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-                Vec2 b_pos; float type_seed, b_rad;
-                if (GetCelestialBodyInfo(gx_center + dx, gy_center + dy, &b_pos, &type_seed, &b_rad)) {
-                    float influence_rad = b_rad * 4.0f;
-                    if (Vector_DistanceSq(spawn_pos, b_pos) < influence_rad * influence_rad) {
-                        float crystal_prob = 0.0f;
-                        if (type_seed > 0.95f) crystal_prob = CRYSTAL_PROB_GALAXY;
-                        else crystal_prob = CRYSTAL_PROB_PLANET * (b_rad / PLANET_RADIUS_MIN);
-                        
-                        if (((float)rand() / (float)RAND_MAX) < crystal_prob) {
-                            float c_rad = CRYSTAL_RADIUS_LARGE_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_LARGE_VARIANCE;
-                            float move_angle = (float)(rand() % 360) * 0.0174533f;
-                            // Spawn around the celestial body center
+        float density = GetAsteroidDensity(spawn_pos);
+        if (density > 0.1f) {
+            float crystal_prob = (density > 0.8f) ? CRYSTAL_PROB_GALAXY : CRYSTAL_PROB_PLANET;
+            // Modulate probability by density strength
+            crystal_prob *= (density / DENSITY_MAX);
+
+            if (((float)rand() / (float)RAND_MAX) < crystal_prob) {
+                float c_rad = CRYSTAL_RADIUS_LARGE_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_LARGE_VARIANCE;
+                float move_angle = (float)(rand() % 360) * 0.0174533f;
+                
+                // Find a celestial body to anchor the cluster visually
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        Vec2 b_pos; float type_seed, b_rad;
+                        if (GetCelestialBodyInfo(gx_center + dx, gy_center + dy, &b_pos, &type_seed, &b_rad)) {
                             float spread_dist = b_rad + 800.0f + ((float)rand() / (float)RAND_MAX) * 3000.0f;
                             float spread_angle = (float)(rand() % 360) * 0.0174533f;
                             Vec2 crystal_pos = {
