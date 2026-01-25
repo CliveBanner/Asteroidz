@@ -27,7 +27,7 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
 
         // Spawn Crystal on destruction
         if (((float)rand() / (float)RAND_MAX) < 0.3f) { // 30% chance
-            float c_rad = CRYSTAL_RADIUS_MIN + ((float)rand() / (float)RAND_MAX) * 100.0f;
+            float c_rad = CRYSTAL_RADIUS_SMALL_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_SMALL_VARIANCE;
             float angle = ((float)rand() / (float)RAND_MAX) * 2.0f * 3.14159f;
             SpawnCrystal(s, pos, (Vec2){cosf(angle), sinf(angle)}, c_rad);
         }

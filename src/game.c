@@ -382,7 +382,7 @@ static void UpdateSpawning(AppState *s, Vec2 cam_center) {
                         else crystal_prob = CRYSTAL_PROB_PLANET * (b_rad / PLANET_RADIUS_MIN);
                         
                         if (((float)rand() / (float)RAND_MAX) < crystal_prob) {
-                            float c_rad = CRYSTAL_RADIUS_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_VARIANCE;
+                            float c_rad = CRYSTAL_RADIUS_LARGE_MIN + ((float)rand() / (float)RAND_MAX) * CRYSTAL_RADIUS_LARGE_VARIANCE;
                             float move_angle = (float)(rand() % 360) * 0.0174533f;
                             // Spawn around the celestial body center
                             float spread_dist = b_rad + 800.0f + ((float)rand() / (float)RAND_MAX) * 3000.0f;
