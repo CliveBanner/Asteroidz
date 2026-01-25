@@ -171,7 +171,7 @@ void Game_Init(AppState *s) {
                   .main_cannon_range = 0,
                   .main_cannon_cooldown = 0,
                   .small_cannon_damage = 300.0f,
-                  .small_cannon_range = 2000.0f,
+                  .small_cannon_range = 3500.0f,
                   .small_cannon_cooldown = 0.25f,
                   .small_cannon_energy_cost = 8.0f,
                   .laser_thickness = 0.15f,
