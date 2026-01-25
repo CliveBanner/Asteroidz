@@ -218,7 +218,7 @@ void Abilities_Update(AppState *s, int idx, float dt) {
     if (is_miner || is_mothership) {
         // 2. Passive Mining: If has cargo space (or is mothership), mine nearest crystal in range
         if (is_mothership || s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
-            float base_mine_range = s->world.units.stats[idx]->small_cannon_range * 1.5f; // Increased range
+            float base_mine_range = s->world.units.stats[idx]->mine_range;
             int best_crystal = -1;
             float min_dsq = 1e15f;
 

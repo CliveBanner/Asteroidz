@@ -509,7 +509,7 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                       float range = 0;
                       SDL_Color col = {255, 255, 255, 255};
                       if (s->world.units.type[i] == UNIT_MINER) {
-                          range = 800.0f; // Repair range
+                          range = s->world.units.stats[i]->mine_range; 
                           col = (SDL_Color){100, 255, 100, 255};
                       } else if (s->world.units.stats[i]->small_cannon_range > 0) {
                           range = s->world.units.stats[i]->small_cannon_range;

@@ -107,6 +107,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = SMALL_CANNON_RANGE,
                   .small_cannon_cooldown = SMALL_CANNON_COOLDOWN,
                   .small_cannon_energy_cost = SMALL_CANNON_ENERGY_COST,
+                  .mine_range = 2500.0f,
                   .laser_thickness = LASER_THICKNESS_MULT,
                   .laser_glow_mult = LASER_GLOW_MULT,
                   .laser_core_thickness_mult = LASER_CORE_THICKNESS_MULT,
@@ -130,6 +131,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = 1500.0f,
                   .small_cannon_cooldown = 0.5f,
                   .small_cannon_energy_cost = 5.0f,
+                  .mine_range = 800.0f,
                   .laser_thickness = 0.1f,
                   .laser_glow_mult = 1.5f,
                   .laser_core_thickness_mult = 0.4f,
@@ -155,6 +157,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = 0.0f,
                   .small_cannon_cooldown = 1.0f,
                   .small_cannon_energy_cost = 0.0f,
+                  .mine_range = 1000.0f, // Reduced mining range
                   .laser_thickness = 0.2f,
                   .laser_glow_mult = 1.8f,
                   .laser_core_thickness_mult = 0.5f,
@@ -179,6 +182,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = 3500.0f,
                   .small_cannon_cooldown = 0.25f,
                   .small_cannon_energy_cost = 10.0f, // Reduced cost
+                  .mine_range = 1000.0f,
                   .laser_thickness = 0.15f,
                   .laser_glow_mult = 1.6f,
                   .laser_core_thickness_mult = 0.45f,

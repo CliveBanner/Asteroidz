@@ -276,7 +276,7 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
         
         if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
             int ti = cur_cmd->target_idx;
-            stop_dist = (s->world.units.stats[i]->small_cannon_range * 0.8f) + s->world.resources.radius[ti] * CRYSTAL_VISUAL_SCALE * 0.5f;
+            stop_dist = (s->world.units.stats[i]->mine_range * 0.8f) + s->world.resources.radius[ti] * CRYSTAL_VISUAL_SCALE * 0.5f;
             stop_dist *= 0.95f;
         }
         

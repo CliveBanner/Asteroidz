@@ -47,6 +47,7 @@ typedef struct {
     float small_cannon_range;
     float small_cannon_cooldown;
     float small_cannon_energy_cost;
+    float mine_range;
     float laser_thickness;
     float laser_glow_mult;
     float laser_core_thickness_mult;
