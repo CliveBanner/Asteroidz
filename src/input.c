@@ -11,6 +11,10 @@ void Input_ScheduleCommand(AppState *s, Command cmd, bool queue) {
     for (int i = 0; i < MAX_UNITS; i++) {
         if (!s->world.units.active[i] || !s->selection.unit_selected[i]) continue;
 
+        // Command Filtering
+        if (s->world.units.type[i] == UNIT_FIGHTER && cmd.type == CMD_GATHER) continue;
+        if (s->world.units.type[i] == UNIT_MINER && cmd.type == CMD_ATTACK_MOVE && cmd.target_idx != -1) continue;
+
         if (cmd.type == CMD_MAIN_CANNON) {
             if (s->world.units.large_cannon_cooldown[i] > 0) {
                 UI_SetError(s, "MAIN CANNON COOLDOWN");
@@ -181,6 +185,16 @@ static void HandleRightClick(AppState *s, SDL_MouseButtonEvent *event) {
 
     CommandType type = CMD_IDLE;
     
+    // Check if any selected units can perform specific contextual actions
+    bool can_gather = false;
+    bool can_attack = false;
+    for (int i = 0; i < MAX_UNITS; i++) {
+        if (s->world.units.active[i] && s->selection.unit_selected[i]) {
+            if (s->world.units.type[i] == UNIT_MINER || s->world.units.type[i] == UNIT_MOTHERSHIP) can_gather = true;
+            if (s->world.units.type[i] == UNIT_FIGHTER || s->world.units.type[i] == UNIT_MOTHERSHIP) can_attack = true;
+        }
+    }
+
     // 1. Check pending/sticky command
     if (s->input.pending_cmd_type != CMD_IDLE) {
         type = s->input.pending_cmd_type;
@@ -191,11 +205,15 @@ static void HandleRightClick(AppState *s, SDL_MouseButtonEvent *event) {
     else if (s->input.key_e_down) type = CMD_ATTACK_MOVE;
     else if (s->input.key_y_down) type = CMD_MAIN_CANNON;
     // 3. Contextual defaults
-    else if (s->input.hover_resource_idx != -1) {
+    else if (s->input.hover_resource_idx != -1 && can_gather) {
         type = CMD_GATHER;
         target_a = s->input.hover_resource_idx;
     } else {
-        type = (target_a != -1) ? CMD_ATTACK_MOVE : CMD_MOVE;
+        if (target_a != -1 && can_attack) {
+            type = CMD_ATTACK_MOVE;
+        } else {
+            type = CMD_MOVE;
+        }
     }
 
     if (type == CMD_MAIN_CANNON && target_a == -1) {
