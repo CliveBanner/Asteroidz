@@ -53,7 +53,10 @@ static void HandleAutoAttacks(AppState *s, int idx) {
         if (cmd->type == CMD_GATHER || cmd->type == CMD_RETURN_CARGO) is_gathering = true;
     }
 
-    if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE || is_moving_normally || is_gathering) return;
+    if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE || is_moving_normally) return;
+    
+    // Most units stop firing while gathering/returning to focus energy, but Mothership can do both.
+    if (is_gathering && s->world.units.type[idx] != UNIT_MOTHERSHIP) return;
 
     SDL_LockMutex(s->threads.unit_fx_mutex);
     int s_targets[4];
