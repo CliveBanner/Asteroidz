@@ -118,9 +118,13 @@ void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
             if (s->world.units.type[idx] == UNIT_MOTHERSHIP) {
                 float energy_needed = INITIAL_ENERGY - s->world.energy;
                 if (energy_needed > 0) {
-                    float to_energy = fminf(amount, energy_needed);
+                    // Energy fills 10x faster than resource gathering rate
+                    float energy_gain = amount * 10.0f;
+                    float to_energy = fminf(energy_gain, energy_needed);
                     s->world.energy += to_energy;
-                    amount -= to_energy;
+                    
+                    // Subtract the equivalent amount from the resource 'budget'
+                    amount -= (to_energy / 10.0f);
                 }
                 
                 if (amount > 0) {
