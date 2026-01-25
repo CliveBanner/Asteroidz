@@ -518,16 +518,16 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
 
                       if (range > 0) {
                           float r_px = range * s->camera.zoom;
-                          // Faint background circle
-                          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 40);
-                          Utils_DrawCircle(r, sx_y.x, sx_y.y, r_px, 64);
+                          // Faint background circle (Dashed)
+                          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 30);
+                          Utils_DrawDashedCircle(r, sx_y.x, sx_y.y, r_px, 64, 5.0f);
                           
-                          // Rotating scan laser line
-                          float angle = s->current_time * 1.2f + (float)i * 0.5f; // Offset per unit
+                          // Rotating scan laser line (Dashed and more transparent)
+                          float angle = s->current_time * 1.2f + (float)i * 0.5f; 
                           float lx = sx_y.x + cosf(angle) * r_px;
                           float ly = sx_y.y + sinf(angle) * r_px;
-                          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 180);
-                          SDL_RenderLine(r, sx_y.x, sx_y.y, lx, ly);
+                          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 60); // 180 -> 60 alpha
+                          Utils_DrawDashedLine(r, sx_y.x, sx_y.y, lx, ly, 8.0f);
                           
                           // Tiny point at the end of the laser
                           SDL_RenderPoint(r, lx, ly);

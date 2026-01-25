@@ -259,3 +259,27 @@ void Utils_DrawCircle(SDL_Renderer *r, float cx, float cy, float radius, int seg
         SDL_RenderLine(r, cx + cosf(a1) * radius, cy + sinf(a1) * radius, cx + cosf(a2) * radius, cy + sinf(a2) * radius);
     }
 }
+
+void Utils_DrawDashedCircle(SDL_Renderer *r, float cx, float cy, float radius, int segments, float dash_len) {
+    (void)dash_len; // Simple dashed circle: just skip every other segment
+    float angle_step = (2.0f * 3.14159f) / (float)segments;
+    for (int i = 0; i < segments; i++) {
+        if (i % 2 == 0) continue;
+        float a1 = (float)i * angle_step;
+        float a2 = (float)(i + 1) * angle_step;
+        SDL_RenderLine(r, cx + cosf(a1) * radius, cy + sinf(a1) * radius, cx + cosf(a2) * radius, cy + sinf(a2) * radius);
+    }
+}
+
+void Utils_DrawDashedLine(SDL_Renderer *r, float x1, float y1, float x2, float y2, float dash_len) {
+    float dx = x2 - x1, dy = y2 - y1;
+    float dist = sqrtf(dx*dx + dy*dy);
+    if (dist < 0.001f) return;
+    float nx = dx / dist, ny = dy / dist;
+    float cur = 0;
+    while (cur < dist) {
+        float next = fminf(cur + dash_len, dist);
+        SDL_RenderLine(r, x1 + nx * cur, y1 + ny * cur, x1 + nx * next, y1 + ny * next);
+        cur += dash_len * 2.0f;
+    }
+}

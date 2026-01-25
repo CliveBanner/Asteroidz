@@ -26,5 +26,7 @@ Vec2 WorldToParallax(Vec2 world_pos, float parallax);
 
 void LogTransaction(AppState *s, float val, const char *label);
 void Utils_DrawCircle(SDL_Renderer *r, float cx, float cy, float radius, int segments);
+void Utils_DrawDashedCircle(SDL_Renderer *r, float cx, float cy, float radius, int segments, float dash_len);
+void Utils_DrawDashedLine(SDL_Renderer *r, float x1, float y1, float x2, float y2, float dash_len);
 
 #endif
