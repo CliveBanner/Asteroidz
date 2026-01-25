@@ -157,7 +157,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_range = 0.0f,
                   .small_cannon_cooldown = 1.0f,
                   .small_cannon_energy_cost = 0.0f,
-                  .mine_range = 1000.0f, // Reduced mining range
+                  .mine_range = 2000.0f, // Increased mining range
                   .laser_thickness = 0.2f,
                   .laser_glow_mult = 1.8f,
                   .laser_core_thickness_mult = 0.5f,
