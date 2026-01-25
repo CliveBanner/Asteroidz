@@ -224,6 +224,33 @@ void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, f
     }
 }
 
+void Particles_SpawnTeleport(AppState *s, Vec2 pos, float size) {
+    // Spark implosion
+    for (int i = 0; i < 40; i++) {
+        int idx = s->world.particle_next_idx;
+        s->world.particles.active[idx] = true;
+        s->world.particles.type[idx] = PARTICLE_SPARK;
+        float angle = (float)(rand() % 360) * 0.0174533f;
+        float dist = size * (2.0f + (float)rand()/(float)RAND_MAX);
+        s->world.particles.pos[idx] = (Vec2){pos.x + cosf(angle) * dist, pos.y + sinf(angle) * dist};
+        s->world.particles.velocity[idx] = Vector_Scale(Vector_Normalize(Vector_Sub(pos, s->world.particles.pos[idx])), dist * 2.0f);
+        s->world.particles.life[idx] = 0.5f;
+        s->world.particles.size[idx] = (float)(rand() % 10 + 5);
+        s->world.particles.color[idx] = (SDL_Color){100, 200, 255, 255};
+        s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+    }
+    // Shockwave
+    int sw_idx = s->world.particle_next_idx;
+    s->world.particles.active[sw_idx] = true;
+    s->world.particles.type[sw_idx] = PARTICLE_SHOCKWAVE;
+    s->world.particles.pos[sw_idx] = pos;
+    s->world.particles.velocity[sw_idx] = (Vec2){0,0};
+    s->world.particles.life[sw_idx] = 0.4f; 
+    s->world.particles.size[sw_idx] = size;
+    s->world.particles.color[sw_idx] = (SDL_Color){150, 230, 255, 255}; 
+    s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+}
+
 void Particles_Update(AppState *s, float dt) {
   for (int i = 0; i < MAX_PARTICLES; i++) {
     if (!s->world.particles.active[i]) continue;

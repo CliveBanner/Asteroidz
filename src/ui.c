@@ -117,10 +117,14 @@ void UI_DrawHUD(AppState *s) {
             n_fighters++; n_all++; 
             if (s->selection.unit_selected[i]) { fighters_sel = true; all_sel = true; }
         }
+        else {
+            n_all++;
+            if (s->selection.unit_selected[i]) all_sel = true;
+        }
     }
     groups[0] = (typeof(groups[0])){ "F1", s->textures.miner_texture, n_miners, miners_sel };
     groups[1] = (typeof(groups[0])){ "F2", s->textures.fighter_texture, n_fighters, fighters_sel };
-    groups[2] = (typeof(groups[0])){ "F3", s->textures.icon_textures[ICON_OFFENSIVE], n_all, all_sel };
+    groups[2] = (typeof(groups[0])){ "F3", s->textures.mothership_hull_texture, n_all, all_sel };
 
     float g_icon_sz = 40.0f, g_pad = 20.0f;
     float g_total_w = (g_icon_sz + g_pad) * 3 - g_pad;
@@ -209,6 +213,7 @@ void UI_DrawHUD(AppState *s) {
         buttons[5] = (typeof(buttons[0])){ "A", "OFFENS", s->textures.icon_textures[ICON_OFFENSIVE], primary_behavior == BEHAVIOR_OFFENSIVE,   s->input.key_a_down, 1, 0 };
         buttons[6] = (typeof(buttons[0])){ "S", "DEFENS", s->textures.icon_textures[ICON_DEFENSIVE], primary_behavior == BEHAVIOR_DEFENSIVE,   s->input.key_s_down, 1, 1 };
         buttons[7] = (typeof(buttons[0])){ "D", "HOLD G", s->textures.icon_textures[ICON_HOLD], primary_behavior == BEHAVIOR_HOLD_GROUND, s->input.key_d_down, 1, 2 };
+        
         if (has_mothership) {
             float m_cd_pct = 0, m_cd_val = 0;
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { m_cd_pct = s->world.units.large_cannon_cooldown[i] / s->world.units.stats[i]->main_cannon_cooldown; m_cd_val = s->world.units.large_cannon_cooldown[i]; break; }
@@ -216,25 +221,15 @@ void UI_DrawHUD(AppState *s) {
             buttons[11] = (typeof(buttons[0])){ "X", "BUILD", s->textures.miner_texture, false, s->input.key_x_down, 2, 1 };
         }
         if (has_miner) {
-            buttons[10] = (typeof(buttons[0])){ "Z", "GATHER", s->textures.icon_textures[ICON_GATHER], false, s->input.key_z_down, 2, 0 };
-            buttons[11] = (typeof(buttons[0])){ "X", "RETURN", s->textures.icon_textures[ICON_RETURN], false, s->input.key_x_down, 2, 1 };
+            // Merge Gather/Return into available slots
+            if (!has_mothership) buttons[10] = (typeof(buttons[0])){ "Z", "GATHER", s->textures.icon_textures[ICON_GATHER], false, s->input.key_z_down, 2, 0 };
+            buttons[12] = (typeof(buttons[0])){ "V", "RETURN", s->textures.icon_textures[ICON_RETURN], false, false, 2, 2 };
         }
     } else if (s->ui.menu_state == 1) {
         if (has_mothership) {
-            float prod_pct = 0; UnitType active_mode = UNIT_TYPE_COUNT;
-            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { 
-                if (s->world.units.production_mode[i] != UNIT_TYPE_COUNT) { 
-                    active_mode = s->world.units.production_mode[i];
-                    float total_time = s->world.unit_stats[active_mode].production_time; 
-                    prod_pct = s->world.units.production_timer[i] / total_time; 
-                } 
-                break; 
-            }
-            float m_pct = (active_mode == UNIT_MINER) ? (1.0f - prod_pct) : 0.0f;
-            buttons[0] = (typeof(buttons[0])){ "Q", "TGL MINR", s->textures.miner_texture, active_mode == UNIT_MINER, s->input.key_q_down, 0, 0, m_pct, 0.0f };
-            float f_pct = (active_mode == UNIT_FIGHTER) ? (1.0f - prod_pct) : 0.0f;
-            buttons[1] = (typeof(buttons[0])){ "W", "TGL FGHT", s->textures.fighter_texture, active_mode == UNIT_FIGHTER, s->input.key_w_down, 0, 1, f_pct, 0.0f };
-            buttons[10] = (typeof(buttons[0])){ "X", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_x_down, 2, 0 };
+            buttons[0] = (typeof(buttons[0])){ "Q", "MINER", s->textures.miner_texture, false, s->input.key_q_down, 0, 0 };
+            buttons[1] = (typeof(buttons[0])){ "W", "FIGHTER", s->textures.fighter_texture, false, s->input.key_w_down, 0, 1 };
+            buttons[10] = (typeof(buttons[0])){ "Z", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_z_down, 2, 0 };
         }
     }
 

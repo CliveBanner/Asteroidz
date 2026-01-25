@@ -3,6 +3,7 @@
 #include "weapons.h"
 #include "utils.h"
 #include <math.h>
+#include <stdlib.h>
 
 static void UpdateCooldowns(AppState *s, int idx, float dt) {
     if (s->world.units.large_cannon_cooldown[idx] > 0)
@@ -162,7 +163,7 @@ void Abilities_Repair(AppState *s, int idx, int target_idx, float dt) {
             s->world.particles.velocity[sw_idx] = (Vec2){0,0};
             s->world.particles.life[sw_idx] = 1.2f; // Longer life for slower wave
             s->world.particles.size[sw_idx] = 100.0f; // Start small
-            s->world.particles.color[sw_idx] = (SDL_Color){0, 255, 0, 180}; // Solid green
+            s->world.particles.color[sw_idx] = (SDL_Color){0, 255, 0, 40}; // Reduced from 80
             s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
             
             s->world.units.repair_vfx_timer[idx] = 1.5f; // More delayed
@@ -235,13 +236,26 @@ void Abilities_Update(AppState *s, int idx, float dt) {
         }
         if (mothership_idx != -1) {
             float dsq = Vector_DistanceSq(s->world.units.pos[idx], s->world.units.pos[mothership_idx]);
-            float unload_range = s->world.unit_stats[UNIT_MOTHERSHIP].radius + s->world.units.stats[idx]->radius + 50.0f;
+            float unload_range = s->world.unit_stats[UNIT_MOTHERSHIP].radius + 500.0f; // Saver distance
             if (dsq <= unload_range * unload_range) {
                 float unload_rate = 500.0f; 
                 float amount = fminf(unload_rate * dt, s->world.units.current_cargo[idx]);
                 s->world.units.current_cargo[idx] -= amount;
                 s->world.stored_resources += amount;
                 s->ui.resource_accumulator += amount;
+
+                // Visual: Flowing bits to mothership
+                if (rand() % 100 < 20) {
+                    int p_idx = s->world.particle_next_idx;
+                    s->world.particles.active[p_idx] = true;
+                    s->world.particles.type[p_idx] = PARTICLE_SPARK;
+                    s->world.particles.pos[p_idx] = s->world.units.pos[idx];
+                    s->world.particles.velocity[p_idx] = Vector_Scale(Vector_Normalize(Vector_Sub(s->world.units.pos[mothership_idx], s->world.units.pos[idx])), 800.0f);
+                    s->world.particles.life[p_idx] = 0.6f;
+                    s->world.particles.size[p_idx] = 6.0f;
+                    s->world.particles.color[p_idx] = (SDL_Color){150, 255, 150, 255};
+                    s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
+                }
             }
         }
     }

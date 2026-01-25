@@ -17,19 +17,5 @@ void Renderer_GenerateAssetStep(AppState *s);
 void Renderer_DrawLoading(AppState *s);
 void Renderer_DrawLauncher(AppState *s);
 void Renderer_Draw(AppState *s);
-void Input_ProcessEvent(AppState *s, SDL_Event *event);
-
-// Math helpers
-Vec2 Vector_Add(Vec2 a, Vec2 b);
-Vec2 Vector_Sub(Vec2 a, Vec2 b);
-Vec2 Vector_Scale(Vec2 v, float s);
-float Vector_Length(Vec2 v);
-float Vector_DistanceSq(Vec2 a, Vec2 b);
-Vec2 Vector_Normalize(Vec2 v);
-float ValueNoise2D(float x, float y);
-float PerlinNoise2D(float x, float y);
-float VoronoiNoise2D(float x, float y);
-float VoronoiCracks2D(float x, float y);
-float DeterministicHash(int x, int y);
 
 #endif

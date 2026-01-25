@@ -89,13 +89,14 @@ static void UpdateSimAnchors(AppState *s, Vec2 cam_center) {
 void Game_Init(AppState *s) {
   // Mothership Stats
   s->world.unit_stats[UNIT_MOTHERSHIP] =
-      (UnitStats){.max_health = 1000.0f,
-                  .max_energy = 500.0f,
-                  .max_cargo = 2000.0f,
+      (UnitStats){.max_health = 10000.0f,
+                  .max_energy = 1000.0f,
+                  .max_cargo = 10000.0f,
                   .speed = MOTHERSHIP_SPEED,
                   .friction = MOTHERSHIP_FRICTION,
                   .radius = MOTHERSHIP_RADIUS,
                   .radar_range = MOTHERSHIP_RADAR_RANGE,
+                  .regen_rate = 0.05f,
                   .visual_scale = MOTHERSHIP_VISUAL_SCALE,
                   .main_cannon_damage = LARGE_CANNON_DAMAGE,
                   .main_cannon_range = LARGE_CANNON_RANGE,
@@ -118,6 +119,7 @@ void Game_Init(AppState *s) {
                   .friction = 3.0f,
                   .radius = 60.0f,
                   .radar_range = 4000.0f,
+                  .regen_rate = 0.08f,
                   .visual_scale = 1.2f,
                   .main_cannon_damage = 0,
                   .main_cannon_range = 0,
@@ -140,16 +142,17 @@ void Game_Init(AppState *s) {
                   .friction = 3.0f,
                   .radius = 50.0f,
                   .radar_range = 3000.0f,
+                  .regen_rate = 0.05f,
                   .visual_scale = 1.0f,
                   .production_cost = MINER_COST,
                   .production_time = MINER_BUILD_TIME,
                   .main_cannon_damage = 0,
                   .main_cannon_range = 0,
                   .main_cannon_cooldown = 0,
-                  .small_cannon_damage = 50.0f,
-                  .small_cannon_range = 800.0f,
-                  .small_cannon_cooldown = 0.8f,
-                  .small_cannon_energy_cost = 2.0f,
+                  .small_cannon_damage = 0.0f, // No attack
+                  .small_cannon_range = 0.0f,
+                  .small_cannon_cooldown = 1.0f,
+                  .small_cannon_energy_cost = 0.0f,
                   .laser_thickness = 0.2f,
                   .laser_glow_mult = 1.8f,
                   .laser_core_thickness_mult = 0.5f,
@@ -158,12 +161,13 @@ void Game_Init(AppState *s) {
   // Fighter Stats
   s->world.unit_stats[UNIT_FIGHTER] =
       (UnitStats){.max_health = 300.0f,
-                  .max_energy = 150.0f,
+                  .max_energy = 80.0f, // Less energy
                   .max_cargo = 100.0f,
                   .speed = 2000.0f,
                   .friction = 3.0f,
                   .radius = 55.0f,
                   .radar_range = 3500.0f,
+                  .regen_rate = 0.25f, // Much faster regeneration
                   .visual_scale = 1.1f,
                   .production_cost = FIGHTER_COST,
                   .production_time = FIGHTER_BUILD_TIME,
@@ -172,7 +176,7 @@ void Game_Init(AppState *s) {
                   .small_cannon_damage = 2500.0f,
                   .small_cannon_range = 3500.0f,
                   .small_cannon_cooldown = 0.25f,
-                  .small_cannon_energy_cost = 16.0f,
+                  .small_cannon_energy_cost = 10.0f, // Reduced cost
                   .laser_thickness = 0.15f,
                   .laser_glow_mult = 1.6f,
                   .laser_core_thickness_mult = 0.45f,
@@ -472,7 +476,7 @@ void Game_Update(AppState *s, float dt) {
   s->world.energy = fminf(INITIAL_ENERGY, s->world.energy + ENERGY_REGEN_RATE * dt);
   for (int i = 0; i < MAX_UNITS; i++) {
       if (s->world.units.active[i] && s->world.units.type[i] != UNIT_MOTHERSHIP) {
-          float regen = s->world.units.stats[i]->max_energy * 0.05f; // 5% per second
+          float regen = s->world.units.stats[i]->max_energy * s->world.units.stats[i]->regen_rate;
           s->world.units.energy[i] = fminf(s->world.units.stats[i]->max_energy, s->world.units.energy[i] + regen * dt);
       }
   }
@@ -564,10 +568,17 @@ void Game_Update(AppState *s, float dt) {
               for (int u = 0; u < MAX_UNITS; u++) { if (!s->world.units.active[u]) { new_idx = u; break; } }
               
               if (new_idx != -1) {
+                  float spawn_angle = (float)(rand() % 360) * 0.0174533f;
+                  float spawn_dist = s->world.units.stats[i]->radius + 150.0f + ((float)rand()/(float)RAND_MAX) * 200.0f;
+                  Vec2 spawn_pos = {
+                      s->world.units.pos[i].x + cosf(spawn_angle) * spawn_dist,
+                      s->world.units.pos[i].y + sinf(spawn_angle) * spawn_dist
+                  };
+
                   s->world.units.active[new_idx] = true;
                   s->world.units.type[new_idx] = target_type;
                   s->world.units.stats[new_idx] = &s->world.unit_stats[target_type];
-                  s->world.units.pos[new_idx] = s->world.units.pos[i];
+                  s->world.units.pos[new_idx] = spawn_pos;
                   s->world.units.velocity[new_idx] = (Vec2){0,0};
                   s->world.units.rotation[new_idx] = s->world.units.rotation[i];
                   s->world.units.health[new_idx] = s->world.units.stats[new_idx]->max_health;
@@ -582,6 +593,8 @@ void Game_Update(AppState *s, float dt) {
                   s->world.units.production_mode[new_idx] = UNIT_TYPE_COUNT;
                   for(int c=0; c<4; c++) s->world.units.small_target_idx[new_idx][c] = -1;
                   s->world.unit_count++;
+                  
+                  Particles_SpawnTeleport(s, spawn_pos, s->world.units.stats[new_idx]->radius * 2.0f);
                   
                   s->world.units.production_timer[i] = 0.0f; // Reset for next loop
                   UI_SetError(s, "UNIT READY");
@@ -646,7 +659,8 @@ void Game_Update(AppState *s, float dt) {
         for (int g = 0; g < 10; g++) s->selection.group_members[g][i] = false;
         if (s->selection.primary_unit_idx == i) s->selection.primary_unit_idx = -1;
 
-        Particles_SpawnExplosion(s, s->world.units.pos[i], 50, s->world.units.stats[i]->visual_scale * 2.0f, EXPLOSION_COLLISION, 0);
+        Particles_SpawnExplosion(s, s->world.units.pos[i], 120, s->world.units.stats[i]->visual_scale * 3.0f, EXPLOSION_COLLISION, 0);
+        Physics_AreaDamage(s, s->world.units.pos[i], s->world.units.stats[i]->radius * 5.0f, s->world.units.stats[i]->max_health * 0.5f, i);
         
         if (s->world.units.type[i] == UNIT_MOTHERSHIP) {
             UI_SetError(s, "MOTHERSHIP DESTROYED!");

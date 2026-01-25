@@ -64,6 +64,30 @@ static float SolveCollision(Vec2 *p1, Vec2 *v1, float r1, Vec2 *p2, Vec2 *v2, fl
     return 0;
 }
 
+void Physics_AreaDamage(AppState *s, Vec2 pos, float range, float damage, int exclude_unit_idx) {
+    float range_sq = range * range;
+    // Damage units
+    for (int i = 0; i < MAX_UNITS; i++) {
+        if (!s->world.units.active[i] || i == exclude_unit_idx) continue;
+        float dsq = Vector_DistanceSq(pos, s->world.units.pos[i]);
+        if (dsq < range_sq) {
+            float dist = sqrtf(dsq);
+            float falloff = 1.0f - (dist / range);
+            s->world.units.health[i] -= damage * falloff;
+        }
+    }
+    // Damage asteroids
+    for (int i = 0; i < MAX_ASTEROIDS; i++) {
+        if (!s->world.asteroids.active[i]) continue;
+        float dsq = Vector_DistanceSq(pos, s->world.asteroids.pos[i]);
+        if (dsq < range_sq) {
+            float dist = sqrtf(dsq);
+            float falloff = 1.0f - (dist / range);
+            s->world.asteroids.health[i] -= damage * falloff * 0.5f;
+        }
+    }
+}
+
 void Physics_HandleCollisions(AppState *s, float dt) {
   (void)dt;
   // 1. Asteroid vs Asteroid
@@ -118,8 +142,19 @@ void Physics_HandleCollisions(AppState *s, float dt) {
           if (!s->world.asteroids.active[j]) continue;
           float imp = SolveCollision(&s->world.units.pos[i], &s->world.units.velocity[i], s->world.units.stats[i]->radius,
                          &s->world.asteroids.pos[j], &s->world.asteroids.velocity[j], s->world.asteroids.radius[j], true, false);
-          if (imp > 50.0f) {
-              s->world.units.health[i] -= imp * 0.05f; 
+          if (imp > 10.0f) { // Lower threshold for explosion
+              s->world.units.health[i] -= imp * 0.5f; // Units take more damage from collisions
+              
+              // Asteroid explodes on unit collision
+              float rad = s->world.asteroids.radius[j];
+              Vec2 pos = s->world.asteroids.pos[j];
+              int tex = s->world.asteroids.tex_idx[j];
+              
+              s->world.asteroids.active[j] = false;
+              s->world.asteroid_count--;
+              
+              Particles_SpawnExplosion(s, pos, 40, rad / 200.0f, EXPLOSION_COLLISION, tex);
+              Physics_AreaDamage(s, pos, rad * 2.5f, rad * 50.0f, -1);
           }
       }
       // vs Resources

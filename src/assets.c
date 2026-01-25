@@ -230,36 +230,44 @@ void DrawMothershipToBuffer(Uint32 *pixels, int size, float seed) {
 
 void DrawMinerToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
+    float p_sz = size / 16.0f; // Pixel size for grid
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             float dx = (float)(x - center) / (size/2.0f);
             float dy = (float)(y - center) / (size/2.0f);
             float adx = fabsf(dx), ady = fabsf(dy);
             
+            // Quantize for pixel look
+            float qx = floorf(x / p_sz) * p_sz;
+            float qy = floorf(y / p_sz) * p_sz;
+            float qdx = (qx - center) / (size/2.0f);
+            float qdy = (qy - center) / (size/2.0f);
+            float aqdx = fabsf(qdx), aqdy = fabsf(qdy);
+
             // Industrial/Boxy shape
-            bool body = (adx < 0.6f && ady < 0.8f) || (adx < 0.8f && ady < 0.4f);
-            // Cockpit
-            bool cockpit = (dy < -0.4f && dy > -0.7f && adx < 0.3f);
-            // Engines
-            bool engine = (dy > 0.6f && dy < 0.9f && adx > 0.3f && adx < 0.6f);
-            // Drill bits (front)
-            bool drill = (dy < -0.7f && dy > -0.95f && adx < 0.2f && fmodf(dy * 20.0f, 1.0f) > 0.5f);
+            bool body = (aqdx < 0.6f && aqdy < 0.7f) || (aqdx < 0.8f && aqdy < 0.4f);
+            bool cockpit = (qdy < -0.3f && qdy > -0.6f && aqdx < 0.35f);
+            bool engine = (qdy > 0.5f && qdy < 0.85f && aqdx > 0.3f && aqdx < 0.7f);
+            bool drill = (qdy < -0.6f && qdy > -0.9f && aqdx < 0.25f);
 
             if (body || cockpit || engine || drill) {
                 Uint8 r = 0, g = 0, b = 0;
-                float shade = 1.0f - (adx * 0.5f + ady * 0.2f);
+                float shade = 1.0f - (aqdx * 0.3f + aqdy * 0.1f);
                 
-                if (drill) { r = 200; g = 200; b = 200; shade *= 1.2f; }
-                else if (cockpit) { r = 50; g = 200; b = 255; shade = 1.0f; }
-                else if (engine) { r = 100; g = 100; b = 100; }
-                else { // Main Body - Yellow/Orange industrial
-                    r = 220; g = 180; b = 50; 
-                    if (adx < 0.1f || ady < 0.1f) { r -= 30; g -= 30; b -= 30; } // Panel lines
+                if (cockpit) { r = 40; g = 180; b = 255; shade = 1.1f; }
+                else if (drill) { r = 180; g = 180; b = 180; if (fmodf(qy, p_sz*2) < p_sz) shade *= 0.7f; }
+                else if (engine) { r = 100; g = 100; b = 100; if (qdy > 0.7f) { r = 255; g = 150; b = 50; } }
+                else { // Main Body
+                    r = 240; g = 170; b = 20; 
+                    if (aqdx > 0.5f || aqdy > 0.6f) { r -= 40; g -= 40; b -= 40; }
                 }
 
-                r = QUANTIZE((Uint8)(r * shade));
-                g = QUANTIZE((Uint8)(g * shade));
-                b = QUANTIZE((Uint8)(b * shade));
+                // Pixel edges / outline
+                if (fmodf(x, p_sz) < 1.0f || fmodf(y, p_sz) < 1.0f) { shade *= 0.85f; }
+
+                r = QUANTIZE((Uint8)SDL_clamp(r * shade, 0, 255));
+                g = QUANTIZE((Uint8)SDL_clamp(g * shade, 0, 255));
+                b = QUANTIZE((Uint8)SDL_clamp(b * shade, 0, 255));
                 pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
             }
         }
@@ -268,37 +276,41 @@ void DrawMinerToBuffer(Uint32 *pixels, int size, float seed) {
 
 void DrawFighterToBuffer(Uint32 *pixels, int size, float seed) {
     int center = size / 2;
+    float p_sz = size / 16.0f;
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             float dx = (float)(x - center) / (size/2.0f);
             float dy = (float)(y - center) / (size/2.0f);
-            float adx = fabsf(dx);
             
-            // Triangular/Sleek shape
-            // Main fuselage
-            bool body = (adx < (0.8f - (dy + 1.0f) * 0.4f) && dy > -0.8f && dy < 0.8f);
-            // Wings
-            bool wings = (dy > 0.2f && dy < 0.7f && adx < (0.9f - (dy - 0.2f)));
-            // Cockpit
-            bool cockpit = (dy > -0.2f && dy < 0.1f && adx < 0.15f);
-            // Engine glow
-            bool engine = (dy > 0.8f && dy < 0.95f && adx < 0.2f);
+            float qx = floorf(x / p_sz) * p_sz;
+            float qy = floorf(y / p_sz) * p_sz;
+            float qdx = (qx - center) / (size/2.0f);
+            float qdy = (qy - center) / (size/2.0f);
+            float aqdx = fabsf(qdx);
+            
+            // Sleek Arrow
+            bool body = (aqdx < (0.7f - (qdy + 0.8f) * 0.5f) && qdy > -0.9f && qdy < 0.7f);
+            bool wings = (qdy > 0.1f && qdy < 0.6f && aqdx < (0.95f - (qdy - 0.1f) * 0.4f));
+            bool cockpit = (qdy > -0.4f && qdy < -0.1f && aqdx < 0.2f);
+            bool engine = (qdy > 0.7f && qdy < 0.9f && aqdx < 0.35f);
 
             if (body || wings || cockpit || engine) {
                 Uint8 r = 0, g = 0, b = 0;
-                float shade = 1.0f - (adx + (dy + 1.0f) * 0.2f) * 0.5f;
+                float shade = 1.0f - (aqdx * 0.4f + (qdy + 1.0f) * 0.1f);
 
-                if (engine) { r = 255; g = 100; b = 50; shade = 1.2f; }
-                else if (cockpit) { r = 100; g = 255; b = 255; shade = 1.0f; }
-                else { // Hull - Red/Grey
-                    r = 180; g = 60; b = 60;
-                    if (wings) { r = 140; g = 50; b = 50; }
-                    if (adx < 0.05f) { r += 40; g += 40; b += 40; } // Spine
+                if (cockpit) { r = 80; g = 255; b = 255; shade = 1.1f; }
+                else if (engine) { r = 255; g = 80; b = 40; if (qdy > 0.8f) shade *= 1.3f; }
+                else { // Hull
+                    r = 200; g = 40; b = 40;
+                    if (wings) { r = 160; g = 30; b = 30; }
+                    if (aqdx < 0.15f) { r += 50; g += 30; b += 30; }
                 }
 
-                r = QUANTIZE((Uint8)fminf(255, r * shade));
-                g = QUANTIZE((Uint8)fminf(255, g * shade));
-                b = QUANTIZE((Uint8)fminf(255, b * shade));
+                if (fmodf(x, p_sz) < 1.0f || fmodf(y, p_sz) < 1.0f) { shade *= 0.9f; }
+
+                r = QUANTIZE((Uint8)SDL_clamp(r * shade, 0, 255));
+                g = QUANTIZE((Uint8)SDL_clamp(g * shade, 0, 255));
+                b = QUANTIZE((Uint8)SDL_clamp(b * shade, 0, 255));
                 pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
             }
         }
@@ -351,54 +363,50 @@ void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
 
 void DrawIconToBuffer(Uint32 *pixels, int size, int type) {
     int center = size / 2;
+    float p_sz = size / 8.0f; // Large pixels for icons (8x8 grid)
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
-            float dx = (float)(x - center) / (size/2.0f);
-            float dy = (float)(y - center) / (size/2.0f);
-            float adx = fabsf(dx), ady = fabsf(dy);
+            float qx = floorf(x / p_sz) * p_sz;
+            float qy = floorf(y / p_sz) * p_sz;
+            float qdx = (qx + p_sz*0.5f - center) / (size/2.0f);
+            float qdy = (qy + p_sz*0.5f - center) / (size/2.0f);
+            float aqdx = fabsf(qdx), aqdy = fabsf(qdy);
             bool fill = false;
             
             if (type == ICON_MOVE) {
-                // Arrow
-                fill = (dy > -0.6f && dy < 0.6f && adx < 0.2f) || (dy < -0.4f && ady < 0.8f && adx < (0.8f - (1.0f + dy)));
+                fill = (aqdx < 0.2f && qdy < 0.6f && qdy > -0.4f) || (qdy < -0.2f && aqdx < (0.8f + qdy));
             } else if (type == ICON_ATTACK) {
-                // Crosshair
-                float dist = sqrtf(dx*dx + dy*dy);
-                fill = (dist > 0.6f && dist < 0.8f) || (adx < 0.1f && ady > 0.3f) || (ady < 0.1f && adx > 0.3f) || (dist < 0.1f);
+                float dist = sqrtf(qdx*qdx + qdy*qdy);
+                fill = (dist > 0.5f && dist < 0.85f && (aqdx < 0.2f || aqdy < 0.2f)) || (dist < 0.25f);
             } else if (type == ICON_PATROL) {
-                // Loop
-                float dist = sqrtf(dx*dx + dy*dy);
-                fill = (dist > 0.5f && dist < 0.7f && !(dx > 0.2f && dy < 0.2f && dy > -0.2f));
-                if (dx > 0.4f && dy < 0.1f && dy > -0.3f && adx < 0.2f) fill = true; // Arrowhead attempt
+                float dist = sqrtf(qdx*qdx + qdy*qdy);
+                fill = (dist > 0.45f && dist < 0.85f && !(qdx > 0.3f && qdy > -0.2f && qdy < 0.2f));
+                if (qdx > 0.4f && qdy > 0.0f && qdy < 0.5f) fill = true; 
             } else if (type == ICON_STOP) {
-                // Square
-                fill = (adx < 0.5f && ady < 0.5f);
+                fill = (aqdx < 0.65f && aqdy < 0.65f);
             } else if (type == ICON_OFFENSIVE) {
-                // Sword-like
-                fill = (adx < 0.1f && dy > -0.7f && dy < 0.7f) || (dy > 0.4f && dy < 0.5f && adx < 0.4f);
+                fill = (aqdx < 0.25f && qdy > -0.8f && qdy < 0.5f) || (qdy > 0.5f && qdy < 0.8f && aqdx < 0.5f);
             } else if (type == ICON_DEFENSIVE) {
-                // Shield
-                fill = (dy > -0.5f && dy < 0.2f && adx < 0.6f) || (dy >= 0.2f && dy < 0.8f && adx < (0.6f - (dy-0.2f)));
+                fill = (qdy > -0.7f && qdy < 0.2f && aqdx < 0.7f) || (qdy >= 0.2f && qdy < 0.9f && aqdx < (0.7f - (qdy-0.2f)));
             } else if (type == ICON_HOLD) {
-                // Hand / Palm
-                fill = (ady < 0.5f && adx < 0.4f);
+                fill = (aqdy < 0.4f && aqdx < 0.6f) || (qdy < -0.3f && aqdx < 0.3f);
             } else if (type == ICON_MAIN_CANNON) {
-                // Big Circle
-                float dist = sqrtf(dx*dx + dy*dy);
-                fill = (dist < 0.8f);
+                float dist = sqrtf(qdx*qdx + qdy*qdy);
+                fill = (dist < 0.85f);
+                if (dist < 0.4f) fill = false;
             } else if (type == ICON_BACK) {
-                // Back Arrow
-                fill = (adx < 0.6f && ady < 0.2f) || (dx < -0.4f && ady < 0.5f && adx > (0.4f + ady));
+                fill = (aqdy < 0.25f && qdx < 0.6f && qdx > -0.6f) || (qdx < -0.3f && aqdy < (0.7f + qdx));
             } else if (type == ICON_GATHER) {
-                // Crystal/Gem shape
-                fill = (ady + adx < 0.7f);
+                fill = (aqdy + aqdx < 0.9f);
             } else if (type == ICON_RETURN) {
-                // Upward arrow to "return"
-                fill = (adx < 0.2f && dy > -0.4f && dy < 0.6f) || (dy < -0.2f && adx < (0.6f - fabsf(dy + 0.5f)));
+                fill = (aqdx < 0.25f && qdy > -0.5f && qdy < 0.7f) || (qdy < -0.3f && aqdx < (0.8f + qdy));
             }
 
             if (fill) {
-                pixels[y * size + x] = 0xFFFFFFFF; // White
+                Uint8 r = 255, g = 255, b = 255;
+                // Add some subtle pixel-shading
+                if (fmodf(x, p_sz) > p_sz*0.7f || fmodf(y, p_sz) > p_sz*0.7f) { r = 200; g = 200; b = 200; }
+                pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
             }
         }
     }

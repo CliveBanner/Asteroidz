@@ -8,7 +8,7 @@ int AI_UnitTargetingThread(void *data) {
   AppState *s = (AppState *)data;
   while (SDL_GetAtomicInt(&s->threads.bg_should_quit) == 0) {
     for (int i = 0; i < MAX_UNITS; i++) {
-        if (!s->world.units.active[i]) continue;
+        if (!s->world.units.active[i] || s->world.units.type[i] == UNIT_MINER) continue;
         int best_s[4] = {-1, -1, -1, -1};
         int manual_target = -1;
         
@@ -281,7 +281,7 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
         }
         
         if (cur_cmd->type == CMD_RETURN_CARGO) {
-            stop_dist = s->world.unit_stats[UNIT_MOTHERSHIP].radius + s->world.units.stats[i]->radius + 20.0f;
+            stop_dist = s->world.unit_stats[UNIT_MOTHERSHIP].radius + 400.0f;
         }
 
         if (dsq > stop_dist * stop_dist) {

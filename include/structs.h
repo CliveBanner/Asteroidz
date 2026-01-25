@@ -33,6 +33,7 @@ typedef struct {
     float friction;
     float radius;
     float radar_range;
+    float regen_rate;
     float visual_scale;
     float production_cost;
     float production_time;
@@ -70,6 +71,7 @@ typedef enum {
 } TacticalBehavior;
 
 typedef enum {
+    CMD_IDLE,
     CMD_MOVE,
     CMD_ATTACK_MOVE,
     CMD_PATROL,

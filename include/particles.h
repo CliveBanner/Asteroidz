@@ -12,6 +12,9 @@ void Particles_SpawnLaserFlash(AppState *s, Vec2 pos, float size, SDL_Color colo
 // Spawns enhanced mining effects (sparks and resource stream)
 void Particles_SpawnMiningEffect(AppState *s, Vec2 crystal_pos, Vec2 unit_pos, float intensity);
 
+// Spawns a teleport-in effect
+void Particles_SpawnTeleport(AppState *s, Vec2 pos, float size);
+
 // Updates all active particles
 void Particles_Update(AppState *s, float dt);
 

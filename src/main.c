@@ -1,6 +1,7 @@
 #define SDL_MAIN_USE_CALLBACKS 1
 #include "constants.h"
 #include "game.h"
+#include "input.h"
 #include "ai.h"
 #include "assets.h"
 #include "ui.h"

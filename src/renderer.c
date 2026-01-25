@@ -225,7 +225,7 @@ static void Renderer_DrawParticles(SDL_Renderer *r, const AppState *s, int win_w
         float g_f = s->world.particles.color[i].g / 255.0f;
         float b_f = s->world.particles.color[i].b / 255.0f;
         SDL_FColor center = { r_f, g_f, b_f, 0.0f }; 
-        SDL_FColor edge = { r_f, g_f, b_f, a_f * 0.5f };
+        SDL_FColor edge = { r_f, g_f, b_f, a_f * 0.12f }; // Reduced from 0.25f
         DrawGradientCircle(r, sx_y.x, sx_y.y, sz, center, edge);
         SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     }
@@ -504,9 +504,9 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                       }
                   }
                   
-                  // 1. Repair Range Indicator (Miners)
-                  if (s->world.units.type[i] == UNIT_MINER) {
-                      SDL_SetRenderDrawColor(r, 0, 255, 0, 40);
+                  // 1. Repair Range Indicator (Miners) - Only when grid is active
+                  if (s->world.units.type[i] == UNIT_MINER && s->input.show_grid) {
+                      SDL_SetRenderDrawColor(r, 0, 255, 0, 15); // More transparent (25 -> 15)
                       Utils_DrawCircle(r, sx_y.x, sx_y.y, 800.0f * s->camera.zoom, 32);
                   }
 
@@ -596,9 +596,20 @@ void Renderer_Draw(AppState *s) {
   if (s->textures.bg_texture) SDL_RenderTexture(s->renderer, s->textures.bg_texture, NULL, NULL);
   DrawParallaxLayer(s->renderer, s, ww, wh, 512, 0.1f, 0, StarLayerFn); DrawParallaxLayer(s->renderer, s, ww, wh, SYSTEM_LAYER_CELL_SIZE, SYSTEM_LAYER_PARALLAX, 1000, SystemLayerFn);
   if (s->input.show_grid) DrawGrid(s->renderer, s, ww, wh);
-  if (s->input.pending_input_type == INPUT_TARGET) {
+  if (s->input.pending_input_type == INPUT_TARGET || s->input.pending_cmd_type != CMD_IDLE) {
       float wx = s->camera.pos.x + s->input.mouse_pos.x / s->camera.zoom;
       float wy = s->camera.pos.y + s->input.mouse_pos.y / s->camera.zoom;
+      
+      SDL_Color ring_col = {255, 255, 255, 200};
+      if (s->input.pending_cmd_type == CMD_ATTACK_MOVE) ring_col = (SDL_Color){255, 50, 50, 200};
+      else if (s->input.pending_cmd_type == CMD_PATROL) ring_col = (SDL_Color){100, 100, 255, 200};
+      else if (s->input.pending_cmd_type == CMD_MAIN_CANNON) ring_col = (SDL_Color){255, 255, 0, 200};
+
+      // Draw a targeting cursor at mouse position
+      float pulse = 0.7f + 0.3f * sinf(s->current_time * 15.0f);
+      ring_col.a = (Uint8)(ring_col.a * pulse);
+      DrawTargetRing(s->renderer, s->input.mouse_pos.x, s->input.mouse_pos.y, 15.0f, ring_col);
+
       for (int a = 0; a < MAX_ASTEROIDS; a++) {
           if (!s->world.asteroids.active[a]) continue;
           float dx = s->world.asteroids.pos[a].x - wx, dy = s->world.asteroids.pos[a].y - wy;
@@ -606,9 +617,7 @@ void Renderer_Draw(AppState *s) {
           if (dx*dx + dy*dy < hit_r * hit_r) {
               Vec2 as = WorldToScreenParallax(s->world.asteroids.pos[a], 1.0f, s, ww, wh);
               float ring_r = (s->world.asteroids.radius[a] * ASTEROID_HITBOX_MULT * 1.1f) * s->camera.zoom;
-              float pulse = 0.7f + 0.3f * sinf(s->current_time * 15.0f);
-              SDL_Color col = {255, 255, 255, (Uint8)(200 * pulse)};
-              DrawTargetRing(s->renderer, as.x, as.y, ring_r, col);
+              DrawTargetRing(s->renderer, as.x, as.y, ring_r, ring_col);
               break;
           }
       }
