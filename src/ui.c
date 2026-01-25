@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <math.h>
 
+void UI_SetError(AppState *s, const char *msg) {
+    SDL_strlcpy(s->ui.ui_error_msg, msg, sizeof(s->ui.ui_error_msg));
+    s->ui.ui_error_timer = 2.0f;
+    LogTransaction(s, 0.0f, msg);
+}
+
 void UI_DrawLauncher(AppState *s) {
     int w, h; SDL_GetRenderOutputSize(s->renderer, &w, &h);
     SDL_SetRenderDrawColor(s->renderer, 10, 10, 20, 255); SDL_RenderClear(s->renderer);
@@ -81,8 +87,19 @@ void UI_DrawHUD(AppState *s) {
     }
     
     if (s->ui.ui_error_timer > 0) {
+        float scale = 2.0f;
+        SDL_SetRenderScale(s->renderer, scale, scale);
+        float tw = (float)SDL_strlen(s->ui.ui_error_msg) * 8.0f;
+        float tx = (ww / scale - tw) / 2.0f;
+        float ty = (wh / scale) / 2.0f;
+        
+        // Background for error
+        SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 180);
+        SDL_RenderFillRect(s->renderer, &(SDL_FRect){tx - 4, ty - 4, tw + 8, 16});
+        
         SDL_SetRenderDrawColor(s->renderer, 255, 50, 50, 255);
-        SDL_RenderDebugText(s->renderer, (ww - (SDL_strlen(s->ui.ui_error_msg) * 8)) / 2.0f, wh / 2.0f, s->ui.ui_error_msg);
+        SDL_RenderDebugText(s->renderer, tx, ty, s->ui.ui_error_msg);
+        SDL_SetRenderScale(s->renderer, 1.0f, 1.0f);
     }
 
     // --- All Units Display (Top Center) ---

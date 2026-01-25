@@ -1,5 +1,6 @@
 #include "constants.h"
 #include "game.h"
+#include "ui.h"
 #include "persistence.h"
 #include <math.h>
 #include <stdio.h>
@@ -98,17 +99,17 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
         else if (s->input.hover_resource_idx != -1) { type = CMD_GATHER; target_a = s->input.hover_resource_idx; }
         else type = (target_a != -1) ? CMD_ATTACK_MOVE : CMD_MOVE;
         
-        if (type == CMD_MAIN_CANNON && target_a == -1) { snprintf(s->ui.ui_error_msg, 128, "TARGET REQUIRED"); s->ui.ui_error_timer = 1.0f; return; }
+        if (type == CMD_MAIN_CANNON && target_a == -1) { UI_SetError(s, "TARGET REQUIRED"); return; }
         for (int i = 0; i < MAX_UNITS; i++) {
             if (!s->world.units.active[i] || !s->selection.unit_selected[i]) continue;
             if (type == CMD_MAIN_CANNON) {
-                if (s->world.units.large_cannon_cooldown[i] > 0) { snprintf(s->ui.ui_error_msg, 128, "MAIN CANNON COOLDOWN"); s->ui.ui_error_timer = 1.5f; continue; }
+                if (s->world.units.large_cannon_cooldown[i] > 0) { UI_SetError(s, "MAIN CANNON COOLDOWN"); continue; }
                 if (s->world.units.type[i] == UNIT_MOTHERSHIP && target_a != -1) s->world.units.large_target_idx[i] = target_a;
                 continue;
             }
             if (type == CMD_GATHER) {
                 if (s->world.units.current_cargo[i] >= s->world.units.stats[i]->max_cargo) {
-                    snprintf(s->ui.ui_error_msg, 128, "CARGO FULL"); s->ui.ui_error_timer = 1.0f;
+                    UI_SetError(s, "CARGO FULL");
                     continue;
                 }
             }
@@ -193,8 +194,8 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_C) s->input.key_c_down = true;
     if (event->key.key == SDLK_G) s->input.show_grid = !s->input.show_grid;
     if (event->key.key == SDLK_D) s->input.show_density = !s->input.show_density;
-    if (event->key.key == SDLK_K) { if (Persistence_SaveGame(s, "savegame.dat")) { snprintf(s->ui.ui_error_msg, 128, "GAME SAVED"); s->ui.ui_error_timer = 1.5f; } else { snprintf(s->ui.ui_error_msg, 128, "SAVE FAILED"); s->ui.ui_error_timer = 1.5f; } }
-    if (event->key.key == SDLK_L) { if (Persistence_LoadGame(s, "savegame.dat")) { snprintf(s->ui.ui_error_msg, 128, "GAME LOADED"); s->ui.ui_error_timer = 1.5f; } else { snprintf(s->ui.ui_error_msg, 128, "LOAD FAILED"); s->ui.ui_error_timer = 1.5f; } }
+    if (event->key.key == SDLK_K) { if (Persistence_SaveGame(s, "savegame.dat")) { UI_SetError(s, "GAME SAVED"); } else { UI_SetError(s, "SAVE FAILED"); } }
+    if (event->key.key == SDLK_L) { if (Persistence_LoadGame(s, "savegame.dat")) { UI_SetError(s, "GAME LOADED"); } else { UI_SetError(s, "LOAD FAILED"); } }
     break;
   case SDL_EVENT_KEY_UP:
     if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) { s->input.shift_down = false; s->input.pending_input_type = INPUT_NONE; }

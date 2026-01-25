@@ -1,10 +1,12 @@
 #include "game.h"
+#include "ui.h"
 #include "constants.h"
 #include "particles.h"
 #include "physics.h"
 #include "utils.h"
 #include "weapons.h"
 #include "abilities.h"
+#include "ai.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,9 +131,58 @@ void Game_Init(AppState *s) {
                   .laser_core_thickness_mult = 0.4f,
                   .laser_start_offset_mult = 5.0f};
 
+  // Miner Stats
+  s->world.unit_stats[UNIT_MINER] =
+      (UnitStats){.max_health = 150.0f,
+                  .max_energy = 80.0f,
+                  .max_cargo = 1000.0f,
+                  .speed = 1200.0f,
+                  .friction = 3.0f,
+                  .radius = 50.0f,
+                  .radar_range = 3000.0f,
+                  .visual_scale = 1.0f,
+                  .production_cost = MINER_COST,
+                  .production_time = MINER_BUILD_TIME,
+                  .main_cannon_damage = 0,
+                  .main_cannon_range = 0,
+                  .main_cannon_cooldown = 0,
+                  .small_cannon_damage = 50.0f,
+                  .small_cannon_range = 800.0f,
+                  .small_cannon_cooldown = 0.8f,
+                  .small_cannon_energy_cost = 2.0f,
+                  .laser_thickness = 0.2f,
+                  .laser_glow_mult = 1.8f,
+                  .laser_core_thickness_mult = 0.5f,
+                  .laser_start_offset_mult = 4.0f};
+
+  // Fighter Stats
+  s->world.unit_stats[UNIT_FIGHTER] =
+      (UnitStats){.max_health = 300.0f,
+                  .max_energy = 150.0f,
+                  .max_cargo = 100.0f,
+                  .speed = 2000.0f,
+                  .friction = 3.0f,
+                  .radius = 55.0f,
+                  .radar_range = 3500.0f,
+                  .visual_scale = 1.1f,
+                  .production_cost = FIGHTER_COST,
+                  .production_time = FIGHTER_BUILD_TIME,
+                  .main_cannon_damage = 0,
+                  .main_cannon_range = 0,
+                  .main_cannon_cooldown = 0,
+                  .small_cannon_damage = 300.0f,
+                  .small_cannon_range = 2000.0f,
+                  .small_cannon_cooldown = 0.25f,
+                  .small_cannon_energy_cost = 8.0f,
+                  .laser_thickness = 0.15f,
+                  .laser_glow_mult = 1.6f,
+                  .laser_core_thickness_mult = 0.45f,
+                  .laser_start_offset_mult = 4.5f};
+
   SDL_memset(&s->world.units, 0, sizeof(UnitPool));
   s->world.unit_count = 0;
   s->world.energy = INITIAL_ENERGY;
+  s->world.stored_resources = 500.0f; // Starting resources
 
   // Clear asteroids
   SDL_memset(&s->world.asteroids, 0, sizeof(AsteroidPool));
@@ -386,6 +437,19 @@ void Game_Update(AppState *s, float dt) {
   if (s->ui.ui_error_timer > 0)
     s->ui.ui_error_timer -= dt;
 
+  // Transaction Log Update
+  s->ui.resource_log_timer -= dt;
+  if (s->ui.resource_log_timer <= 0) {
+      if (s->ui.resource_accumulator > 1.0f) {
+          LogTransaction(s, s->ui.resource_accumulator, "Resource Gathered");
+          s->ui.resource_accumulator = 0;
+      }
+      s->ui.resource_log_timer = 1.0f; // Log every 1s if gain > 0
+  }
+  for (int i = 0; i < MAX_LOGS; i++) {
+      if (s->ui.transaction_log[i].life > 0) s->ui.transaction_log[i].life -= dt;
+  }
+
   Vec2 cam_center = {s->camera.pos.x + (win_w / 2.0f) / s->camera.zoom,
                      s->camera.pos.y + (win_h / 2.0f) / s->camera.zoom};
   float move_speed = CAMERA_SPEED / s->camera.zoom;
@@ -405,6 +469,111 @@ void Game_Update(AppState *s, float dt) {
   for (int i = 0; i < MAX_ASTEROIDS; i++) s->world.asteroids.targeted[i] = false;
 
   UpdateRadar(s);
+
+  // Menu Navigation & Production
+  if (s->input.key_x_down && s->ui.ui_error_timer <= 0) {
+      s->input.key_x_down = false; // Consume input
+      bool has_mothership = false;
+      for (int i = 0; i < MAX_UNITS; i++) {
+          if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
+              has_mothership = true; break;
+          }
+      }
+      
+      if (has_mothership) {
+          if (s->ui.menu_state == 0) s->ui.menu_state = 1; // Open Build Menu
+          else s->ui.menu_state = 0; // Close Build Menu
+      }
+  }
+
+  if (s->ui.menu_state == 1) {
+      // Production: Q for Miner
+      if (s->input.key_q_down && s->ui.ui_error_timer <= 0) {
+          s->input.key_q_down = false;
+          for (int i = 0; i < MAX_UNITS; i++) {
+              if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
+                  if (s->world.stored_resources >= MINER_COST) {
+                      if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
+                          s->world.stored_resources -= MINER_COST;
+                          LogTransaction(s, -MINER_COST, "Miner Queued");
+                          s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_MINER;
+                          UI_SetError(s, "MINER QUEUED");
+                      } else { UI_SetError(s, "QUEUE FULL"); }
+                  } else { UI_SetError(s, "INSUFFICIENT RESOURCES"); }
+                  break;
+              }
+          }
+      }
+      // Production: W for Fighter
+      if (s->input.key_w_down && s->ui.ui_error_timer <= 0) {
+          s->input.key_w_down = false;
+          for (int i = 0; i < MAX_UNITS; i++) {
+              if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) {
+                  if (s->world.stored_resources >= FIGHTER_COST) {
+                      if (s->world.units.production_count[i] < MAX_PRODUCTION_QUEUE) {
+                          s->world.stored_resources -= FIGHTER_COST;
+                          LogTransaction(s, -FIGHTER_COST, "Fighter Queued");
+                          s->world.units.production_queue[i][s->world.units.production_count[i]++] = UNIT_FIGHTER;
+                          UI_SetError(s, "FIGHTER QUEUED");
+                      } else { UI_SetError(s, "QUEUE FULL"); }
+                  } else { UI_SetError(s, "INSUFFICIENT RESOURCES"); }
+                  break;
+              }
+          }
+      }
+  }
+
+  // Update Production Queues
+  for (int i = 0; i < MAX_UNITS; i++) {
+      if (s->world.units.active[i] && s->world.units.production_count[i] > 0) {
+          s->world.units.production_timer[i] += dt;
+          UnitType current_prod = s->world.units.production_queue[i][0];
+          float build_time = s->world.unit_stats[current_prod].production_time;
+          
+          if (s->world.units.production_timer[i] >= build_time) {
+              // Spawn Unit
+              if (s->world.unit_count < MAX_UNITS) {
+                  int new_idx = -1;
+                  for (int u = 0; u < MAX_UNITS; u++) { if (!s->world.units.active[u]) { new_idx = u; break; } }
+                  
+                  if (new_idx != -1) {
+                      s->world.units.active[new_idx] = true;
+                      s->world.units.type[new_idx] = current_prod;
+                      s->world.units.stats[new_idx] = &s->world.unit_stats[current_prod];
+                      s->world.units.pos[new_idx] = s->world.units.pos[i]; // Spawn at factory pos
+                      s->world.units.velocity[new_idx] = (Vec2){0,0}; // Eject velocity?
+                      s->world.units.rotation[new_idx] = s->world.units.rotation[i];
+                      s->world.units.health[new_idx] = s->world.units.stats[new_idx]->max_health;
+                      s->world.units.energy[new_idx] = s->world.units.stats[new_idx]->max_energy;
+                      s->world.units.current_cargo[new_idx] = 0.0f;
+                      s->world.units.behavior[new_idx] = BEHAVIOR_DEFENSIVE;
+                      s->world.units.command_count[new_idx] = 0;
+                      s->world.units.command_current_idx[new_idx] = 0;
+                      s->world.units.has_target[new_idx] = false;
+                      s->world.units.large_target_idx[new_idx] = -1;
+                      s->world.units.mining_cooldown[new_idx] = 0.0f;
+                      for(int c=0; c<4; c++) s->world.units.small_target_idx[new_idx][c] = -1;
+                      s->world.unit_count++;
+                      
+                      // Shift Queue
+                      for(int q=0; q < s->world.units.production_count[i]-1; q++) {
+                          s->world.units.production_queue[i][q] = s->world.units.production_queue[i][q+1];
+                      }
+                      s->world.units.production_count[i]--;
+                      s->world.units.production_timer[i] = 0.0f;
+                      
+                      UI_SetError(s, "UNIT READY");
+                  }
+              } else {
+                  // Unit cap reached, refund? or pause?
+                  // For now, pause queue
+                  s->world.units.production_timer[i] = build_time;
+              }
+          }
+      } else {
+          s->world.units.production_timer[i] = 0.0f;
+      }
+  }
 
   // Update Mouse Over Asteroid
   float wx = s->camera.pos.x + s->input.mouse_pos.x / s->camera.zoom;
@@ -446,154 +615,7 @@ void Game_Update(AppState *s, float dt) {
     if (!s->world.units.active[i])
       continue;
     
-    if (s->world.units.has_target[i]) {
-      Command *cur_cmd = &s->world.units.command_queue[i][s->world.units.command_current_idx[i]];
-
-      // Auto-advance if target-based command target is dead
-      if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
-          int ti = cur_cmd->target_idx;
-          if (!s->world.asteroids.active[ti]) {
-            s->world.units.command_current_idx[i]++;
-            if (s->world.units.command_current_idx[i] >= s->world.units.command_count[i]) {
-              s->world.units.has_target[i] = false;
-              s->world.units.command_count[i] = 0;
-              s->world.units.command_current_idx[i] = 0;
-            }
-            continue;
-          }
-          cur_cmd->pos = s->world.asteroids.pos[ti];
-      }
-      
-      if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
-          int ti = cur_cmd->target_idx;
-          if (!s->world.resources.active[ti]) {
-            s->world.units.command_current_idx[i]++;
-            if (s->world.units.command_current_idx[i] >= s->world.units.command_count[i]) {
-              s->world.units.has_target[i] = false;
-              s->world.units.command_count[i] = 0;
-              s->world.units.command_current_idx[i] = 0;
-            }
-            continue;
-          }
-          cur_cmd->pos = s->world.resources.pos[ti];
-      }
-      
-      if (cur_cmd->type == CMD_RETURN_CARGO) {
-          // Find Mothership
-          int m_idx = -1;
-          for (int u = 0; u < MAX_UNITS; u++) {
-              if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MOTHERSHIP) { m_idx = u; break; }
-          }
-          if (m_idx != -1) cur_cmd->pos = s->world.units.pos[m_idx];
-          else {
-              // No mothership? cancel
-              s->world.units.has_target[i] = false; continue;
-          }
-      }
-
-      if (s->world.units.has_target[i]) {
-        float dsq = Vector_DistanceSq(cur_cmd->pos, s->world.units.pos[i]);
-        float stop_dist = UNIT_STOP_DIST;
-        
-        if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
-            int ti = cur_cmd->target_idx;
-            stop_dist = s->world.units.stats[i]->small_cannon_range + s->world.asteroids.radius[ti] * ASTEROID_HITBOX_MULT;
-            stop_dist *= 0.95f;
-        }
-        
-        if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
-            int ti = cur_cmd->target_idx;
-            stop_dist = (s->world.units.stats[i]->small_cannon_range * 0.8f) + s->world.resources.radius[ti] * CRYSTAL_VISUAL_SCALE * 0.5f;
-            stop_dist *= 0.95f;
-        }
-        
-        if (cur_cmd->type == CMD_RETURN_CARGO) {
-            stop_dist = s->world.unit_stats[UNIT_MOTHERSHIP].radius + s->world.units.stats[i]->radius + 20.0f;
-        }
-
-        if (dsq > stop_dist * stop_dist) {
-          float dist = sqrtf(dsq), speed = s->world.units.stats[i]->speed;
-          if (cur_cmd->type != CMD_PATROL &&
-              (s->world.units.command_current_idx[i] == s->world.units.command_count[i] - 1) &&
-              dist < UNIT_BRAKING_DIST)
-            speed *= (dist / UNIT_BRAKING_DIST);
-          Vec2 target_v = Vector_Scale(
-              Vector_Normalize(Vector_Sub(cur_cmd->pos, s->world.units.pos[i])), speed);
-          s->world.units.velocity[i].x +=
-              (target_v.x - s->world.units.velocity[i].x) * UNIT_STEERING_FORCE * dt;
-          s->world.units.velocity[i].y +=
-              (target_v.y - s->world.units.velocity[i].y) * UNIT_STEERING_FORCE * dt;
-        } else {
-          bool should_advance = true;
-          if (cur_cmd->type == CMD_ATTACK_MOVE && cur_cmd->target_idx != -1) {
-              should_advance = false;
-              s->world.units.velocity[i] = (Vec2){0,0};
-          }
-          if (cur_cmd->type == CMD_GATHER && cur_cmd->target_idx != -1) {
-              should_advance = false;
-              s->world.units.velocity[i] = (Vec2){0,0};
-          }
-          if (cur_cmd->type == CMD_RETURN_CARGO) {
-              // Wait until empty
-              if (s->world.units.current_cargo[i] <= 0) {
-                  should_advance = true;
-              } else {
-                  should_advance = false;
-                  s->world.units.velocity[i] = (Vec2){0,0};
-              }
-          }
-
-          if (should_advance) {
-              if (cur_cmd->type == CMD_PATROL) {
-                if (s->world.units.command_current_idx[i] == s->world.units.command_count[i] - 1) {
-                  int first_patrol = s->world.units.command_current_idx[i];
-                  while (first_patrol > 0 &&
-                         s->world.units.command_queue[i][first_patrol - 1].type == CMD_PATROL) {
-                    first_patrol--;
-                  }
-                  s->world.units.command_current_idx[i] = first_patrol;
-                } else {
-                  s->world.units.command_current_idx[i]++;
-                }
-              } else {
-                s->world.units.command_current_idx[i]++;
-                if (s->world.units.command_current_idx[i] >= s->world.units.command_count[i]) {
-                  s->world.units.has_target[i] = false;
-                  s->world.units.command_count[i] = 0;
-                  s->world.units.command_current_idx[i] = 0;
-                }
-              }
-          }
-        }
-      }
-    }
-    s->world.units.velocity[i] = Vector_Sub(
-        s->world.units.velocity[i], Vector_Scale(s->world.units.velocity[i], s->world.units.stats[i]->friction * dt));
-    s->world.units.pos[i] = Vector_Add(s->world.units.pos[i], Vector_Scale(s->world.units.velocity[i], dt));
-
-    float speed_sq =
-        s->world.units.velocity[i].x * s->world.units.velocity[i].x + s->world.units.velocity[i].y * s->world.units.velocity[i].y;
-    bool should_rotate = false;
-    float target_rot = 0.0f;
-
-    if (speed_sq > 100.0f) {
-      target_rot = atan2f(s->world.units.velocity[i].y, s->world.units.velocity[i].x) * (180.0f / SDL_PI_F) + 90.0f;
-      should_rotate = true;
-    } else if (s->world.units.has_target[i]) {
-      Command *cur_cmd = &s->world.units.command_queue[i][s->world.units.command_current_idx[i]];
-      Vec2 dir = Vector_Sub(cur_cmd->pos, s->world.units.pos[i]);
-      if (Vector_Length(dir) > 0.1f) {
-          target_rot = atan2f(dir.y, dir.x) * (180.0f / SDL_PI_F) + 90.0f;
-          should_rotate = true;
-      }
-    }
-
-    if (should_rotate) {
-      float diff = target_rot - s->world.units.rotation[i];
-      while (diff < -180.0f) diff += 360.0f;
-      while (diff > 180.0f) diff -= 360.0f;
-      s->world.units.rotation[i] += diff * UNIT_STEERING_FORCE * dt;
-    }
+    AI_UpdateUnitMovement(s, i, dt);
 
     Abilities_Update(s, i, dt);
   }
