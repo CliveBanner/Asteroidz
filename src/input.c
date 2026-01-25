@@ -148,8 +148,11 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (s->game_state == STATE_PAUSED) break;
     if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) s->input.shift_down = true;
     if (event->key.key == SDLK_LCTRL || event->key.key == SDLK_RCTRL) s->input.ctrl_down = true;
-    if (event->key.key >= SDLK_1 && event->key.key <= SDLK_9) {
-        int g = event->key.key - SDLK_0;
+    
+    int g = -1;
+    if (event->key.key >= SDLK_1 && event->key.key <= SDLK_9) g = event->key.key - SDLK_0;
+    
+    if (g >= 1 && g <= 9) {
         if (s->input.ctrl_down) {
             SDL_memset(s->selection.group_members[g], 0, sizeof(s->selection.group_members[g]));
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->selection.group_members[g][i] = true;
@@ -157,6 +160,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
             bool found = false;
             if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.group_members[g][i]) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; found = true; }
+            if (found) s->ui.menu_state = 0;
         }
     }
     if (event->key.key == SDLK_Q) s->input.key_q_down = true;
@@ -175,14 +179,17 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_F1) { // Miners
         if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
         for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MINER) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; }
+        s->ui.menu_state = 0; // Return to main command grid
     }
     if (event->key.key == SDLK_F2) { // Fighters
         if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
         for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_FIGHTER) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; }
+        s->ui.menu_state = 0; // Return to main command grid
     }
     if (event->key.key == SDLK_F3) { // All Units (except Mothership)
         if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
         for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] != UNIT_MOTHERSHIP) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; }
+        s->ui.menu_state = 0; // Return to main command grid
     }
 
     if (event->key.key == SDLK_Z) s->input.key_z_down = true;

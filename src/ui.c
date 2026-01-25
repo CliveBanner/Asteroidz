@@ -102,46 +102,47 @@ void UI_DrawHUD(AppState *s) {
         SDL_SetRenderScale(s->renderer, 1.0f, 1.0f);
     }
 
-    // --- All Units Display (Top Center) ---
-    int active_unit_count = 0;
-    for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i]) active_unit_count++;
+    // --- Unit Group Display (Top Center) ---
+    struct { const char *hk; SDL_Texture *tex; int count; bool selected; } groups[3];
+    int n_miners = 0, n_fighters = 0, n_all = 0;
+    bool miners_sel = false, fighters_sel = false, all_sel = false;
     
-    float pu_icon_sz = 24.0f;
-    float pu_pad = 4.0f;
-    float pu_total_w = (pu_icon_sz + pu_pad) * active_unit_count;
-    float pu_x = (ww - pu_total_w) / 2.0f;
-    float pu_y = 10.0f;
-    int pu_idx = 0;
-
     for (int i = 0; i < MAX_UNITS; i++) {
-        if (s->world.units.active[i]) {
-            float ux = pu_x + pu_idx * (pu_icon_sz + pu_pad);
-            SDL_FRect r = {ux, pu_y, pu_icon_sz, pu_icon_sz};
-            
-            if (s->selection.unit_selected[i]) {
-                SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 200);
-                SDL_RenderRect(s->renderer, &(SDL_FRect){ux - 2, pu_y - 2, pu_icon_sz + 4, pu_icon_sz + 4});
-            }
-
-            SDL_SetRenderDrawColor(s->renderer, 30, 30, 30, 150);
-            SDL_RenderFillRect(s->renderer, &r);
-
-            SDL_Texture *tex = NULL;
-            if (s->world.units.type[i] == UNIT_MOTHERSHIP) tex = s->textures.mothership_hull_texture;
-            else if (s->world.units.type[i] == UNIT_MINER) tex = s->textures.miner_texture;
-            else if (s->world.units.type[i] == UNIT_FIGHTER) tex = s->textures.fighter_texture;
-            if (tex) SDL_RenderTexture(s->renderer, tex, NULL, &r);
-
-            for (int g = 1; g <= 9; g++) {
-                if (s->selection.group_members[g][i]) {
-                    char g_str[2]; snprintf(g_str, 2, "%d", g);
-                    SDL_SetRenderDrawColor(s->renderer, 255, 255, 50, 255);
-                    SDL_RenderDebugText(s->renderer, ux + 2, pu_y + 2, g_str);
-                    break;
-                }
-            }
-            pu_idx++;
+        if (!s->world.units.active[i]) continue;
+        if (s->world.units.type[i] == UNIT_MINER) { 
+            n_miners++; n_all++; 
+            if (s->selection.unit_selected[i]) { miners_sel = true; all_sel = true; }
         }
+        else if (s->world.units.type[i] == UNIT_FIGHTER) { 
+            n_fighters++; n_all++; 
+            if (s->selection.unit_selected[i]) { fighters_sel = true; all_sel = true; }
+        }
+    }
+    groups[0] = (typeof(groups[0])){ "F1", s->textures.miner_texture, n_miners, miners_sel };
+    groups[1] = (typeof(groups[0])){ "F2", s->textures.fighter_texture, n_fighters, fighters_sel };
+    groups[2] = (typeof(groups[0])){ "F3", s->textures.icon_textures[ICON_OFFENSIVE], n_all, all_sel };
+
+    float g_icon_sz = 40.0f, g_pad = 20.0f;
+    float g_total_w = (g_icon_sz + g_pad) * 3 - g_pad;
+    float gx_top = (ww - g_total_w) / 2.0f;
+    float gy_top = 15.0f;
+
+    for (int i = 0; i < 3; i++) {
+        float x = gx_top + i * (g_icon_sz + g_pad);
+        SDL_FRect r = {x, gy_top, g_icon_sz, g_icon_sz};
+        
+        SDL_SetRenderDrawColor(s->renderer, 30, 30, 30, 180);
+        SDL_RenderFillRect(s->renderer, &r);
+        if (groups[i].selected) {
+            SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+            SDL_RenderRect(s->renderer, &(SDL_FRect){x-2, gy_top-2, g_icon_sz+4, g_icon_sz+4});
+        }
+        if (groups[i].tex) SDL_RenderTexture(s->renderer, groups[i].tex, NULL, &r);
+        
+        SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
+        SDL_RenderDebugText(s->renderer, x, gy_top - 12, groups[i].hk);
+        char c_str[16]; snprintf(c_str, 16, "%d", groups[i].count);
+        SDL_RenderDebugText(s->renderer, x + (g_icon_sz - SDL_strlen(c_str)*8)/2, gy_top + g_icon_sz + 4, c_str);
     }
 
     if (!any_selected) return;
@@ -156,9 +157,9 @@ void UI_DrawHUD(AppState *s) {
     // --- Production Queue Display ---
     if (mothership_idx != -1 && s->world.units.production_count[mothership_idx] > 0) {
         float queue_x = 20.0f;
-        float unit_icon_sz = 40.0f;
-        float unit_pad = 5.0f;
-        float queue_y = gy - 60.0f - unit_icon_sz - 30.0f; // Above selected units
+        float unit_icon_sz_q = 40.0f;
+        float unit_pad_q = 5.0f;
+        float queue_y = gy - 30.0f - unit_icon_sz_q; // Above command card
         
         SDL_SetRenderDrawColor(s->renderer, 200, 200, 200, 255);
         SDL_RenderDebugText(s->renderer, queue_x, queue_y - 15.0f, "PRODUCTION QUEUE");
@@ -169,87 +170,21 @@ void UI_DrawHUD(AppState *s) {
             if (ut == UNIT_MINER) tex = s->textures.miner_texture;
             else if (ut == UNIT_FIGHTER) tex = s->textures.fighter_texture;
             
-            float qx = queue_x + q * (unit_icon_sz + unit_pad);
-            SDL_FRect r = {qx, queue_y, unit_icon_sz, unit_icon_sz};
+            float qx = queue_x + q * (unit_icon_sz_q + unit_pad_q);
+            SDL_FRect r = {qx, queue_y, unit_icon_sz_q, unit_icon_sz_q};
             
             SDL_SetRenderDrawColor(s->renderer, 40, 40, 40, 200);
             SDL_RenderFillRect(s->renderer, &r);
             if (tex) SDL_RenderTexture(s->renderer, tex, NULL, &r);
-            else {
-                SDL_SetRenderDrawColor(s->renderer, 100, 100, 100, 255); // Fallback
-                SDL_RenderRect(s->renderer, &r);
-            }
             
             if (q == 0) {
                 float total = s->world.unit_stats[ut].production_time;
                 float current = s->world.units.production_timer[mothership_idx];
                 float pct = current / total;
-                
-                char time_str[16];
-                snprintf(time_str, 16, "%.1fs", total - current);
-                SDL_SetRenderDrawColor(s->renderer, 255, 255, 255, 255);
-                SDL_RenderDebugText(s->renderer, qx, queue_y + unit_icon_sz - 12, time_str);
-                
                 SDL_SetRenderDrawColor(s->renderer, 0, 255, 0, 150);
-                SDL_FRect pr = {qx, queue_y + unit_icon_sz, unit_icon_sz * pct, 4};
+                SDL_FRect pr = {qx, queue_y + unit_icon_sz_q, unit_icon_sz_q * pct, 4};
                 SDL_RenderFillRect(s->renderer, &pr);
             }
-        }
-    }
-
-    // --- Selected Units Display ---
-    float info_x = 20.0f;
-    float info_y = gy - 60.0f; // Above command card
-    float unit_icon_sz = 40.0f;
-    float unit_pad = 5.0f;
-    int col_count = 0;
-    
-    for (int i = 0; i < MAX_UNITS; i++) {
-        if (s->world.units.active[i] && s->selection.unit_selected[i]) {
-            SDL_Texture *tex = NULL;
-            if (s->world.units.type[i] == UNIT_MOTHERSHIP) tex = s->textures.mothership_hull_texture;
-            else if (s->world.units.type[i] == UNIT_MINER) tex = s->textures.miner_texture;
-            else if (s->world.units.type[i] == UNIT_FIGHTER) tex = s->textures.fighter_texture;
-            
-            float ux = info_x + col_count * (unit_icon_sz + unit_pad);
-            SDL_FRect r = {ux, info_y, unit_icon_sz, unit_icon_sz};
-            
-            SDL_SetRenderDrawColor(s->renderer, 30, 30, 30, 200);
-            SDL_RenderFillRect(s->renderer, &r);
-            
-            if (tex) {
-                SDL_RenderTexture(s->renderer, tex, NULL, &r);
-            } else {
-                SDL_SetRenderDrawColor(s->renderer, 100, 255, 255, 255);
-                SDL_RenderRect(s->renderer, &r);
-            }
-            
-            float health_pct = s->world.units.health[i] / s->world.units.stats[i]->max_health;
-            if (health_pct < 0.99f) {
-                float h_bar_h = 4.0f;
-                SDL_SetRenderDrawColor(s->renderer, 255, 50, 50, 200);
-                SDL_RenderFillRect(s->renderer, &(SDL_FRect){ux, info_y + unit_icon_sz - h_bar_h, unit_icon_sz, h_bar_h});
-                SDL_SetRenderDrawColor(s->renderer, 50, 255, 50, 255);
-                SDL_RenderFillRect(s->renderer, &(SDL_FRect){ux, info_y + unit_icon_sz - h_bar_h, unit_icon_sz * health_pct, h_bar_h});
-            }
-            
-            if (s->world.units.current_cargo[i] > 0) {
-                SDL_FRect icon_r = {ux + unit_icon_sz - 16, info_y, 16, 16};
-                if (s->textures.icon_textures[ICON_GATHER])
-                    SDL_RenderTexture(s->renderer, s->textures.icon_textures[ICON_GATHER], NULL, &icon_r);
-            }
-
-            for (int g = 1; g <= 9; g++) {
-                if (s->selection.group_members[g][i]) {
-                    char g_str[2]; snprintf(g_str, 2, "%d", g);
-                    SDL_SetRenderDrawColor(s->renderer, 255, 255, 50, 255);
-                    SDL_RenderDebugText(s->renderer, ux + 2, info_y + 2, g_str);
-                    break;
-                }
-            }
-            
-            col_count++;
-            if (ux > 500) break;
         }
     }
 
@@ -264,6 +199,7 @@ void UI_DrawHUD(AppState *s) {
         float cd_val;
     } buttons[15];
     SDL_memset(buttons, 0, sizeof(buttons));
+
 
     if (s->ui.menu_state == 0) {
         buttons[0] = (typeof(buttons[0])){ "Q", "PATROL", s->textures.icon_textures[ICON_PATROL], false, s->input.key_q_down, 0, 0 };
