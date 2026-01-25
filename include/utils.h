@@ -9,6 +9,7 @@ Vec2 Vector_Sub(Vec2 a, Vec2 b);
 Vec2 Vector_Scale(Vec2 v, float s);
 float Vector_Length(Vec2 v);
 float Vector_DistanceSq(Vec2 a, Vec2 b);
+float Vector_Distance(Vec2 a, Vec2 b);
 Vec2 Vector_Normalize(Vec2 v);
 
 // Noise & Hashing

@@ -230,6 +230,7 @@ void Game_Init(AppState *s) {
   int win_w, win_h;
   SDL_GetRenderOutputSize(s->renderer, &win_w, &win_h);
   s->camera.zoom = MIN_ZOOM;
+  s->camera.shake_intensity = 0.0f;
   s->camera.pos.x = s->world.units.pos[idx].x - (win_w / 2.0f) / s->camera.zoom;
   s->camera.pos.y = s->world.units.pos[idx].y - (win_h / 2.0f) / s->camera.zoom;
 }
@@ -493,6 +494,15 @@ void Game_Update(AppState *s, float dt) {
     s->camera.pos.y -= move_speed * dt;
   if (s->input.mouse_pos.y > (win_h - EDGE_SCROLL_THRESHOLD))
     s->camera.pos.y += move_speed * dt;
+
+  // Apply Camera Shake
+  if (s->camera.shake_intensity > 0.1f) {
+      s->camera.pos.x += ((float)rand()/(float)RAND_MAX - 0.5f) * s->camera.shake_intensity;
+      s->camera.pos.y += ((float)rand()/(float)RAND_MAX - 0.5f) * s->camera.shake_intensity;
+      s->camera.shake_intensity *= expf(-5.0f * dt); // Quick decay
+  } else {
+      s->camera.shake_intensity = 0;
+  }
 
   UpdateSimAnchors(s, cam_center);
   // Update Energy

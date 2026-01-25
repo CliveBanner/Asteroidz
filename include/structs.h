@@ -177,6 +177,7 @@ typedef struct {
 typedef struct {
     Vec2 pos;
     float zoom;
+    float shake_intensity;
 } CameraState;
 
 typedef struct {

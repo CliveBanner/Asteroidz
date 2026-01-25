@@ -86,6 +86,11 @@ void Physics_AreaDamage(AppState *s, Vec2 pos, float range, float damage, int ex
             s->world.asteroids.health[i] -= damage * falloff * 0.5f;
         }
     }
+
+    // Camera Shake
+    float dist_to_cam = Vector_Distance(pos, (Vec2){s->camera.pos.x + 640/s->camera.zoom, s->camera.pos.y + 360/s->camera.zoom});
+    float shake = (damage / 1000.0f) * (1.0f - fminf(1.0f, dist_to_cam / 5000.0f));
+    if (shake > s->camera.shake_intensity) s->camera.shake_intensity = fminf(shake, 100.0f);
 }
 
 void Physics_HandleCollisions(AppState *s, float dt) {
