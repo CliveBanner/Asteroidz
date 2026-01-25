@@ -116,8 +116,17 @@ void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
         if (amount > 0) {
             Weapons_MineCrystal(s, idx, resource_idx, amount);
             if (s->world.units.type[idx] == UNIT_MOTHERSHIP) {
-                s->world.stored_resources += amount;
-                s->ui.resource_accumulator += amount;
+                float energy_needed = INITIAL_ENERGY - s->world.energy;
+                if (energy_needed > 0) {
+                    float to_energy = fminf(amount, energy_needed);
+                    s->world.energy += to_energy;
+                    amount -= to_energy;
+                }
+                
+                if (amount > 0) {
+                    s->world.stored_resources += amount;
+                    s->ui.resource_accumulator += amount;
+                }
             } else {
                 s->world.units.current_cargo[idx] += amount;
             }
