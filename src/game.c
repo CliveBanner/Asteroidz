@@ -93,7 +93,7 @@ void Game_Init(AppState *s) {
   s->world.unit_stats[UNIT_MOTHERSHIP] =
       (UnitStats){.max_health = 10000.0f,
                   .max_energy = 1000.0f,
-                  .max_cargo = 10000.0f,
+                  .max_cargo = 0.0f, // No personal cargo
                   .speed = MOTHERSHIP_SPEED,
                   .friction = MOTHERSHIP_FRICTION,
                   .radius = MOTHERSHIP_RADIUS,
@@ -117,7 +117,7 @@ void Game_Init(AppState *s) {
   s->world.unit_stats[UNIT_SCOUT] =
       (UnitStats){.max_health = 200.0f,
                   .max_energy = 100.0f,
-                  .max_cargo = 500.0f,
+                  .max_cargo = 0.0f, // No cargo
                   .speed = 1800.0f,
                   .friction = 3.0f,
                   .radius = 60.0f,
@@ -141,7 +141,7 @@ void Game_Init(AppState *s) {
   s->world.unit_stats[UNIT_MINER] =
       (UnitStats){.max_health = 150.0f,
                   .max_energy = 80.0f,
-                  .max_cargo = 1000.0f,
+                  .max_cargo = 1000.0f, // Miners keep cargo
                   .speed = 1200.0f,
                   .friction = 3.0f,
                   .radius = 50.0f,
@@ -167,7 +167,7 @@ void Game_Init(AppState *s) {
   s->world.unit_stats[UNIT_FIGHTER] =
       (UnitStats){.max_health = 300.0f,
                   .max_energy = 80.0f, // Less energy
-                  .max_cargo = 100.0f,
+                  .max_cargo = 0.0f, // No cargo
                   .speed = 2000.0f,
                   .friction = 3.0f,
                   .radius = 55.0f,
