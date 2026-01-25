@@ -57,12 +57,9 @@ static void HandleAutoAttacks(AppState *s, int idx) {
 
     if (s->world.units.behavior[idx] == BEHAVIOR_PASSIVE) return;
     
-    // Units can fire while moving if they are in an aggressive behavior (Offensive/Defensive)
-    // but not if it's a pure "Move" command.
-    if (is_moving_normally) return;
-    
-    // Most units stop firing while gathering/returning to focus energy, but Mothership can do both.
-    if (is_gathering && s->world.units.type[idx] != UNIT_MOTHERSHIP) return;
+    // Aggressive units (Offensive/Defensive) can fire while moving (e.g. following mothership).
+    // Only return if it's a pure Move command AND behavior is NOT aggressive.
+    if (is_moving_normally && s->world.units.behavior[idx] == BEHAVIOR_HOLD_GROUND) return;
 
     SDL_LockMutex(s->threads.unit_fx_mutex);
     int s_targets[4];
@@ -89,7 +86,8 @@ static void HandleAutoAttacks(AppState *s, int idx) {
                 if (s->world.units.type[idx] == UNIT_MINER) continue; // Miners focus on mining
                 range_mult = 1.0f; // Others act as turrets
             }
-            else if (s->world.units.behavior[idx] == BEHAVIOR_DEFENSIVE) range_mult = WARNING_RANGE_NEAR / s->world.units.stats[idx]->small_cannon_range;
+            // Defensive units now use full range if aggressive commands aren't active
+            else if (s->world.units.behavior[idx] == BEHAVIOR_DEFENSIVE) range_mult = 1.0f; 
         }
 
         float dsq = Vector_DistanceSq(s->world.asteroids.pos[t_idx], s->world.units.pos[idx]);
