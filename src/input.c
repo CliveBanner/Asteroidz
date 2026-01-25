@@ -163,6 +163,21 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_A) { s->input.key_a_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_OFFENSIVE; s->ui.tactical_flash_timer = 0.2f; }
     if (event->key.key == SDLK_S) { s->input.key_s_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_DEFENSIVE; s->ui.tactical_flash_timer = 0.2f; }
     if (event->key.key == SDLK_D) { s->input.key_d_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_HOLD_GROUND; s->ui.tactical_flash_timer = 0.2f; }
+    
+    // Fixed Control Groups / Quick Selection
+    if (event->key.key == SDLK_F1) { // Miners
+        if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
+        for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MINER) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; }
+    }
+    if (event->key.key == SDLK_F2) { // Fighters
+        if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
+        for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_FIGHTER) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; }
+    }
+    if (event->key.key == SDLK_F3) { // All Units (except Mothership)
+        if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
+        for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] != UNIT_MOTHERSHIP) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; }
+    }
+
     if (event->key.key == SDLK_Z) s->input.key_z_down = true;
     if (event->key.key == SDLK_X) {
         s->input.key_x_down = true;

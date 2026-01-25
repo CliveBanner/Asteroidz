@@ -109,14 +109,26 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
 
         if (s->world.units.type[i] == UNIT_MINER) {
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
-                // Stay close to Mothership (Passive repair is handled in Abilities_Update)
+                // Stay close to Mothership and repair - spread out into rings
                 float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[m_idx]);
-                float tether_range = 600.0f;
-                if (dsq > tether_range * tether_range) {
-                    s->world.units.command_queue[i][0] = (Command){.type = CMD_MOVE, .pos = s->world.units.pos[m_idx]};
+                float shell_idx = (float)(i % 8);
+                float shell_depth = (float)(i / 8);
+                float orbit_dist = 600.0f + (shell_depth * 300.0f);
+                float angle = shell_idx * (2.0f * SDL_PI_F / 8.0f) + s->current_time * 0.1f;
+                
+                Vec2 target_pos = {
+                    s->world.units.pos[m_idx].x + cosf(angle) * orbit_dist,
+                    s->world.units.pos[m_idx].y + sinf(angle) * orbit_dist
+                };
+
+                float dist_to_target_sq = Vector_DistanceSq(s->world.units.pos[i], target_pos);
+                if (dist_to_target_sq > 100.0f * 100.0f) {
+                    s->world.units.command_queue[i][0] = (Command){.type = CMD_MOVE, .pos = target_pos};
                     s->world.units.command_count[i] = 1;
                     s->world.units.command_current_idx[i] = 0;
                     s->world.units.has_target[i] = true;
+                } else {
+                    Abilities_Repair(s, i, m_idx, dt);
                 }
             } else if (s->world.units.behavior[i] == BEHAVIOR_HOLD_GROUND) {
                 // Spread out to mine (original logic)
@@ -153,9 +165,13 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
             }
 
             if (target_u != -1) {
-                float offset_angle = (float)i * 1.33f + s->current_time * 0.5f;
-                float orbit_dist = (target_u == m_idx) ? 400.0f : 200.0f;
-                Vec2 offset = { cosf(offset_angle) * orbit_dist, sinf(offset_angle) * orbit_dist };
+                float shell_idx = (float)(i % 8);
+                float shell_depth = (float)(i / 8);
+                float base_dist = (target_u == m_idx) ? 500.0f : 250.0f;
+                float orbit_dist = base_dist + (shell_depth * 250.0f);
+                float angle = shell_idx * (2.0f * SDL_PI_F / 8.0f) + s->current_time * 0.3f;
+
+                Vec2 offset = { cosf(angle) * orbit_dist, sinf(angle) * orbit_dist };
                 s->world.units.command_queue[i][0] = (Command){.type = CMD_MOVE, .pos = Vector_Add(s->world.units.pos[target_u], offset)};
                 s->world.units.command_count[i] = 1;
                 s->world.units.command_current_idx[i] = 0;
@@ -178,13 +194,26 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
                 }
             }
             if (target_u != -1) {
-                float offset_angle = (float)i * 1.33f + s->current_time * 0.5f;
-                float orbit_dist = (target_u == m_idx) ? 400.0f : 200.0f;
-                Vec2 offset = { cosf(offset_angle) * orbit_dist, sinf(offset_angle) * orbit_dist };
+                float shell_idx = (float)(i % 8);
+                float shell_depth = (float)(i / 8);
+                float base_dist = (target_u == m_idx) ? 500.0f : 250.0f;
+                float orbit_dist = base_dist + (shell_depth * 250.0f);
+                float angle = shell_idx * (2.0f * SDL_PI_F / 8.0f) + s->current_time * 0.3f;
+
+                Vec2 offset = { cosf(angle) * orbit_dist, sinf(angle) * orbit_dist };
                 s->world.units.command_queue[i][0].pos = Vector_Add(s->world.units.pos[target_u], offset);
             }
         } else if (s->world.units.type[i] == UNIT_MINER && s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
-            s->world.units.command_queue[i][0].pos = s->world.units.pos[m_idx];
+            float shell_idx = (float)(i % 8);
+            float shell_depth = (float)(i / 8);
+            float orbit_dist = 600.0f + (shell_depth * 300.0f);
+            float angle = shell_idx * (2.0f * SDL_PI_F / 8.0f) + s->current_time * 0.1f;
+            
+            Vec2 target_pos = {
+                s->world.units.pos[m_idx].x + cosf(angle) * orbit_dist,
+                s->world.units.pos[m_idx].y + sinf(angle) * orbit_dist
+            };
+            s->world.units.command_queue[i][0].pos = target_pos;
         }
     }
     // ------------------------------------
