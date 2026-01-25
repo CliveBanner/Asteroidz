@@ -156,10 +156,13 @@ void Abilities_Update(AppState *s, int idx, float dt) {
     HandleManualMainCannon(s, idx);
     HandleAutoAttacks(s, idx);
     
-    // --- Miner Passive Abilities (Repair & Mine) ---
-    if (s->world.units.type[idx] == UNIT_MINER) {
+    // --- Miner & Mothership Passive Abilities (Repair & Mine) ---
+    bool is_miner = s->world.units.type[idx] == UNIT_MINER;
+    bool is_mothership = s->world.units.type[idx] == UNIT_MOTHERSHIP;
+
+    if (is_miner) {
         // 1. Passive Repair: Find most damaged unit in range
-        float repair_range = 600.0f;
+        float repair_range = 800.0f;
         int best_repair_target = -1;
         float lowest_hp_pct = 1.0f;
 
@@ -177,19 +180,26 @@ void Abilities_Update(AppState *s, int idx, float dt) {
         if (best_repair_target != -1) {
             Abilities_Repair(s, idx, best_repair_target, dt);
         }
+    }
 
-        // 2. Passive Mining: If has cargo space, mine nearest crystal in range
-        if (s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
-            float mine_range = s->world.units.stats[idx]->small_cannon_range;
+    if (is_miner || is_mothership) {
+        // 2. Passive Mining: If has cargo space (or is mothership), mine nearest crystal in range
+        if (is_mothership || s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
+            float base_mine_range = s->world.units.stats[idx]->small_cannon_range * 1.5f; // Increased range
             int best_crystal = -1;
-            float min_dsq = mine_range * mine_range;
+            float min_dsq = 1e15f;
 
             for (int r = 0; r < MAX_RESOURCES; r++) {
                 if (!s->world.resources.active[r]) continue;
                 float dsq = Vector_DistanceSq(s->world.units.pos[idx], s->world.resources.pos[r]);
-                if (dsq <= min_dsq) {
-                    min_dsq = dsq;
-                    best_crystal = r;
+                float crystal_rad = s->world.resources.radius[r] * CRYSTAL_VISUAL_SCALE * 0.5f;
+                float effective_range = base_mine_range + crystal_rad;
+                
+                if (dsq <= effective_range * effective_range) {
+                    if (dsq < min_dsq) {
+                        min_dsq = dsq;
+                        best_crystal = r;
+                    }
                 }
             }
             if (best_crystal != -1) {
