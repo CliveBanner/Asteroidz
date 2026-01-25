@@ -468,8 +468,16 @@ void Game_Update(AppState *s, float dt) {
     s->camera.pos.y += move_speed * dt;
 
   UpdateSimAnchors(s, cam_center);
-  s->world.energy =
-      fminf(INITIAL_ENERGY, s->world.energy + ENERGY_REGEN_RATE * dt);
+  // Update Energy
+  s->world.energy = fminf(INITIAL_ENERGY, s->world.energy + ENERGY_REGEN_RATE * dt);
+  for (int i = 0; i < MAX_UNITS; i++) {
+      if (s->world.units.active[i] && s->world.units.type[i] != UNIT_MOTHERSHIP) {
+          float regen = s->world.units.stats[i]->max_energy * 0.05f; // 5% per second
+          s->world.units.energy[i] = fminf(s->world.units.stats[i]->max_energy, s->world.units.energy[i] + regen * dt);
+      }
+  }
+
+  // Camera Management (Simulated Anchors)
 
   for (int i = 0; i < MAX_ASTEROIDS; i++) s->world.asteroids.targeted[i] = false;
 

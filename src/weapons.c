@@ -10,8 +10,14 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
     if (is_main_cannon) {
         // Main cannon is free (uses cooldown)
     } else {
-        if (s->world.energy < energy_cost) return;
-        s->world.energy -= energy_cost;
+        bool is_mothership = s->world.units.type[u_idx] == UNIT_MOTHERSHIP;
+        if (is_mothership) {
+            if (s->world.energy < energy_cost) return;
+            s->world.energy -= energy_cost;
+        } else {
+            if (s->world.units.energy[u_idx] < energy_cost) return;
+            s->world.units.energy[u_idx] -= energy_cost;
+        }
     }
     
     s->world.asteroids.health[asteroid_idx] -= damage;
