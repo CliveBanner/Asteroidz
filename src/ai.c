@@ -160,7 +160,19 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
                 target_u = m_idx; // Protect Mothership
             } else if (s->world.units.behavior[i] == BEHAVIOR_OFFENSIVE) {
-                // Future: add search-and-destroy logic?
+                // Search and Destroy: Hunt nearest asteroid
+                int best_a = -1; float min_dsq = 1e15f;
+                for (int a = 0; a < MAX_ASTEROIDS; a++) {
+                    if (!s->world.asteroids.active[a]) continue;
+                    float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.asteroids.pos[a]);
+                    if (dsq < min_dsq) { min_dsq = dsq; best_a = a; }
+                }
+                if (best_a != -1 && min_dsq < 10000.0f * 10000.0f) {
+                    s->world.units.command_queue[i][0] = (Command){.type = CMD_ATTACK_MOVE, .target_idx = best_a, .pos = s->world.asteroids.pos[best_a]};
+                    s->world.units.command_count[i] = 1;
+                    s->world.units.command_current_idx[i] = 0;
+                    s->world.units.has_target[i] = true;
+                }
             }
 
             if (target_u != -1) {
