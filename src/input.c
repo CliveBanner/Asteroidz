@@ -101,6 +101,18 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (s->game_state == STATE_PAUSED && (event->key.key == SDLK_RETURN || event->key.key == SDLK_KP_ENTER)) { SDL_Event qe; qe.type = SDL_EVENT_QUIT; SDL_PushEvent(&qe); break; }
     if (s->game_state == STATE_PAUSED) break;
     if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) s->input.shift_down = true;
+    if (event->key.key == SDLK_LCTRL || event->key.key == SDLK_RCTRL) s->input.ctrl_down = true;
+    if (event->key.key >= SDLK_1 && event->key.key <= SDLK_9) {
+        int g = event->key.key - SDLK_0;
+        if (s->input.ctrl_down) {
+            SDL_memset(s->selection.group_members[g], 0, sizeof(s->selection.group_members[g]));
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->selection.group_members[g][i] = true;
+        } else {
+            bool found = false;
+            if (!s->input.shift_down) SDL_memset(s->selection.unit_selected, 0, sizeof(s->selection.unit_selected));
+            for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.group_members[g][i]) { s->selection.unit_selected[i] = true; s->selection.primary_unit_idx = i; found = true; }
+        }
+    }
     if (event->key.key == SDLK_Q) s->input.key_q_down = true;
     if (event->key.key == SDLK_W) s->input.key_w_down = true;
     if (event->key.key == SDLK_E) s->input.key_e_down = true;
@@ -113,6 +125,8 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_S) { s->input.key_s_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_DEFENSIVE; s->ui.tactical_flash_timer = 0.2f; }
     if (event->key.key == SDLK_D) { s->input.key_d_down = true; for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->selection.unit_selected[i]) s->world.units.behavior[i] = BEHAVIOR_HOLD_GROUND; s->ui.tactical_flash_timer = 0.2f; }
     if (event->key.key == SDLK_Z) s->input.key_z_down = true;
+    if (event->key.key == SDLK_X) s->input.key_x_down = true;
+    if (event->key.key == SDLK_C) s->input.key_c_down = true;
     if (event->key.key == SDLK_G) s->input.show_grid = !s->input.show_grid;
     if (event->key.key == SDLK_D) s->input.show_density = !s->input.show_density;
     if (event->key.key == SDLK_K) { if (Persistence_SaveGame(s, "savegame.dat")) { snprintf(s->ui.ui_error_msg, 128, "GAME SAVED"); s->ui.ui_error_timer = 1.5f; } else { snprintf(s->ui.ui_error_msg, 128, "SAVE FAILED"); s->ui.ui_error_timer = 1.5f; } }
@@ -120,6 +134,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     break;
   case SDL_EVENT_KEY_UP:
     if (event->key.key == SDLK_LSHIFT || event->key.key == SDLK_RSHIFT) { s->input.shift_down = false; s->input.pending_input_type = INPUT_NONE; }
+    if (event->key.key == SDLK_LCTRL || event->key.key == SDLK_RCTRL) s->input.ctrl_down = false;
     if (event->key.key == SDLK_Q) s->input.key_q_down = false;
     if (event->key.key == SDLK_W) s->input.key_w_down = false;
     if (event->key.key == SDLK_E) s->input.key_e_down = false;
@@ -127,7 +142,10 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
     if (event->key.key == SDLK_A) s->input.key_a_down = false;
     if (event->key.key == SDLK_S) s->input.key_s_down = false;
     if (event->key.key == SDLK_D) s->input.key_d_down = false;
-    if (event->key.key == SDLK_Z) s->input.key_z_down = false;
-    break;
-  }
-}
+        if (event->key.key == SDLK_Z) s->input.key_z_down = false;
+        if (event->key.key == SDLK_X) s->input.key_x_down = false;
+        if (event->key.key == SDLK_C) s->input.key_c_down = false;
+        break;
+      }
+    }
+    

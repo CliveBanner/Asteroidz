@@ -20,6 +20,8 @@ typedef enum {
 typedef enum {
     UNIT_MOTHERSHIP,
     UNIT_SCOUT,
+    UNIT_MINER,
+    UNIT_FIGHTER,
     UNIT_TYPE_COUNT
 } UnitType;
 
@@ -32,6 +34,8 @@ typedef struct {
     float radius;
     float radar_range;
     float visual_scale;
+    float production_cost;
+    float production_time;
     
     // Weapon stats
     float main_cannon_damage;
@@ -103,6 +107,11 @@ typedef struct {
     Vec2 patrol_start[MAX_UNITS];
     bool patrolling_back[MAX_UNITS];
     TacticalBehavior behavior[MAX_UNITS];
+    
+    // Production
+    UnitType production_queue[MAX_UNITS][MAX_PRODUCTION_QUEUE];
+    int production_count[MAX_UNITS];
+    float production_timer[MAX_UNITS];
 } UnitPool;
 
 typedef struct {
@@ -172,6 +181,9 @@ typedef struct {
     bool box_active;
     Vec2 box_start;
     Vec2 box_current;
+
+    // Control Groups
+    bool group_members[10][MAX_UNITS]; // 1-9 are groups.
 } SelectionState;
 
 typedef struct {
@@ -183,7 +195,8 @@ typedef struct {
     bool show_grid;
     bool show_density;
     bool shift_down;
-    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down, key_z_down;
+    bool ctrl_down;
+    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down, key_z_down, key_x_down, key_c_down;
 } InputControlState;
 
 typedef struct {
@@ -212,6 +225,7 @@ typedef struct {
     SimAnchor sim_anchors[MAX_SIM_ANCHORS];
     int sim_anchor_count;
     float energy;
+    float stored_resources;
 } WorldState;
 
 typedef struct {
@@ -219,6 +233,9 @@ typedef struct {
     SDL_Texture *explosion_puff_texture;
     SDL_Texture *mothership_hull_texture;
     SDL_Texture *mothership_arm_texture;
+    SDL_Texture *miner_texture;
+    SDL_Texture *fighter_texture;
+    SDL_Texture *icon_textures[ICON_COUNT];
     SDL_Texture *planet_textures[PLANET_COUNT];
     SDL_Texture *galaxy_textures[GALAXY_COUNT];
     SDL_Texture *asteroid_textures[ASTEROID_TYPE_COUNT];
@@ -273,12 +290,23 @@ typedef struct {
 } ThreadState;
 
 typedef struct {
+    float val;
+    char label[32];
+    float life;
+} Transaction;
+
+typedef struct {
     float respawn_timer;
     Vec2 respawn_pos;
     float hold_flash_timer;
     float tactical_flash_timer;
     char ui_error_msg[128];
     float ui_error_timer;
+    int menu_state; // 0: Main, 1: Build
+    
+    Transaction transaction_log[MAX_LOGS];
+    float resource_accumulator;
+    float resource_log_timer;
 } UIState;
 
 typedef struct {
