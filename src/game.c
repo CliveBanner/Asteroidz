@@ -55,7 +55,7 @@ void SpawnCrystal(AppState *s, Vec2 pos, Vec2 vel_dir, float radius) {
                 ((float)(rand() % 100) / 50.0f - 1.0f) *
                 (ASTEROID_ROTATION_SPEED_FACTOR * 0.1f / radius); // Slow rotation
             s->world.resources.amount[i] = radius * CRYSTAL_VALUE_MULT;
-            s->world.resources.max_health[i] = radius * 5.0f; // 5 health per radius unit
+            s->world.resources.max_health[i] = radius * CRYSTAL_VALUE_MULT * 2.0f; // Increased health
             s->world.resources.health[i] = s->world.resources.max_health[i];
             s->world.resources.tex_idx[i] = rand() % CRYSTAL_COUNT;
             s->world.resources.active[i] = true;

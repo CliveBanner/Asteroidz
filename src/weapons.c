@@ -102,8 +102,9 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount)
     s->world.resources.health[resource_idx] -= amount;
     
     // Chance to split during mining
-    if (s->world.resources.radius[resource_idx] > 40.0f && ((float)rand() / (float)RAND_MAX) < 0.005f) { // 0.5% chance per tick
+    if (s->world.resources.radius[resource_idx] > CRYSTAL_SPLIT_THRESHOLD && ((float)rand() / (float)RAND_MAX) < 0.005f) { // 0.5% chance per tick
         Vec2 pos = s->world.resources.pos[resource_idx];
+        Vec2 old_vel = s->world.resources.velocity[resource_idx];
         float old_rad = s->world.resources.radius[resource_idx];
         float new_rad = old_rad * 0.6f;
         
@@ -111,14 +112,16 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount)
         s->world.resource_count--;
         
         // Explosion & Area Damage
-        Particles_SpawnExplosion(s, pos, 20, 1.0f, EXPLOSION_COLLISION, 0);
-        Physics_AreaDamage(s, pos, old_rad * 3.0f, old_rad * 2.0f, -1);
+        Particles_SpawnExplosion(s, pos, 30, 1.2f, EXPLOSION_COLLISION, 0);
+        Physics_AreaDamage(s, pos, old_rad * 3.5f, old_rad * 2.5f, -1);
         
-        // Spawn two smaller fragments
+        // Spawn two smaller fragments with increased velocity
         for (int f = 0; f < 2; f++) {
             float angle = ((float)rand() / (float)RAND_MAX) * 2.0f * 3.14159f;
             Vec2 off = {cosf(angle) * new_rad, sinf(angle) * new_rad};
-            SpawnCrystal(s, Vector_Add(pos, off), Vector_Normalize(off), new_rad);
+            // New velocity is old velocity + outward blast
+            Vec2 f_vel_dir = Vector_Normalize(Vector_Add(old_vel, Vector_Scale(Vector_Normalize(off), 200.0f)));
+            SpawnCrystal(s, Vector_Add(pos, off), f_vel_dir, new_rad);
         }
         return; // Crystal is gone
     }
@@ -126,7 +129,7 @@ void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount)
     // Scale down slower, proportional to health lost
     // Similar to asteroid logic: radius -= (damage / MULT) * 0.2
     s->world.resources.radius[resource_idx] -= (amount / 5.0f) * 0.15f; 
-    if (s->world.resources.radius[resource_idx] < 20.0f) s->world.resources.radius[resource_idx] = 20.0f;
+    if (s->world.resources.radius[resource_idx] < CRYSTAL_MIN_RADIUS) s->world.resources.radius[resource_idx] = CRYSTAL_MIN_RADIUS;
     
     if (s->world.resources.health[resource_idx] <= 0) {
         // Resource depleted
