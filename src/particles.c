@@ -24,10 +24,10 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
         s->world.particles.type[idx] = PARTICLE_SPARK;
         s->world.particles.pos[idx] = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 600 + 200) * capped_mult; 
+        float speed = (float)(rand() % 200 + 50) * capped_mult; // Reduced from 600+200
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.5f;
+        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.4f; // Reduced from 0.5f
         s->world.particles.size[idx] = (float)(rand() % 10 + 5) * capped_mult;
         s->world.particles.color[idx] = (SDL_Color){(Uint8)((base_col.r + 255)/2), (Uint8)((base_col.g + 220)/2), (Uint8)((base_col.b + 150)/2), 255};
         s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
@@ -39,10 +39,10 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
         s->world.particles.type[idx] = PARTICLE_PUFF;
         s->world.particles.pos[idx] = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 150 + 60) * capped_mult; 
+        float speed = (float)(rand() % 50 + 20) * capped_mult; // Reduced from 150+60
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.5f; 
+        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.4f; // Reduced from 0.5f
         s->world.particles.size[idx] = (float)(rand() % 120 + 60) * capped_mult;
         Uint8 v = (Uint8)(rand() % 40 + 80); 
         s->world.particles.color[idx] = (SDL_Color){v, (Uint8)(v * 0.8f), (Uint8)(v * 0.6f), 255};
@@ -57,10 +57,10 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
           s->world.particles.pos[idx] = pos;
           s->world.particles.tex_idx[idx] = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 250 + 80) * capped_mult; 
+          float speed = (float)(rand() % 80 + 20) * capped_mult; // Reduced from 250+80
           s->world.particles.velocity[idx].x = cosf(angle) * speed;
           s->world.particles.velocity[idx].y = sinf(angle) * speed;
-          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.35f; 
+          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.3f; // Reduced from 0.35f
           s->world.particles.size[idx] = (float)(rand() % 18 + 12) * chunky_mult;
           s->world.particles.rotation[idx] = (float)(rand() % 360);
           s->world.particles.color[idx] = base_col;
@@ -75,10 +75,10 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
           s->world.particles.pos[idx] = pos;
           s->world.particles.tex_idx[idx] = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 150 + 60) * capped_mult; 
+          float speed = (float)(rand() % 50 + 20) * capped_mult; // Reduced from 150+60
           s->world.particles.velocity[idx].x = cosf(angle) * speed;
           s->world.particles.velocity[idx].y = sinf(angle) * speed;
-          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.45f; 
+          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.4f; // Reduced from 0.45f
           s->world.particles.size[idx] = (float)(rand() % 45 + 35) * chunky_mult;
           s->world.particles.rotation[idx] = (float)(rand() % 360);
           s->world.particles.color[idx] = base_col;
@@ -91,7 +91,7 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
       s->world.particles.velocity[sw_idx] = (Vec2){0,0};
       s->world.particles.life[sw_idx] = 0.6f; 
       s->world.particles.size[sw_idx] = 100.0f * capped_mult;
-      s->world.particles.color[sw_idx] = (SDL_Color){255, 255, 200, 200}; 
+      s->world.particles.color[sw_idx] = (SDL_Color){255, 255, 200, 80}; // Alpha 200 -> 80
       s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
   } else {
       int puff_count = (int)(count * 0.7f * count_mult); 
@@ -101,10 +101,10 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
         s->world.particles.type[idx] = PARTICLE_PUFF;
         s->world.particles.pos[idx] = pos;
         float angle = (float)(rand() % 360) * 0.0174533f;
-        float speed = (float)(rand() % 200 + 40) * capped_mult; 
+        float speed = (float)(rand() % 100 + 20) * capped_mult; // Reduced from 200+40
         s->world.particles.velocity[idx].x = cosf(angle) * speed;
         s->world.particles.velocity[idx].y = sinf(angle) * speed;
-        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * (1.0f + 0.5f * (float)rand()/(float)RAND_MAX);
+        s->world.particles.life[idx] = PARTICLE_LIFE_BASE * (0.8f + 0.4f * (float)rand()/(float)RAND_MAX); // Reduced from 1.5+0.5
         s->world.particles.size[idx] = (float)(rand() % 150 + 80) * capped_mult;
         Uint8 v = (Uint8)(rand() % 40 + 60); 
         s->world.particles.color[idx] = (SDL_Color){v, (Uint8)(v * 0.95f), (Uint8)(v * 0.9f), 255};
@@ -119,10 +119,10 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
           s->world.particles.pos[idx] = pos;
           s->world.particles.tex_idx[idx] = rand() % DEBRIS_COUNT;
           float angle = (float)(rand() % 360) * 0.0174533f;
-          float speed = (float)(rand() % 200 + 80) * capped_mult; 
+          float speed = (float)(rand() % 100 + 40) * capped_mult; // Reduced from 200+80
           s->world.particles.velocity[idx].x = cosf(angle) * speed;
           s->world.particles.velocity[idx].y = sinf(angle) * speed;
-          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.8f; 
+          s->world.particles.life[idx] = PARTICLE_LIFE_BASE * 0.8f; // Reduced from 0.8f but check speed
           s->world.particles.size[idx] = (float)(rand() % 60 + 30) * chunky_mult;
           s->world.particles.rotation[idx] = (float)(rand() % 360);
           s->world.particles.color[idx] = base_col;
@@ -135,7 +135,7 @@ void Particles_SpawnExplosion(AppState *s, Vec2 pos, int count, float size_mult,
       s->world.particles.velocity[sw_idx] = (Vec2){0,0};
       s->world.particles.life[sw_idx] = 0.8f;
       s->world.particles.size[sw_idx] = (float)(80.0f * capped_mult); 
-      s->world.particles.color[sw_idx] = (SDL_Color){255, 255, 255, 150};
+      s->world.particles.color[sw_idx] = (SDL_Color){255, 255, 255, 60}; // Alpha 150 -> 60
       s->world.particle_next_idx = (s->world.particle_next_idx + 1) % MAX_PARTICLES;
   }
 }
