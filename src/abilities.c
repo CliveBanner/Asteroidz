@@ -93,10 +93,10 @@ static void HandleAutoAttacks(AppState *s, int idx) {
 void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
     if (!s->world.resources.active[resource_idx]) return;
 
-    if (s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
+    if (s->world.units.type[idx] == UNIT_MOTHERSHIP || s->world.units.current_cargo[idx] < s->world.units.stats[idx]->max_cargo) {
         float mining_rate = 100.0f; 
         float amount = mining_rate * dt;
-        if (s->world.units.current_cargo[idx] + amount > s->world.units.stats[idx]->max_cargo) {
+        if (s->world.units.type[idx] != UNIT_MOTHERSHIP && s->world.units.current_cargo[idx] + amount > s->world.units.stats[idx]->max_cargo) {
             amount = s->world.units.stats[idx]->max_cargo - s->world.units.current_cargo[idx];
         }
         if (amount > s->world.resources.health[resource_idx]) {
@@ -104,7 +104,12 @@ void Abilities_Mine(AppState *s, int idx, int resource_idx, float dt) {
         }
         if (amount > 0) {
             Weapons_MineCrystal(s, idx, resource_idx, amount);
-            s->world.units.current_cargo[idx] += amount;
+            if (s->world.units.type[idx] == UNIT_MOTHERSHIP) {
+                s->world.stored_resources += amount;
+                s->ui.resource_accumulator += amount;
+            } else {
+                s->world.units.current_cargo[idx] += amount;
+            }
         }
     }
 }
@@ -127,7 +132,8 @@ void Abilities_Update(AppState *s, int idx, float dt) {
                 float unload_rate = 500.0f; 
                 float amount = fminf(unload_rate * dt, s->world.units.current_cargo[idx]);
                 s->world.units.current_cargo[idx] -= amount;
-                s->world.energy += amount;
+                s->world.stored_resources += amount;
+                s->ui.resource_accumulator += amount;
             }
         }
     }

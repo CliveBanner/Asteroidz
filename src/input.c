@@ -108,7 +108,7 @@ void Input_ProcessEvent(AppState *s, SDL_Event *event) {
                 continue;
             }
             if (type == CMD_GATHER) {
-                if (s->world.units.current_cargo[i] >= s->world.units.stats[i]->max_cargo) {
+                if (s->world.units.type[i] != UNIT_MOTHERSHIP && s->world.units.current_cargo[i] >= s->world.units.stats[i]->max_cargo) {
                     UI_SetError(s, "CARGO FULL");
                     continue;
                 }
