@@ -160,19 +160,16 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
                 target_u = m_idx; // Protect Mothership
             } else if (s->world.units.behavior[i] == BEHAVIOR_OFFENSIVE) {
-                // Search and Destroy: Hunt nearest asteroid
-                int best_a = -1; float min_dsq = 1e15f;
-                for (int a = 0; a < MAX_ASTEROIDS; a++) {
-                    if (!s->world.asteroids.active[a]) continue;
-                    float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.asteroids.pos[a]);
-                    if (dsq < min_dsq) { min_dsq = dsq; best_a = a; }
+                // Protect nearest Miner
+                float min_dsq = 1e15f;
+                for (int u = 0; u < MAX_UNITS; u++) {
+                    if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MINER) {
+                        float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[u]);
+                        if (dsq < min_dsq) { min_dsq = dsq; target_u = u; }
+                    }
                 }
-                if (best_a != -1 && min_dsq < 10000.0f * 10000.0f) {
-                    s->world.units.command_queue[i][0] = (Command){.type = CMD_ATTACK_MOVE, .target_idx = best_a, .pos = s->world.asteroids.pos[best_a]};
-                    s->world.units.command_count[i] = 1;
-                    s->world.units.command_current_idx[i] = 0;
-                    s->world.units.has_target[i] = true;
-                }
+                // Fallback to Mothership if no Miners
+                if (target_u == -1) target_u = m_idx;
             }
 
             if (target_u != -1) {
@@ -197,7 +194,15 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
         if (s->world.units.type[i] == UNIT_FIGHTER) {
             int target_u = -1;
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE) target_u = m_idx;
-            // Removed BEHAVIOR_HOLD_GROUND from following logic
+            else if (s->world.units.behavior[i] == BEHAVIOR_OFFENSIVE) {
+                float min_dsq = 1e15f;
+                for (int u = 0; u < MAX_UNITS; u++) if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MINER) {
+                    float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[u]);
+                    if (dsq < min_dsq) { min_dsq = dsq; target_u = u; }
+                }
+                if (target_u == -1) target_u = m_idx;
+            }
+            
             if (target_u != -1) {
                 float shell_idx = (float)(i % 8);
                 float shell_depth = (float)(i / 8);
