@@ -504,10 +504,34 @@ static void Renderer_DrawUnits(SDL_Renderer *r, const AppState *s, int win_w, in
                       }
                   }
                   
-                  // 1. Repair Range Indicator (Miners) - Only when grid is active
-                  if (s->world.units.type[i] == UNIT_MINER && s->input.show_grid) {
-                      SDL_SetRenderDrawColor(r, 0, 255, 0, 15); // More transparent (25 -> 15)
-                      Utils_DrawCircle(r, sx_y.x, sx_y.y, 800.0f * s->camera.zoom, 32);
+                  // 1. Range Indicators (Scan Laser) - Only when grid is active
+                  if (s->input.show_grid) {
+                      float range = 0;
+                      SDL_Color col = {255, 255, 255, 255};
+                      if (s->world.units.type[i] == UNIT_MINER) {
+                          range = 800.0f; // Repair range
+                          col = (SDL_Color){100, 255, 100, 255};
+                      } else if (s->world.units.stats[i]->small_cannon_range > 0) {
+                          range = s->world.units.stats[i]->small_cannon_range;
+                          col = (SDL_Color){255, 100, 100, 255};
+                      }
+
+                      if (range > 0) {
+                          float r_px = range * s->camera.zoom;
+                          // Faint background circle
+                          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 40);
+                          Utils_DrawCircle(r, sx_y.x, sx_y.y, r_px, 64);
+                          
+                          // Rotating scan laser line
+                          float angle = s->current_time * 1.2f + (float)i * 0.5f; // Offset per unit
+                          float lx = sx_y.x + cosf(angle) * r_px;
+                          float ly = sx_y.y + sinf(angle) * r_px;
+                          SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 180);
+                          SDL_RenderLine(r, sx_y.x, sx_y.y, lx, ly);
+                          
+                          // Tiny point at the end of the laser
+                          SDL_RenderPoint(r, lx, ly);
+                      }
                   }
 
                   // 2. Status Bars for selected units
