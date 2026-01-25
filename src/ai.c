@@ -132,6 +132,9 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
                     Abilities_Repair(s, i, m_idx, dt);
                 }
             } else if (s->world.units.behavior[i] == BEHAVIOR_HOLD_GROUND) {
+                // Stay exactly where you are. Passive mining/repair is handled in abilities.c
+                // and doesn't require a command.
+            } else if (s->world.units.behavior[i] == BEHAVIOR_OFFENSIVE) {
                 // Spread out to mine (original logic)
                 if (s->world.units.current_cargo[i] >= s->world.units.stats[i]->max_cargo) {
                     s->world.units.command_queue[i][0] = (Command){.type = CMD_RETURN_CARGO};
@@ -156,13 +159,8 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
             int target_u = -1;
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE && m_idx != -1) {
                 target_u = m_idx; // Protect Mothership
-            } else if (s->world.units.behavior[i] == BEHAVIOR_HOLD_GROUND) {
-                // Protect nearest Miner
-                float min_dsq = 1e15f;
-                for (int u = 0; u < MAX_UNITS; u++) if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MINER) {
-                    float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[u]);
-                    if (dsq < min_dsq) { min_dsq = dsq; target_u = u; }
-                }
+            } else if (s->world.units.behavior[i] == BEHAVIOR_OFFENSIVE) {
+                // Future: add search-and-destroy logic?
             }
 
             if (target_u != -1) {
@@ -187,13 +185,7 @@ void AI_UpdateUnitMovement(AppState *s, int i, float dt) {
         if (s->world.units.type[i] == UNIT_FIGHTER) {
             int target_u = -1;
             if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE) target_u = m_idx;
-            else if (s->world.units.behavior[i] == BEHAVIOR_HOLD_GROUND) {
-                float min_dsq = 1e15f;
-                for (int u = 0; u < MAX_UNITS; u++) if (s->world.units.active[u] && s->world.units.type[u] == UNIT_MINER) {
-                    float dsq = Vector_DistanceSq(s->world.units.pos[i], s->world.units.pos[u]);
-                    if (dsq < min_dsq) { min_dsq = dsq; target_u = u; }
-                }
-            }
+            // Removed BEHAVIOR_HOLD_GROUND from following logic
             if (target_u != -1) {
                 float shell_idx = (float)(i % 8);
                 float shell_depth = (float)(i / 8);
