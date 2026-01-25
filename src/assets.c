@@ -363,7 +363,7 @@ void DrawDebrisToBuffer(Uint32 *pixels, int size, float seed) {
 
 void DrawIconToBuffer(Uint32 *pixels, int size, int type) {
     int center = size / 2;
-    float p_sz = size / 8.0f; // Large pixels for icons (8x8 grid)
+    float p_sz = size / 16.0f; // 16x16 grid for better detail
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             float qx = floorf(x / p_sz) * p_sz;
@@ -371,41 +371,64 @@ void DrawIconToBuffer(Uint32 *pixels, int size, int type) {
             float qdx = (qx + p_sz*0.5f - center) / (size/2.0f);
             float qdy = (qy + p_sz*0.5f - center) / (size/2.0f);
             float aqdx = fabsf(qdx), aqdy = fabsf(qdy);
+            
             bool fill = false;
+            Uint8 r = 255, g = 255, b = 255;
             
             if (type == ICON_MOVE) {
-                fill = (aqdx < 0.2f && qdy < 0.6f && qdy > -0.4f) || (qdy < -0.2f && aqdx < (0.8f + qdy));
+                fill = (aqdx < 0.15f && qdy < 0.6f && qdy > -0.4f) || (qdy < -0.2f && aqdx < (0.7f + qdy));
+                r = 100; g = 255; b = 100; // Green
             } else if (type == ICON_ATTACK) {
                 float dist = sqrtf(qdx*qdx + qdy*qdy);
-                fill = (dist > 0.5f && dist < 0.85f && (aqdx < 0.2f || aqdy < 0.2f)) || (dist < 0.25f);
+                fill = (dist > 0.6f && dist < 0.8f) || (aqdx < 0.1f && aqdy > 0.3f && aqdy < 0.9f) || (aqdy < 0.1f && aqdx > 0.3f && aqdx < 0.9f) || (dist < 0.15f);
+                r = 255; g = 80; b = 80; // Red
             } else if (type == ICON_PATROL) {
                 float dist = sqrtf(qdx*qdx + qdy*qdy);
-                fill = (dist > 0.45f && dist < 0.85f && !(qdx > 0.3f && qdy > -0.2f && qdy < 0.2f));
-                if (qdx > 0.4f && qdy > 0.0f && qdy < 0.5f) fill = true; 
+                fill = (dist > 0.5f && dist < 0.8f && !(qdx > 0.4f && qdy > -0.2f && qdy < 0.2f));
+                if (qdx > 0.4f && qdy > 0.1f && qdy < 0.6f) fill = true; 
+                r = 100; g = 150; b = 255; // Blue
             } else if (type == ICON_STOP) {
-                fill = (aqdx < 0.65f && aqdy < 0.65f);
+                fill = (aqdx < 0.6f && aqdy < 0.6f);
+                if (aqdx < 0.4f && aqdy < 0.4f) { r = 255; g = 100; b = 100; }
+                else { r = 200; g = 50; b = 50; } // Darker red border
             } else if (type == ICON_OFFENSIVE) {
-                fill = (aqdx < 0.25f && qdy > -0.8f && qdy < 0.5f) || (qdy > 0.5f && qdy < 0.8f && aqdx < 0.5f);
+                fill = (aqdx < 0.2f && qdy > -0.8f && qdy < 0.4f) || (qdy > 0.4f && qdy < 0.7f && aqdx < 0.5f);
+                r = 255; g = 150; b = 50; // Orange/Fire
             } else if (type == ICON_DEFENSIVE) {
-                fill = (qdy > -0.7f && qdy < 0.2f && aqdx < 0.7f) || (qdy >= 0.2f && qdy < 0.9f && aqdx < (0.7f - (qdy-0.2f)));
+                fill = (qdy > -0.7f && qdy < 0.2f && aqdx < 0.7f) || (qdy >= 0.2f && qdy < 0.8f && aqdx < (0.7f - (qdy-0.2f)));
+                r = 80; g = 200; b = 255; // Shield blue
             } else if (type == ICON_HOLD) {
-                fill = (aqdy < 0.4f && aqdx < 0.6f) || (qdy < -0.3f && aqdx < 0.3f);
+                fill = (aqdy < 0.4f && aqdx < 0.5f) || (qdy < -0.3f && aqdx < 0.3f);
+                r = 255; g = 230; b = 100; // Yellow hand
             } else if (type == ICON_MAIN_CANNON) {
                 float dist = sqrtf(qdx*qdx + qdy*qdy);
-                fill = (dist < 0.85f);
-                if (dist < 0.4f) fill = false;
+                fill = (dist < 0.8f);
+                if (dist < 0.4f) { r = 255; g = 255; b = 255; }
+                else { r = 200; g = 50; b = 255; } // Purple energy
             } else if (type == ICON_BACK) {
-                fill = (aqdy < 0.25f && qdx < 0.6f && qdx > -0.6f) || (qdx < -0.3f && aqdy < (0.7f + qdx));
+                fill = (aqdy < 0.2f && qdx < 0.6f && qdx > -0.6f) || (qdx < -0.3f && aqdy < (0.6f + qdx));
+                r = 180; g = 180; b = 180; // Gray
             } else if (type == ICON_GATHER) {
-                fill = (aqdy + aqdx < 0.9f);
+                fill = (aqdy + aqdx < 0.8f);
+                r = 100; g = 255; b = 220; // Cyan crystal
             } else if (type == ICON_RETURN) {
-                fill = (aqdx < 0.25f && qdy > -0.5f && qdy < 0.7f) || (qdy < -0.3f && aqdx < (0.8f + qdy));
+                fill = (aqdx < 0.2f && qdy > -0.5f && qdy < 0.7f) || (qdy < -0.3f && aqdx < (0.7f + qdy));
+                r = 150; g = 255; b = 150; // Light green return
             }
 
             if (fill) {
-                Uint8 r = 255, g = 255, b = 255;
-                // Add some subtle pixel-shading
-                if (fmodf(x, p_sz) > p_sz*0.7f || fmodf(y, p_sz) > p_sz*0.7f) { r = 200; g = 200; b = 200; }
+                // Better Shading: Darken edges of the "pixels"
+                float lx = fmodf(x, p_sz), ly = fmodf(y, p_sz);
+                float shade = 1.0f;
+                if (lx < 1.0f || ly < 1.0f) shade = 0.7f;
+                if (lx > p_sz - 2.0f || ly > p_sz - 2.0f) shade = 0.85f;
+                
+                // Central highlight
+                if (aqdx < 0.2f && aqdy < 0.2f) shade *= 1.2f;
+
+                r = (Uint8)SDL_clamp(r * shade, 0, 255);
+                g = (Uint8)SDL_clamp(g * shade, 0, 255);
+                b = (Uint8)SDL_clamp(b * shade, 0, 255);
                 pixels[y * size + x] = (255 << 24) | (b << 16) | (g << 8) | r;
             }
         }
