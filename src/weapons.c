@@ -2,6 +2,7 @@
 #include "game.h"
 #include "constants.h"
 #include "particles.h"
+#include "physics.h"
 #include "utils.h"
 #include <math.h>
 #include <stdlib.h>
@@ -100,6 +101,28 @@ void Weapons_Fire(AppState *s, int u_idx, int asteroid_idx, float damage, float 
 void Weapons_MineCrystal(AppState *s, int u_idx, int resource_idx, float amount) {
     s->world.resources.health[resource_idx] -= amount;
     
+    // Chance to split during mining
+    if (s->world.resources.radius[resource_idx] > 40.0f && ((float)rand() / (float)RAND_MAX) < 0.005f) { // 0.5% chance per tick
+        Vec2 pos = s->world.resources.pos[resource_idx];
+        float old_rad = s->world.resources.radius[resource_idx];
+        float new_rad = old_rad * 0.6f;
+        
+        s->world.resources.active[resource_idx] = false;
+        s->world.resource_count--;
+        
+        // Explosion & Area Damage
+        Particles_SpawnExplosion(s, pos, 20, 1.0f, EXPLOSION_COLLISION, 0);
+        Physics_AreaDamage(s, pos, old_rad * 3.0f, old_rad * 2.0f, -1);
+        
+        // Spawn two smaller fragments
+        for (int f = 0; f < 2; f++) {
+            float angle = ((float)rand() / (float)RAND_MAX) * 2.0f * 3.14159f;
+            Vec2 off = {cosf(angle) * new_rad, sinf(angle) * new_rad};
+            SpawnCrystal(s, Vector_Add(pos, off), Vector_Normalize(off), new_rad);
+        }
+        return; // Crystal is gone
+    }
+
     // Scale down slower, proportional to health lost
     // Similar to asteroid logic: radius -= (damage / MULT) * 0.2
     s->world.resources.radius[resource_idx] -= (amount / 5.0f) * 0.15f; 
