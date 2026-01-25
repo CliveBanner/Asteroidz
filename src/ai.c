@@ -8,7 +8,7 @@ int AI_UnitTargetingThread(void *data) {
   AppState *s = (AppState *)data;
   while (SDL_GetAtomicInt(&s->threads.bg_should_quit) == 0) {
     for (int i = 0; i < MAX_UNITS; i++) {
-        if (!s->world.units.active[i] || s->world.units.type[i] == UNIT_MOTHERSHIP) continue;
+        if (!s->world.units.active[i]) continue;
         int best_s[4] = {-1, -1, -1, -1};
         int manual_target = -1;
         
@@ -62,10 +62,12 @@ int AI_UnitTargetingThread(void *data) {
             if (!is_aggressive_cmd) {
                 if (s->world.units.behavior[i] == BEHAVIOR_DEFENSIVE) {
                     // Already set search_origin/range above for fighters
-                    // For miners, stay close logic is in movement, targeting remains same
+                    // For others, stay close logic is in movement, targeting remains same
                 }
                 else if (s->world.units.behavior[i] == BEHAVIOR_HOLD_GROUND) {
-                    if (s->world.units.type[i] == UNIT_MINER) max_search_range = 0; // Miners don't shoot in Hold Ground (focused on mining)
+                    // Act like a turret: still shoot at anything in range
+                    if (s->world.units.type[i] == UNIT_MINER) max_search_range = 0; // Miners focus on mining
+                    else max_search_range = s->world.units.stats[i]->small_cannon_range;
                 }
             }
 
