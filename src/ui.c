@@ -208,12 +208,12 @@ void UI_DrawHUD(AppState *s) {
         if (has_mothership) {
             float m_cd_pct = 0, m_cd_val = 0;
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP) { m_cd_pct = s->world.units.large_cannon_cooldown[i] / s->world.units.stats[i]->main_cannon_cooldown; m_cd_val = s->world.units.large_cannon_cooldown[i]; break; }
-            buttons[10] = (typeof(buttons[0])){ "Z", "MAIN C", s->textures.icon_textures[ICON_MAIN_CANNON], false, s->input.key_z_down, 2, 0, m_cd_pct, m_cd_val };
+            buttons[10] = (typeof(buttons[0])){ "Y", "MAIN C", s->textures.icon_textures[ICON_MAIN_CANNON], false, s->input.key_y_down, 2, 0, m_cd_pct, m_cd_val };
             buttons[11] = (typeof(buttons[0])){ "X", "BUILD", s->textures.miner_texture, false, s->input.key_x_down, 2, 1 };
         }
         if (has_miner) {
             // Merge Gather/Return into available slots
-            if (!has_mothership) buttons[10] = (typeof(buttons[0])){ "Z", "GATHER", s->textures.icon_textures[ICON_GATHER], false, s->input.key_z_down, 2, 0 };
+            if (!has_mothership) buttons[10] = (typeof(buttons[0])){ "Y", "GATHER", s->textures.icon_textures[ICON_GATHER], false, s->input.key_y_down, 2, 0 };
             buttons[12] = (typeof(buttons[0])){ "V", "RETURN", s->textures.icon_textures[ICON_RETURN], false, false, 2, 2 };
         }
     } else if (s->ui.menu_state == 1) {
@@ -222,7 +222,7 @@ void UI_DrawHUD(AppState *s) {
             for (int i = 0; i < MAX_UNITS; i++) if (s->world.units.active[i] && s->world.units.type[i] == UNIT_MOTHERSHIP && s->selection.unit_selected[i]) { active_mode = s->world.units.production_mode[i]; break; }
             buttons[0] = (typeof(buttons[0])){ "Q", "TGL MINR", s->textures.miner_texture, active_mode == UNIT_MINER, s->input.key_q_down, 0, 0 };
             buttons[1] = (typeof(buttons[0])){ "W", "TGL FGHT", s->textures.fighter_texture, active_mode == UNIT_FIGHTER, s->input.key_w_down, 0, 1 };
-            buttons[10] = (typeof(buttons[0])){ "Z", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_z_down, 2, 0 };
+            buttons[10] = (typeof(buttons[0])){ "Y", "BACK", s->textures.icon_textures[ICON_BACK], false, s->input.key_y_down, 2, 0 };
         }
     }
 

@@ -189,7 +189,7 @@ static void HandleRightClick(AppState *s, SDL_MouseButtonEvent *event) {
     else if (s->input.key_q_down) type = CMD_PATROL;
     else if (s->input.key_w_down) type = CMD_MOVE;
     else if (s->input.key_e_down) type = CMD_ATTACK_MOVE;
-    else if (s->input.key_z_down) type = CMD_MAIN_CANNON;
+    else if (s->input.key_y_down) type = CMD_MAIN_CANNON;
     // 3. Contextual defaults
     else if (s->input.hover_resource_idx != -1) {
         type = CMD_GATHER;
@@ -284,7 +284,6 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
         }
     }
 
-    // Command Keys
     if (key == SDLK_Q) {
         s->input.key_q_down = true;
         if (s->ui.menu_state == 1) {
@@ -320,7 +319,7 @@ void Input_HandleKeyDown(AppState *s, SDL_KeyboardEvent *event) {
         }
     }
     if (key == SDLK_E) { s->input.key_e_down = true; s->input.pending_cmd_type = CMD_ATTACK_MOVE; }
-    if (key == SDLK_Z) { s->input.key_z_down = true; s->input.pending_cmd_type = CMD_MAIN_CANNON; }
+    if (key == SDLK_Y) { s->input.key_y_down = true; s->input.pending_cmd_type = CMD_MAIN_CANNON; }
     
     if (key == SDLK_R) {
         s->input.key_r_down = true;
@@ -417,7 +416,7 @@ void Input_HandleKeyUp(AppState *s, SDL_KeyboardEvent *event) {
     if (key == SDLK_A) s->input.key_a_down = false;
     if (key == SDLK_S) s->input.key_s_down = false;
     if (key == SDLK_D) s->input.key_d_down = false;
-    if (key == SDLK_Z) s->input.key_z_down = false;
+    if (key == SDLK_Y) s->input.key_y_down = false;
     if (key == SDLK_X) s->input.key_x_down = false;
     if (key == SDLK_C) s->input.key_c_down = false;
 }

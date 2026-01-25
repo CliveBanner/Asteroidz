@@ -201,7 +201,7 @@ typedef struct {
     bool show_density;
     bool shift_down;
     bool ctrl_down;
-    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down, key_z_down, key_x_down, key_c_down;
+    bool key_q_down, key_w_down, key_e_down, key_r_down, key_a_down, key_s_down, key_d_down, key_y_down, key_x_down, key_c_down;
 } InputControlState;
 
 typedef struct {

@@ -28,7 +28,7 @@
     - **[F]**: Select Mothership.
     - **[X]**: Open/Close Build Menu (Mothership).
     - **[V]**: Return Cargo (Miners).
-    - **[Z]**: Main Cannon / Gather / Back.
+    - **[Y]**: Main Cannon / Gather / Back.
 - **Sticky Commands:** Unified the command logic to handle multi-unit selection more gracefully.
 
 ### 🎨 Visuals & HUD
